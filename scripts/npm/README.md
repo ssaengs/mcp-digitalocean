@@ -7,5 +7,5 @@ Wrapper script that runs the mcp server as a child process and pipes the output 
 ## Debugging
 
 ```
- DO_TOKEN=your_do_token npm run mcp-digitalocean
+ DIGITALOCEAN_API_TOKEN=your_do_token npm run mcp-digitalocean
 ```

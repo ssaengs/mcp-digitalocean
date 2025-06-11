@@ -2,12 +2,12 @@ package main
 
 import (
 	"log/slog"
-	registry "mcp-digitalocean/internal"
 	"os"
 
 	"github.com/digitalocean/godo"
-
 	"github.com/mark3labs/mcp-go/server"
+
+	registry "mcp-digitalocean/internal"
 )
 
 const (
