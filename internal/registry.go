@@ -1,123 +1,192 @@
-package registry
+package internal
 
 import (
-	"mcp-digitalocean/internal/resources"
-	"mcp-digitalocean/internal/tools"
+	"fmt"
+	"log/slog"
+	"mcp-digitalocean/internal/account"
+	"mcp-digitalocean/internal/droplet"
+	"strings"
+
+	"mcp-digitalocean/internal/apps"
+	"mcp-digitalocean/internal/networking"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func RegisterTools(s *server.MCPServer, c *godo.Client) {
-	s.AddTools(tools.NewDropletTool(c).Tools()...)
-	s.AddTools(tools.NewCDNTool(c).Tools()...)
-	s.AddTools(tools.NewCertificateTool(c).Tools()...)
-	s.AddTools(tools.NewDomainsTool(c).Tools()...)
-	s.AddTools(tools.NewFirewallTool(c).Tools()...)
-	s.AddTools(tools.NewKeysTool(c).Tools()...)
-	s.AddTools(tools.NewReservedIPTool(c).Tools()...)
-	s.AddTools(tools.NewPartnerAttachmentTool(c).Tools()...)
-	s.AddTools(tools.NewVPCTool(c).Tools()...)
+// supportedServices is a set of services that we support in this MCP server.
+var supportedServices = map[string]struct{}{
+	"apps":       {},
+	"networking": {},
+	"droplets":   {},
+	"accounts":   {},
 }
 
-func RegisterResources(s *server.MCPServer, c *godo.Client) {
-	// Register droplet resource and resource templates
-	dropletResource := resources.NewDropletMCPResource(c)
-	for template, handler := range dropletResource.ResourceTemplates() {
-		s.AddResourceTemplate(template, handler)
+// registerAppTools registers the app platform tools with the MCP server.
+func registerAppTools(s *server.MCPServer, c *godo.Client) error {
+	appTools, err := apps.NewAppPlatformTool(c)
+	if err != nil {
+		return fmt.Errorf("failed to create apps tool: %w", err)
 	}
 
-	// Register sizes resource
-	sizesResource := resources.NewSizesMCPResource(c)
-	for resource, handler := range sizesResource.Resources() {
-		s.AddResource(resource, handler)
-	}
+	s.AddTools(appTools.Tools()...)
 
-	// Register images resources and templates
-	imageResource := resources.NewImagesMCPResource(c)
+	return nil
+}
+
+// registerDropletTools registers the tools and resources for droplets with the MCP server.
+func registerDropletTools(s *server.MCPServer, c *godo.Client) error {
+	// Register the tools and resources for droplets
+	s.AddTools(droplet.NewDropletTool(c).Tools()...)
+
+	// Register the resources for droplets
+	imageResource := droplet.NewImagesMCPResource(c)
 	for resource, handler := range imageResource.Resources() {
 		s.AddResource(resource, handler)
 	}
 	for template, handler := range imageResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
-
-	// Register account resource
-	for resource, handler := range resources.NewAccountMCPResource(c).Resources() {
+	sizesResource := droplet.NewSizesMCPResource(c)
+	for resource, handler := range sizesResource.Resources() {
 		s.AddResource(resource, handler)
 	}
-
-	// Register action resource
-	for template, handler := range resources.NewActionMCPResource(c).Resources() {
+	dropletResource := droplet.NewDropletMCPResource(c)
+	for template, handler := range dropletResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
-	// Register balance resource
-	for resource, handler := range resources.NewBalanceMCPResource(c).Resources() {
-		s.AddResource(resource, handler)
-	}
+	return nil
+}
 
-	// Register billing resource
-	for template, handler := range resources.NewBillingMCPResource(c).ResourceTemplates() {
-		s.AddResourceTemplate(template, handler)
-	}
+// registerNetworkingTools registers the networking tools and resources with the MCP server.
+func registerNetworkingTools(s *server.MCPServer, c *godo.Client) error {
+	s.AddTools(networking.NewCDNTool(c).Tools()...)
+	s.AddTools(networking.NewCertificateTool(c).Tools()...)
+	s.AddTools(networking.NewDomainsTool(c).Tools()...)
+	s.AddTools(networking.NewFirewallTool(c).Tools()...)
+	s.AddTools(networking.NewKeysTool(c).Tools()...)
+	s.AddTools(networking.NewReservedIPTool(c).Tools()...)
+	s.AddTools(networking.NewPartnerAttachmentTool(c).Tools()...)
+	s.AddTools(networking.NewVPCTool(c).Tools()...)
 
-	// Register CDN resource and resource templates
-	cdnResource := resources.NewCDNResource(c)
+	// Register the resources for networking
+	cdnResource := networking.NewCDNResource(c)
 	for template, handler := range cdnResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
 	// Register certificate resource and resource templates
-	certificateResource := resources.NewCertificateMCPResource(c)
+	certificateResource := networking.NewCertificateMCPResource(c)
 	for template, handler := range certificateResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
 	// Register domains resource
-	domainsResource := resources.NewDomainsMCPResource(c)
+	domainsResource := networking.NewDomainsMCPResource(c)
 	for template, handler := range domainsResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
 	// Register firewall resource
-	firewallResource := resources.NewFirewallMCPResource(c)
+	firewallResource := networking.NewFirewallMCPResource(c)
 	for template, handler := range firewallResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
 	// Register keys resource
-	keysResource := resources.NewKeysMCPResource(c)
+	keysResource := networking.NewKeysMCPResource(c)
 	for template, handler := range keysResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
 	// Register regions resource
-	regionsResource := resources.NewRegionsMCPResource(c)
+	regionsResource := networking.NewRegionsMCPResource(c)
 	for resource, handler := range regionsResource.Resources() {
 		s.AddResource(resource, handler)
 	}
 
 	// Register reserved IP resources
-	reservedIPResource := resources.NewReservedIPResource(c)
+	reservedIPResource := networking.NewReservedIPResource(c)
 	for template, handler := range reservedIPResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
-	partnerAttachmentResource := resources.NewPartnerAttachmentMCPResource(c)
+	partnerAttachmentResource := networking.NewPartnerAttachmentMCPResource(c)
 	for template, handler := range partnerAttachmentResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
 
-	// Register invoices resource
-	invoicesResource := resources.NewInvoicesMCPResource(c)
-	for resource, handler := range invoicesResource.Resources() {
-		s.AddResource(resource, handler)
-	}
-
 	// Register VPC resource
-	vpcResource := resources.NewVPCMCPResource(c)
+	vpcResource := networking.NewVPCMCPResource(c)
 	for template, handler := range vpcResource.ResourceTemplates() {
 		s.AddResourceTemplate(template, handler)
 	}
+
+	return nil
+}
+
+// registerAccountTools account resource and resource templates
+func registerAccountTools(s *server.MCPServer, c *godo.Client) error {
+
+	invoicesResource := account.NewInvoicesMCPResource(c)
+	for resource, handler := range invoicesResource.Resources() {
+		s.AddResource(resource, handler)
+	}
+	for resource, handler := range account.NewAccountMCPResource(c).Resources() {
+		s.AddResource(resource, handler)
+	}
+	for resource, handler := range account.NewBalanceMCPResource(c).Resources() {
+		s.AddResource(resource, handler)
+	}
+	for template, handler := range account.NewBillingMCPResource(c).ResourceTemplates() {
+		s.AddResourceTemplate(template, handler)
+	}
+	// Register action resource
+	for template, handler := range account.NewActionMCPResource(c).Resources() {
+		s.AddResourceTemplate(template, handler)
+	}
+
+	return nil
+}
+
+func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, servicesToActivate ...string) error {
+	// TODO: for now, we bail out. However we might want to support a default set of tools if none are specified.
+	if len(servicesToActivate) == 0 {
+		return fmt.Errorf("at least one service must be specified to activate")
+	}
+	for _, svc := range servicesToActivate {
+		logger.Debug(fmt.Sprintf("Registering tool and resources for service: %s", svc))
+		switch svc {
+		case "apps":
+			if err := registerAppTools(s, c); err != nil {
+				return fmt.Errorf("failed to register app tools: %w", err)
+			}
+		case "networking":
+			if err := registerNetworkingTools(s, c); err != nil {
+				return fmt.Errorf("failed to register networking tools: %w", err)
+			}
+		case "droplets":
+			if err := registerDropletTools(s, c); err != nil {
+				return fmt.Errorf("failed to register droplets tool: %w", err)
+			}
+		case "accounts":
+			if err := registerAccountTools(s, c); err != nil {
+				return fmt.Errorf("failed to register account tools: %w", err)
+			}
+		default:
+			return fmt.Errorf("unsupported service: %s, supported service are: %v", svc, setToString(supportedServices))
+		}
+	}
+
+	return nil
+}
+
+func setToString(set map[string]struct{}) string {
+	var result []string
+	for key := range set {
+		result = append(result, key)
+	}
+
+	return strings.Join(result, ",")
 }

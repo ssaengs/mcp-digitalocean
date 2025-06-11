@@ -4,110 +4,91 @@ MCP DigitalOcean Integration is an open-source project that provides a comprehen
 
 > DISCLAIMER: “Use of MCP technology to interact with your DigitalOcean account [can come with risks](https://www.wiz.io/blog/mcp-security-research-briefing)”
 
-## Features
-
-### Resources
-
-Resources provide read-only access to DigitalOcean entities, allowing users to retrieve detailed information about their infrastructure. The following resources are supported:
-
-| **Resource**            | **Description**                                                                 |
-|--------------------------|---------------------------------------------------------------------------------|
-| **Droplets**             | Retrieve details about droplets, including actions and neighbors.              |
-| **Sizes**                | List all available droplet sizes.                                              |
-| **Account**              | Fetch account information.                                                     |
-| **Balance**              | View current account balance.                                                  |
-| **Billing**              | Access billing history.                                                        |
-| **Invoices**             | Retrieve a list of all invoices.                                               |
-| **Actions**              | Get details about specific actions.                                            |
-| **Images**               | Retrieve information about distribution images or specific images.             |
-| **CDNs**                 | Fetch details about CDN configurations.                                        |
-| **Certificates**         | Retrieve certificate details.                                                  |
-| **Domains**              | Access domain and domain record information.                                   |
-| **Firewalls**            | Get details about firewalls.                                                   |
-| **SSH Keys**             | Retrieve information about SSH keys.                                           |
-| **Regions**              | List all available regions.                                                    |
-| **Reserved IPs**         | Fetch details about reserved IPv4 and IPv6 addresses.                          |
-| **Partner Attachments**  | Retrieve partner attachment details.                                           |
-| **VPCs**                 | Get information about Virtual Private Clouds (VPCs).                          |
-
-### Tools
-
-Tools provide actionable capabilities for managing DigitalOcean resources. These tools are grouped by resource type and allow users to perform various operations. Below is an overview of the supported tools:
-
-#### Droplet Tools
-- Create, delete, resize, and rename droplets.
-- Power on/off, reboot, and snapshot droplets.
-- Manage backups, private networking, and IPv6.
-
-#### CDN Tools
-- Create and delete CDNs.
-- Flush CDN caches.
-
-#### Certificate Tools
-- Create and delete certificates.
-- Retrieve certificate details.
-
-#### Domain Tools
-- Create and delete domains.
-- Manage domain records (create, edit, delete).
-
-#### Firewall Tools
-- Create and delete firewalls.
-- Configure inbound and outbound rules.
-
-#### SSH Key Tools
-- Create and delete SSH keys.
-
-#### Reserved IP Tools
-- Reserve and release IPv4/IPv6 addresses.
-- Assign and unassign reserved IPs to/from droplets.
-
-#### Partner Attachment Tools
-- Create, update, and delete partner attachments.
-- Retrieve service keys and BGP configurations.
-
-#### VPC Tools
-- Create and delete VPCs.
-- List VPC members.
-
----
-
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-repo/mcp-digitalocean.git
-   cd mcp-digitalocean
-   ```
+Prerequisites:
 
-2. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
+- Node.js (v18 or later)
+- NPM (v8 or later)
 
-3. Build the project:
-   ```bash
-   make build-bin
-   ```
+### Local Installation
+
+```bash
+npx @digitalocean/mcp-digitalocean --services apps,droplets --log-level debug
+```
+
+### Using Cursor IDE
+
+```json
+{
+  "mcpServers": {
+    "digitalocean": {
+      "command": "npx",
+      "args": ["@digitalocean/mcp-digitalocean", "--services apps"],
+      "env": {
+        "DIGITALOCEAN_API_TOKEN": "YOUR_API_TOKEN"
+      }
+    }
+  }
+}
+```
+
+### Using VSCode
+```json
+{
+    "mcp": {
+        "inputs": [],
+        "servers": {
+            "mcpDigitalOcean": {
+                "command": "npx",
+                "args": [
+                    "@digitalocean/mcp-digitalocean",
+                    "--services",
+                    "apps"
+                ],
+                "env": {
+                    "DIGITALOCEAN_API_TOKEN": "YOUR_API_TOKEN"    
+                }
+            }
+        }
+    }
+}
+```
+
+### Supported Services
+
+The MCP DigitalOcean Integration supports a variety of services, allowing users to manage their DigitalOcean infrastructure effectively. The following services are currently supported:
+
+| **Service**    | **Description**                                                                                                     |
+|----------------|---------------------------------------------------------------------------------------------------------------------|
+| **Apps**       | Manage DigitalOcean App Platform applications, including deployments and configurations.                            |
+| **Droplets**   | Create, manage, and monitor droplets (virtual machines) on DigitalOcean.                                            |
+| **Account**    | Get information about your DigitalOcean account.                                                                    |
+| **Networking** | Secure and control the traffic to your applications with private networking, traffic filtering, and load balancing. |
+
+### Service Tools
+
+Each service provides a toolset to interact with DigitalOcean.
+
+| **Service**    | **Tools**                                                                                            |
+|----------------|------------------------------------------------------------------------------------------------------|
+| **Account**    | `get-account-info`, `get-account-balance`, `get-account-usage`                                       |
+| **Apps**       | `create-app`, `get-app-info`, `update-app`, `delete-app`, `get-app-usage`, `list-apps`, `deploy-app` |
+| **Droplets**   |                                                                                                      |
+| **Networking** |                                                                                                      |
 
 ---
 
-## Usage
+## Configuring Tools
 
-1. Set up your DigitalOcean API token:
-   ```bash
-   export DO_TOKEN=your_token
-   ```
+To configure tools, you use the `--services` flag to specify which service you want to enable. It is highly recommended to only
+enable the services you need to reduce context size and improve accuracy.
 
-2. Run the MCP server:
-   ```bash
-   ./bin/mcp-digitalocean
-   ```
-
-3. Use the tools and resources to interact with your DigitalOcean infrastructure.
+```bash
+npx @digitalocean/mcp-digitalocean --services apps,droplets 
+```
 
 ---
-
 ## Contributing
 
 Contributions are welcome! If you encounter any issues or have ideas for improvements, feel free to open an issue or submit a pull request.
