@@ -23,7 +23,7 @@ function runExecutable(args = []) {
         console.log('Detected architecture:', arch)
 
         const binKey = `mcp-digitalocean-${platform}-${arch}`;
-        const execName = packageJson.bin[binKey]
+        const execName = packageJson["mcp-server-binaries"][binKey]
         console.error('Found executable in package.json:', execName.toString())
 
         // The platform-specific executable should be in the same folder

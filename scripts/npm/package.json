@@ -10,6 +10,10 @@
     "mcp",
     "model-context-protocol"
   ],
+  "bin": "./index.js",
+  "scripts": {
+    "mcp-golang": "node ./index.js"
+  },
   "bugs": {
     "url": "https://github.com/ssaengs/mcp-digitalocean?tab=readme-ov-file#mcp-digitalocean-integration"
   },
@@ -20,11 +24,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "scripts": {
-    "mcp-digitalocean": "node index.js"
-  },
-  "main": "./index.js",
-  "bin": {
+  "mcp-server-binaries": {
     "mcp-digitalocean-darwin-arm64": "./dist/mcp-digitalocean-darwin-amd64",
     "mcp-digitalocean-darwin-amd64": "./dist/mcp-digitalocean-darwin-amd64",
     "mcp-digitalocean-linux-arm64": "./dist/mcp-digitalocean-linux-amd64",
