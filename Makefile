@@ -3,9 +3,14 @@ all: lint build test
 build:
 	go build ./...
 
-
 build-bin:
-	go build -o bin/mcp-digitalocean ./cmd/mcp-digitalocean/main.go 
+	GOOS=darwin GOARCH=arm64 go build -o bin/mcp-digitalocean-darwin-arm64 ./cmd/mcp-digitalocean/main.go
+	GOOS=darwin GOARCH=amd64 go build -o bin/mcp-digitalocean-darwin-amd64 ./cmd/mcp-digitalocean/main.go
+	GOOS=linux GOARCH=arm64 go build -o bin/mcp-digitalocean-linux-arm64 ./cmd/mcp-digitalocean/main.go
+	GOOS=linux GOARCH=amd64 go build -o bin/mcp-digitalocean-linux-amd64 ./cmd/mcp-digitalocean/main.go
+	GOOS=windows GOARCH=amd64 go build -o bin/mcp-digitalocean-windows-amd64.exe ./cmd/mcp-digitalocean/main.go
+	GOOS=windows GOARCH=386 go build -o bin/mcp-digitalocean-windows-386.exe ./cmd/mcp-digitalocean/main.go
+	cp ./bin/* ./scripts/npm/dist/
 
 lint:
 	revive -config revive.toml ./...
