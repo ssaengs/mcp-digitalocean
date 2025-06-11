@@ -17,9 +17,9 @@ const (
 
 func main() {
 	// Read OAUTH token from environment
-	token := os.Getenv("DO_TOKEN")
+	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
 	if token == "" {
-		slog.Error("DO_TOKEN environment variable is not set")
+		slog.Error("DIGITALOCEAN_API_TOKEN environment variable is not set")
 		os.Exit(1)
 	}
 
