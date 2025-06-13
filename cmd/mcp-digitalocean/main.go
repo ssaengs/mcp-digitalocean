@@ -21,7 +21,7 @@ const (
 
 func main() {
 	logLevelFlag := flag.String("log-level", "info", "Log level: debug, info, warn, error")
-	serviceFlag := flag.String("service", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
+	serviceFlag := flag.String("services", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
 	flag.Parse()
 
 	var level slog.Level
