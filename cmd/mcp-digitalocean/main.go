@@ -55,6 +55,7 @@ func main() {
 	err := registry.Register(logger, s, client, services...)
 	if err != nil {
 		logger.Error("Failed to register tools: " + err.Error())
+		os.Exit(1)
 	}
 
 	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
