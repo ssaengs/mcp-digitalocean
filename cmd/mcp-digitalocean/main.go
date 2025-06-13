@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"flag"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
 
-	registry "mcp-digitalocean/internal"
+	registry "mcp-digitalocean/internal/common"
 )
 
 const (
@@ -16,24 +20,53 @@ const (
 )
 
 func main() {
-	// Read OAUTH token from environment
+	logLevelFlag := flag.String("log-level", "info", "Log level: debug, info, warn, error")
+	serviceFlag := flag.String("service", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
+	flag.Parse()
+
+	var level slog.Level
+	switch strings.ToLower(*logLevelFlag) {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn", "warning":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
 	if token == "" {
-		slog.Error("DIGITALOCEAN_API_TOKEN environment variable is not set")
-		os.Exit(1)
+		logger.Error("DIGITALOCEAN_API_TOKEN environment variable is not set")
+	}
+
+	var services []string
+	if *serviceFlag != "" {
+		services = strings.Split(*serviceFlag, ",")
 	}
 
 	client := godo.NewFromToken(token)
 	s := server.NewMCPServer(mcpName, mcpVersion)
 
-	// Register the tools and resources
-	registry.RegisterTools(s, client)
-	registry.RegisterResources(s, client)
-
-	// Start the stdio server
-	if err := server.ServeStdio(s); err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
+	err := registry.Register(logger, s, client, services...)
+	if err != nil {
+		logger.Error("Failed to register tools: " + err.Error())
 	}
 
+	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
+	err = server.ServeStdio(s)
+	if err != nil {
+		// if context cancelled or sigterm then shutdown gracefully
+		if errors.Is(err, context.Canceled) {
+			logger.Info("Server shutdown gracefully")
+			os.Exit(0)
+		} else {
+			logger.Error("Failed to serve MCP server: " + err.Error())
+			os.Exit(1)
+		}
+	}
 }
