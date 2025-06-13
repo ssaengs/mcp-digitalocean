@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
@@ -19,6 +20,14 @@ var supportedServices = map[string]struct{}{
 	"accounts":   {},
 }
 
+func setToString(set map[string]struct{}) string {
+	var result []string
+	for key := range set {
+		result = append(result, key)
+	}
+	return strings.Join(result, ",")
+}
+
 func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, servicesToActivate ...string) error {
 	// There's got to be at least one service.
 	if len(servicesToActivate) == 0 {
@@ -27,7 +36,7 @@ func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, services
 
 	for _, svc := range servicesToActivate {
 		if _, ok := supportedServices[svc]; !ok {
-			return fmt.Errorf("unsupported tool: %s, supported tools are: %v", svc, supportedServices)
+			return fmt.Errorf("unsupported tool: %s, supported tools are: %v", svc, setToString(supportedServices))
 		}
 
 		logger.Debug(fmt.Sprintf("Registering tool and resources for service: %s", svc))
