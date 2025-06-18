@@ -4,7 +4,7 @@ This directory contains tools for the App Platform MCP Server. These tools are u
 
 ## Supported Tools
 
-- `create-app-from-git`: Create an App Platform app from a Git repository.
+- `create-app`: Create an App Platform app from a Git repository.
 - `get-app-info`: Get information about an App Platform app.
 - `update-app`: Update an App Platform app.
 - `delete-app`: Delete an App Platform app.

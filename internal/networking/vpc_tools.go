@@ -1,4 +1,4 @@
-package tools
+package networking
 
 import (
 	"context"
@@ -23,8 +23,8 @@ func NewVPCTool(client *godo.Client) *VPCTool {
 
 // CreateVPC creates a new VPC
 func (v *VPCTool) CreateVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	name := req.Params.Arguments["Name"].(string)
-	region := req.Params.Arguments["Region"].(string)
+	name := req.GetArguments()["Name"].(string)
+	region := req.GetArguments()["Region"].(string)
 
 	createRequest := &godo.VPCCreateRequest{
 		Name:       name,
@@ -46,7 +46,7 @@ func (v *VPCTool) CreateVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 // ListVPCMembers lists members of a VPC
 func (v *VPCTool) ListVPCMembers(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	vpcID := req.Params.Arguments["ID"].(string)
+	vpcID := req.GetArguments()["ID"].(string)
 
 	members, _, err := v.client.VPCs.ListMembers(ctx, vpcID, nil, nil)
 	if err != nil {
@@ -63,7 +63,7 @@ func (v *VPCTool) ListVPCMembers(ctx context.Context, req mcp.CallToolRequest) (
 
 // DeleteVPC deletes a VPC
 func (v *VPCTool) DeleteVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	vpcID := req.Params.Arguments["ID"].(string)
+	vpcID := req.GetArguments()["ID"].(string)
 
 	_, err := v.client.VPCs.Delete(ctx, vpcID)
 	if err != nil {

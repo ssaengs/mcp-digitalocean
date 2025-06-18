@@ -1,4 +1,4 @@
-package tools
+package networking
 
 import (
 	"context"
@@ -23,15 +23,15 @@ func NewFirewallTool(client *godo.Client) *FirewallTool {
 
 // CreateFirewall creates a new firewall
 func (f *FirewallTool) CreateFirewall(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	name := req.Params.Arguments["Name"].(string)
-	inboundProtocol := req.Params.Arguments["InboundProtocol"].(string)
-	inboundPortRange := req.Params.Arguments["InboundPortRange"].(string)
-	inboundSource := req.Params.Arguments["InboundSource"].(string)
-	outboundProtocol := req.Params.Arguments["OutboundProtocol"].(string)
-	outboundPortRange := req.Params.Arguments["OutboundPortRange"].(string)
-	outboundDestination := req.Params.Arguments["OutboundDestination"].(string)
-	dropletIDs := req.Params.Arguments["DropletIDs"].([]float64)
-	tags := req.Params.Arguments["Tags"].([]string)
+	name := req.GetArguments()["Name"].(string)
+	inboundProtocol := req.GetArguments()["InboundProtocol"].(string)
+	inboundPortRange := req.GetArguments()["InboundPortRange"].(string)
+	inboundSource := req.GetArguments()["InboundSource"].(string)
+	outboundProtocol := req.GetArguments()["OutboundProtocol"].(string)
+	outboundPortRange := req.GetArguments()["OutboundPortRange"].(string)
+	outboundDestination := req.GetArguments()["OutboundDestination"].(string)
+	dropletIDs := req.GetArguments()["DropletIDs"].([]float64)
+	tags := req.GetArguments()["Tags"].([]string)
 
 	dIDs := make([]int, len(dropletIDs))
 	for i, v := range dropletIDs {
@@ -73,7 +73,7 @@ func (f *FirewallTool) CreateFirewall(ctx context.Context, req mcp.CallToolReque
 
 // DeleteFirewall deletes a firewall
 func (f *FirewallTool) DeleteFirewall(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	firewallID := req.Params.Arguments["ID"].(string)
+	firewallID := req.GetArguments()["ID"].(string)
 	_, err := f.client.Firewalls.Delete(ctx, firewallID)
 	if err != nil {
 		return nil, err

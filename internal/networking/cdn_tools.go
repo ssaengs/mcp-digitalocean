@@ -1,4 +1,4 @@
-package tools
+package networking
 
 import (
 	"context"
@@ -23,9 +23,9 @@ func NewCDNTool(client *godo.Client) *CDNTool {
 
 // CreateCDN creates a new CDN
 func (c *CDNTool) CreateCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	origin := req.Params.Arguments["Origin"].(string)
-	ttl := uint32(req.Params.Arguments["TTL"].(float64))
-	customDomain, _ := req.Params.Arguments["CustomDomain"].(string)
+	origin := req.GetArguments()["Origin"].(string)
+	ttl := uint32(req.GetArguments()["TTL"].(float64))
+	customDomain, _ := req.GetArguments()["CustomDomain"].(string)
 
 	createRequest := &godo.CDNCreateRequest{
 		Origin:       origin,
@@ -48,7 +48,7 @@ func (c *CDNTool) CreateCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 // DeleteCDN deletes a CDN
 func (c *CDNTool) DeleteCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	cdnID := req.Params.Arguments["ID"].(string)
+	cdnID := req.GetArguments()["ID"].(string)
 	_, err := c.client.CDNs.Delete(ctx, cdnID)
 	if err != nil {
 		return nil, err
@@ -59,8 +59,8 @@ func (c *CDNTool) DeleteCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 // FlushCDNCache flushes the cache of a CDN
 func (c *CDNTool) FlushCDNCache(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	cdnID := req.Params.Arguments["ID"].(string)
-	files := req.Params.Arguments["Files"].([]string)
+	cdnID := req.GetArguments()["ID"].(string)
+	files := req.GetArguments()["Files"].([]string)
 
 	flushRequest := &godo.CDNFlushCacheRequest{
 		Files: files,

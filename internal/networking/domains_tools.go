@@ -1,4 +1,4 @@
-package tools
+package networking
 
 import (
 	"context"
@@ -20,8 +20,8 @@ func NewDomainsTool(client *godo.Client) *DomainsTool {
 }
 
 func (d *DomainsTool) CreateDomain(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	name := req.Params.Arguments["Name"].(string)
-	ipAddress := req.Params.Arguments["IPAddress"].(string)
+	name := req.GetArguments()["Name"].(string)
+	ipAddress := req.GetArguments()["IPAddress"].(string)
 
 	createRequest := &godo.DomainCreateRequest{
 		Name:      name,
@@ -42,7 +42,7 @@ func (d *DomainsTool) CreateDomain(ctx context.Context, req mcp.CallToolRequest)
 }
 
 func (d *DomainsTool) DeleteDomain(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	name := req.Params.Arguments["Name"].(string)
+	name := req.GetArguments()["Name"].(string)
 
 	_, err := d.client.Domains.Delete(ctx, name)
 	if err != nil {
@@ -53,10 +53,10 @@ func (d *DomainsTool) DeleteDomain(ctx context.Context, req mcp.CallToolRequest)
 }
 
 func (d *DomainsTool) CreateRecord(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	domain := req.Params.Arguments["Domain"].(string)
-	recordType := req.Params.Arguments["Type"].(string)
-	name := req.Params.Arguments["Name"].(string)
-	data := req.Params.Arguments["Data"].(string)
+	domain := req.GetArguments()["Domain"].(string)
+	recordType := req.GetArguments()["Type"].(string)
+	name := req.GetArguments()["Name"].(string)
+	data := req.GetArguments()["Data"].(string)
 
 	createRequest := &godo.DomainRecordEditRequest{
 		Type: recordType,
@@ -78,8 +78,8 @@ func (d *DomainsTool) CreateRecord(ctx context.Context, req mcp.CallToolRequest)
 }
 
 func (d *DomainsTool) DeleteRecord(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	domain := req.Params.Arguments["Domain"].(string)
-	recordID := int(req.Params.Arguments["RecordID"].(float64))
+	domain := req.GetArguments()["Domain"].(string)
+	recordID := int(req.GetArguments()["RecordID"].(float64))
 
 	_, err := d.client.Domains.DeleteRecord(ctx, domain, recordID)
 	if err != nil {
@@ -90,11 +90,11 @@ func (d *DomainsTool) DeleteRecord(ctx context.Context, req mcp.CallToolRequest)
 }
 
 func (d *DomainsTool) EditRecord(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	domain := req.Params.Arguments["Domain"].(string)
-	recordID := int(req.Params.Arguments["RecordID"].(float64))
-	recordType := req.Params.Arguments["Type"].(string)
-	name := req.Params.Arguments["Name"].(string)
-	data := req.Params.Arguments["Data"].(string)
+	domain := req.GetArguments()["Domain"].(string)
+	recordID := int(req.GetArguments()["RecordID"].(float64))
+	recordType := req.GetArguments()["Type"].(string)
+	name := req.GetArguments()["Name"].(string)
+	data := req.GetArguments()["Data"].(string)
 
 	editRequest := &godo.DomainRecordEditRequest{
 		Type: recordType,
