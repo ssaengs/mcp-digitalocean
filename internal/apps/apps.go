@@ -4,75 +4,59 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+
+	"path/filepath"
 
 	"github.com/digitalocean/godo"
-	"github.com/invopop/jsonschema"
-
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 type AppPlatformTool struct {
 	client *godo.Client
-
-	// appCreateSchema and appUpdateSchema are JSON schemas for creating and updating apps. Wrap the spec and the optional arguments in a JSON schema to work around the limitations of not
-	// being able to use ToolOptions when creating tools with mcp.NewToolWithRawSchema()
-	appCreateSchema []byte
-	appUpdateSchema []byte
 }
 
 // NewAppPlatformTool creates a new AppsTool instance
 func NewAppPlatformTool(client *godo.Client) (*AppPlatformTool, error) {
-	reflector := jsonschema.Reflector{}
-	err := reflector.AddGoComments("github.com/digitalocean/godo", "./apps.gen.go")
-	if err != nil {
-		return nil, fmt.Errorf("failed to add go comments: %w", err)
-	}
-
-	appCreateSchema, err := reflector.Reflect(&appCreateRequest{}).MarshalJSON()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal appCreateRequest schema: %w", err)
-	}
-
-	appUpdateSchema, err := reflector.Reflect(&appUpdateRequest{}).MarshalJSON()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal appCreateRequest schema: %w", err)
-	}
-
-	return &AppPlatformTool{
-		client:          client,
-		appCreateSchema: appCreateSchema,
-		appUpdateSchema: appUpdateSchema,
-	}, nil
+	return &AppPlatformTool{client: client}, nil
 }
 
-type appCreateRequest struct {
-	Spec *godo.AppSpec `json:"spec"`
-	// ProjectID is optional and can be used to specify the project under which the app should be created
-	ProjectID string `json:"project_id,omitempty"`
-}
+func (a *AppPlatformTool) CreateAppFromAppSpec(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+	jsonBytes, err := json.Marshal(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal arguments: %w", err)
+	}
 
-type appUpdateRequest struct {
-	Spec *godo.AppSpec `json:"spec"`
-	// AppID is the ID of the app to update
-	AppID string `json:"app_id,omitempty"`
-}
+	if len(jsonBytes) == 0 {
+		return nil, fmt.Errorf("len of jsonbytes is 0: %w", jsonBytes)
+	}
 
-func (a *AppPlatformTool) CreateAppFromGit(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	create, ok := req.GetRawArguments().(*appUpdateRequest)
-	if !ok {
-		return nil, fmt.Errorf("failed to parse app spec")
+	// Now we've got the json bytes.
+	// we need to serialize them into an AppCreateRequest
+	var create godo.AppCreateRequest
+	if err := json.Unmarshal(jsonBytes, &create); err != nil {
+		return nil, fmt.Errorf("failed to parse app spec: %w", err)
+	}
+
+	if create.Spec == nil {
+		return nil, fmt.Errorf("app spec is required in the request %+v, %+v", create.Spec, string(jsonBytes))
 	}
 
 	// Create the app using the DigitalOcean API
-	app, _, err := a.client.Apps.Create(ctx, &godo.AppCreateRequest{
-		Spec: create.Spec,
-	})
+	app, _, err := a.client.Apps.Create(ctx, &create)
 	if err != nil {
 		return nil, err
 	}
 
-	return mcp.NewToolResultText("App created successfully: " + app.Spec.Name), nil
+	// now marshall the app spec to JSON
+	appJSON, err := json.MarshalIndent(app, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal app spec: %w", err)
+	}
+
+	return mcp.NewToolResultText("App created successfully: " + string(appJSON)), nil
 }
 
 // DeleteApp deletes an existing app by its ID
@@ -92,9 +76,10 @@ func (a *AppPlatformTool) DeleteApp(ctx context.Context, req mcp.CallToolRequest
 // GetAppInfo retrieves an app by its ID
 func (a *AppPlatformTool) GetAppInfo(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// Extract the app ID from the request
+	appID := req.GetArguments()["AppID"].(string)
 
 	// Get the app using the DigitalOcean API
-	app, _, err := a.client.Apps.Get(ctx, "")
+	app, _, err := a.client.Apps.Get(ctx, appID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,20 +95,15 @@ func (a *AppPlatformTool) GetAppInfo(ctx context.Context, req mcp.CallToolReques
 
 // UpdateApp updates an existing app by its ID
 func (a *AppPlatformTool) UpdateApp(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	update, ok := req.GetRawArguments().(*appUpdateRequest)
+	update, ok := req.GetRawArguments().(*godo.AppUpdateRequest)
 	if !ok {
-		return nil, fmt.Errorf("failed to parse app spec")
+		return nil, fmt.Errorf("failed to parse app spec: %v", req.GetRawArguments())
 	}
 
 	appID, ok := req.GetArguments()["AppID"].(string)
 
-	// Create the update request
-	updateRequest := &godo.AppUpdateRequest{
-		Spec: update.Spec,
-	}
-
 	// Update the app using the DigitalOcean API
-	app, _, err := a.client.Apps.Update(ctx, appID, updateRequest)
+	app, _, err := a.client.Apps.Update(ctx, appID, update)
 	if err != nil {
 		return nil, err
 	}
@@ -131,43 +111,66 @@ func (a *AppPlatformTool) UpdateApp(ctx context.Context, req mcp.CallToolRequest
 	return mcp.NewToolResultText("App updated successfully: " + app.Spec.Name), nil
 }
 
-// Tools returns the tools provided by the AppsTool
 func (a *AppPlatformTool) Tools() []server.ServerTool {
-	return []server.ServerTool{
-		{
-			Handler: a.CreateAppFromGit,
-			Tool: mcp.NewToolWithRawSchema(
-				"create-app",
-				"Create a new app by submitting an app specification. For documentation\n  on app specifications (\"AppSpec\" objects),"+
-					" please refer to [the product\n    documentation](https://docs.digitalocean.com/products/app-platform/reference/app-spec/).",
-				a.appCreateSchema,
-			),
-		},
+	tools := []server.ServerTool{
 		{
 			Handler: a.DeleteApp,
-			Tool: mcp.NewTool("apps-delete",
+			Tool: mcp.NewTool("digitalocean-apps-delete",
 				mcp.WithDescription("Delete an existing app"),
-				// Define the parameters required for this tool
-				mcp.WithString("AppID", mcp.Required(), mcp.Description("ID of the app to delete")),
+				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application ID (UUID) of the app we want to delete.")),
 			),
 		},
 		{
 			Handler: a.GetAppInfo,
-			Tool: mcp.NewTool("apps-get-info",
-				mcp.WithDescription("Get information about an app"),
-				// Define the parameters required for this tool
-				mcp.WithString("AppID", mcp.Required(), mcp.Description("ID of the app to retrieve information for")),
-			),
-		},
-		{
-			Handler: a.UpdateApp,
-			Tool: mcp.NewToolWithRawSchema(
-				"apps-update",
-				"Update an existing app by submitting a new app specification. "+
-					"For\n    documentation on app specifications (\"AppSpec\" objects),"+
-					" please refer to\n    [the product documentation](https://docs.digitalocean.com/products/app-platform/reference/app-spec/).",
-				a.appUpdateSchema,
+			Tool: mcp.NewTool("digitalocean-apps-get",
+				mcp.WithDescription("Get information about an application on DigitalOcean App Platform"),
+				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application UUID of the app to retrieve information for")),
 			),
 		},
 	}
+
+	appCreateSchema, err := loadSchema("app-create-schema.json")
+	if err != nil {
+		panic(fmt.Errorf("failed to generate app create schema: %w", err))
+	}
+
+	appCreateTool := server.ServerTool{
+		Handler: a.CreateAppFromAppSpec,
+		Tool: mcp.NewToolWithRawSchema(
+			"digitalocean-create-app-from-spec",
+			"Creates an application from a given app spec. Within the app spec, a source has to be provided. The source can be a Git repository, a Dockerfile, or a container image.",
+			appCreateSchema,
+		),
+	}
+
+	appUpdateSchema, err := loadSchema("app-update-schema.json")
+	if err != nil {
+		panic(fmt.Errorf("failed to generate app create schema: %w", err))
+	}
+
+	appUpdateTool := server.ServerTool{
+		Handler: a.UpdateApp,
+		Tool: mcp.NewToolWithRawSchema(
+			"digitalocean-apps-update",
+			"Updates an existing application on DigitalOcean App Platform. The app ID and the AppSpec must be provided in the request.",
+			appUpdateSchema,
+		),
+	}
+
+	return append(tools, appCreateTool, appUpdateTool)
+}
+
+// loadSchema loads a JSON schema from the specified file in the same directory as the executable.
+func loadSchema(file string) ([]byte, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		panic(fmt.Errorf("failed to get executable path: %w", err))
+	}
+	executableDir := filepath.Dir(executablePath)
+
+	schema, err := os.ReadFile(filepath.Join(executableDir, file))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read schema file %s: %w", file, err)
+	}
+	return schema, nil
 }

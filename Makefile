@@ -9,8 +9,11 @@ build-bin:
 	GOOS=linux GOARCH=arm64 go build -o bin/mcp-digitalocean-linux-arm64 ./cmd/mcp-digitalocean/main.go
 	GOOS=linux GOARCH=amd64 go build -o bin/mcp-digitalocean-linux-amd64 ./cmd/mcp-digitalocean/main.go
 	GOOS=windows GOARCH=amd64 go build -o bin/mcp-digitalocean-windows-amd64.exe ./cmd/mcp-digitalocean/main.go
-	GOOS=windows GOARCH=386 go build -o bin/mcp-digitalocean-windows-386.exe ./cmd/mcp-digitalocean/main.go
+	GOOS=windows GOARCH=arm64 go build -o bin/mcp-digitalocean-windows-arm64.exe ./cmd/mcp-digitalocean/main.go
+
+dist:
 	cp ./bin/* ./scripts/npm/dist/
+	cp ./internal/apps/spec/*.json ./scripts/npm/dist/
 
 lint:
 	revive -config revive.toml ./...

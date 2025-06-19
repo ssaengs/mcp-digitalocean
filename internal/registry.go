@@ -20,6 +20,7 @@ var supportedServices = map[string]struct{}{
 	"accounts":   {},
 }
 
+// registerAppTools registers the app platform tools with the MCP server.
 func registerAppTools(s *server.MCPServer, c *godo.Client) error {
 	appTools, err := apps.NewAppPlatformTool(c)
 	if err != nil {
@@ -31,6 +32,7 @@ func registerAppTools(s *server.MCPServer, c *godo.Client) error {
 	return nil
 }
 
+// registerDropletTools registers the tools and resources for droplets with the MCP server.
 func registerDropletTools(s *server.MCPServer, c *godo.Client) error {
 	// Register the tools and resources for droplets
 	s.AddTools(networking.NewDropletTool(c).Tools()...)
@@ -55,6 +57,7 @@ func registerDropletTools(s *server.MCPServer, c *godo.Client) error {
 	return nil
 }
 
+// registerNetworkingTools registers the networking tools and resources with the MCP server.
 func registerNetworkingTools(s *server.MCPServer, c *godo.Client) error {
 	s.AddTools(networking.NewCDNTool(c).Tools()...)
 	s.AddTools(networking.NewCertificateTool(c).Tools()...)
@@ -121,8 +124,9 @@ func registerNetworkingTools(s *server.MCPServer, c *godo.Client) error {
 	return nil
 }
 
+// registerAccountTools account resource and resource templates
 func registerAccountTools(s *server.MCPServer, c *godo.Client) error {
-	// Register account resource and resource templates
+
 	invoicesResource := networking.NewInvoicesMCPResource(c)
 	for resource, handler := range invoicesResource.Resources() {
 		s.AddResource(resource, handler)

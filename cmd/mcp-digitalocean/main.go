@@ -37,10 +37,11 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
 	if token == "" {
 		logger.Error("DIGITALOCEAN_API_TOKEN environment variable is not set")
+		os.Exit(1)
 	}
 
 	var services []string

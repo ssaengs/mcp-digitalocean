@@ -1,6 +1,6 @@
 {
   "name": "@ssaeng/mcp-golang",
-  "version": "0.0.1",
+  "version": "0.0.6",
   "description": "DigitalOcean MCP Implementation,",
   "author": "DigitalOcean",
   "homepage": "https://github.com/ssaengs/mcp-digitalocean?tab=readme-ov-file#mcp-digitalocean-integration",
