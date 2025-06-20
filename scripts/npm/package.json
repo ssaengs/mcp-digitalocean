@@ -1,9 +1,9 @@
 {
-  "name": "@ssaeng/mcp-golang",
-  "version": "0.0.7",
+  "name": "@digitalocean/mcp-server",
+  "version": "0.0.1",
   "description": "DigitalOcean MCP Implementation,",
   "author": "DigitalOcean",
-  "homepage": "https://github.com/ssaengs/mcp-digitalocean?tab=readme-ov-file#mcp-digitalocean-integration",
+  "homepage": "https://github.com/digitalocean-labs/mcp-digitalocean?tab=readme-ov-file#mcp-digitalocean-integration",
   "license": "MIT",
   "keywords": [
     "digitalocean",
@@ -15,11 +15,11 @@
     "mcp-golang": "node ./index.js"
   },
   "bugs": {
-    "url": "https://github.com/ssaengs/mcp-digitalocean?tab=readme-ov-file#mcp-digitalocean-integration"
+    "url": "https://github.com/digitalocean-labs/mcp-digitalocean?tab=readme-ov-file#mcp-digitalocean-integration"
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:ssaengs/mcp-digitalocean.git"
+    "url": "git@github.com:digitalocean-labs/mcp-digitalocean.git"
   },
   "engines": {
     "node": ">=18.0.0"
