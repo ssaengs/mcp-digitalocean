@@ -21,6 +21,7 @@ const (
 func main() {
 	logLevelFlag := flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	serviceFlag := flag.String("services", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
+	tokenFlag := flag.String("digitalocean-api-token", "", "DigitalOcean API token")
 	flag.Parse()
 
 	var level slog.Level
@@ -38,10 +39,13 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
-	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
+	token := *tokenFlag
 	if token == "" {
-		logger.Error("DIGITALOCEAN_API_TOKEN environment variable is not set")
-		os.Exit(1)
+		token = os.Getenv("DIGITALOCEAN_API_TOKEN")
+		if token == "" {
+			logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
+			os.Exit(1)
+		}
 	}
 
 	var services []string
