@@ -10,6 +10,10 @@ To onboard a new service you'll need to do the following:
 
 # Debugging and Troubleshooting
 
+## Local Development
+
+When developing tools for the MCP DigitalOcean integration, you may want to run the MCP server locally to test your changes.
+
 During development, you may need to run the mcpServer locally with your favorite IDE. To do this, you can use the following command:
 
 ```bash
@@ -31,3 +35,14 @@ Update your IDE mcp server configuration to use the local version:
   }
 }
 ```
+
+# Using the MCP Inspector
+
+If you need to into the mcp server itself, you might want to use [mcp inspector](https://modelcontextprotocol.io/docs/tools/inspector).
+
+To run the server with mcp inspector, you can use the following command:
+
+```bash
+npx -y @modelcontextprotocol/inspector npx PATH/TO/PROJECT/mcp-digitalocean/scripts/npm --services apps --digitalocean-api-token YOUR_DO_TOKEN
+```
+
