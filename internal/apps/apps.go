@@ -47,6 +47,23 @@ func (a *AppPlatformTool) CreateAppFromAppSpec(ctx context.Context, req mcp.Call
 	return mcp.NewToolResultText("App created successfully: " + string(appJSON)), nil
 }
 
+func (a *AppPlatformTool) ListApps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// List all apps using the DigitalOcean API
+	page := req.GetArguments()["Page"].(int)
+	apps, _, err := a.client.Apps.List(ctx, &godo.ListOptions{Page: page, PerPage: 200})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the app information to JSON format
+	appsJSON, err := json.MarshalIndent(apps, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+
+	return mcp.NewToolResultText(string(appsJSON)), nil
+}
+
 // DeleteApp deletes an existing app by its ID
 func (a *AppPlatformTool) DeleteApp(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// Extract the app ID from the request
@@ -118,6 +135,13 @@ func (a *AppPlatformTool) UpdateApp(ctx context.Context, req mcp.CallToolRequest
 
 func (a *AppPlatformTool) Tools() []server.ServerTool {
 	tools := []server.ServerTool{
+		{
+			Handler: a.ListApps,
+			Tool: mcp.NewTool("digitalocean-apps-list",
+				mcp.WithDescription("List all applications on DigitalOcean App Platform"),
+				mcp.WithNumber("Page", mcp.Description("The page number to retrieve (default is 1)")),
+			),
+		},
 		{
 			Handler: a.DeleteApp,
 			Tool: mcp.NewTool("digitalocean-apps-delete",
