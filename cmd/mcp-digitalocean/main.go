@@ -38,7 +38,7 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	token := *tokenFlag
 	if token == "" {
 		token = os.Getenv("DIGITALOCEAN_API_TOKEN")

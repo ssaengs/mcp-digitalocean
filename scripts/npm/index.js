@@ -12,32 +12,50 @@ const os = require('os')
  */
 function runExecutable(args = []) {
     try {
-        const packageJson = require('./package.json')
+        // Check for verbose flag
+        const verbose = args.includes('--verbose')
 
-        // here we map the executable based on the platform.
+        // Helper function to log only in verbose mode
+        const verboseLog = (message) => {
+            if (verbose) {
+                console.error(message)
+            }
+        }
+
+        const packageJson = require('./package.json')
 
         const platform = os.platform()
         const arch = os.arch()
 
-        console.log('Detected platform:', platform)
-        console.log('Detected architecture:', arch)
+        verboseLog(`Detected platform: ${platform}`)
+        verboseLog(`Detected architecture: ${arch}`)
 
         const binKey = `mcp-digitalocean-${platform}-${arch}`;
         const execName = packageJson["mcp-server-binaries"][binKey]
-        console.error('Found executable in package.json:', execName.toString())
+
+        // Some error messages should always show regardless of verbose mode
+        if (!execName) {
+            console.error(`No executable found for platform: ${platform}-${arch}`)
+            return Promise.resolve(1)
+        }
+
+        verboseLog(`Found executable in package.json: ${execName}`)
 
         // The platform-specific executable should be in the same folder
         const execPath = path.join(__dirname, execName)
-        console.log('Executable path:', execPath)
+        verboseLog(`Executable path: ${execPath}`)
 
         if (!fs.existsSync(execPath)) {
             console.error(`Executable "${execPath}" not found.`)
             return Promise.resolve(1)
         }
 
-        console.log(`Starting ${execPath}`) // Only logs in debug mode
+        verboseLog(`Starting ${execPath}`)
 
-        const child = childProcess.spawn(execPath, args, {
+        // Remove verbose flag before passing args to the child process
+        const childArgs = args.filter(arg => arg !== '--verbose')
+
+        const child = childProcess.spawn(execPath, childArgs, {
             stdio: 'inherit',
             shell: false
         })
