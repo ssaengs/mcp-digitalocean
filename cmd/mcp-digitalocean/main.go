@@ -5,9 +5,10 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
-	registry "mcp-digitalocean/internal"
 	"os"
 	"strings"
+
+	registry "mcp-digitalocean/internal"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"

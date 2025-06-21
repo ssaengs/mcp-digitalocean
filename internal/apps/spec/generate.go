@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 
+	"mcp-digitalocean/internal/apps"
+
 	"github.com/digitalocean/godo"
 	"github.com/invopop/jsonschema"
-	"mcp-digitalocean/internal/apps"
 )
 
 //go:generate go run .

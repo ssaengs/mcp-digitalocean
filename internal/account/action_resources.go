@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	"mcp-digitalocean/internal/droplet"
+
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
-	"mcp-digitalocean/internal/droplet"
 )
 
 // ActionMCPResource represents a handler for MCP Action resources

@@ -3,11 +3,11 @@ package internal
 import (
 	"fmt"
 	"log/slog"
-	"mcp-digitalocean/internal/account"
-	"mcp-digitalocean/internal/droplet"
 	"strings"
 
+	"mcp-digitalocean/internal/account"
 	"mcp-digitalocean/internal/apps"
+	"mcp-digitalocean/internal/droplet"
 	"mcp-digitalocean/internal/networking"
 
 	"github.com/digitalocean/godo"
@@ -150,10 +150,14 @@ func registerAccountTools(s *server.MCPServer, c *godo.Client) error {
 	return nil
 }
 
+// Register registers the set of tools for the specified services with the MCP server.
+// We either register a subset of tools of the services are specified, or we register all tools if no services are specified.
 func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, servicesToActivate ...string) error {
-	// TODO: for now, we bail out. However we might want to support a default set of tools if none are specified.
 	if len(servicesToActivate) == 0 {
-		return fmt.Errorf("at least one service must be specified to activate")
+		logger.Warn("no services specified, loading all supported services")
+		for k, _ := range supportedServices {
+			servicesToActivate = append(servicesToActivate, k)
+		}
 	}
 	for _, svc := range servicesToActivate {
 		logger.Debug(fmt.Sprintf("Registering tool and resources for service: %s", svc))
