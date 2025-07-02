@@ -3,15 +3,16 @@ package internal
 import (
 	"fmt"
 	"log/slog"
+	"mcp-digitalocean/internal/doks"
 	"strings"
+
+	"github.com/digitalocean/godo"
+	"github.com/mark3labs/mcp-go/server"
 
 	"mcp-digitalocean/internal/account"
 	"mcp-digitalocean/internal/apps"
 	"mcp-digitalocean/internal/droplet"
 	"mcp-digitalocean/internal/networking"
-
-	"github.com/digitalocean/godo"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // supportedServices is a set of services that we support in this MCP server.
@@ -20,6 +21,7 @@ var supportedServices = map[string]struct{}{
 	"networking": {},
 	"droplets":   {},
 	"accounts":   {},
+	"doks":       {},
 }
 
 // registerAppTools registers the app platform tools with the MCP server.
@@ -150,6 +152,12 @@ func registerAccountTools(s *server.MCPServer, c *godo.Client) error {
 	return nil
 }
 
+func registerDOKSTools(s *server.MCPServer, c *godo.Client) error {
+	s.AddTools(doks.NewDoksTool(c).Tools()...)
+
+	return nil
+}
+
 // Register registers the set of tools for the specified services with the MCP server.
 // We either register a subset of tools of the services are specified, or we register all tools if no services are specified.
 func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, servicesToActivate ...string) error {
@@ -177,6 +185,11 @@ func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, services
 		case "accounts":
 			if err := registerAccountTools(s, c); err != nil {
 				return fmt.Errorf("failed to register account tools: %w", err)
+			}
+			// Register DOKS tools and resources
+		case "doks":
+			if err := registerDOKSTools(s, c); err != nil {
+				return fmt.Errorf("failed to register DOKS tools: %w", err)
 			}
 		default:
 			return fmt.Errorf("unsupported service: %s, supported service are: %v", svc, setToString(supportedServices))
