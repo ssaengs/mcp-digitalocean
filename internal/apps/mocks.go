@@ -141,6 +141,22 @@ func (mr *MockAppsServiceMockRecorder) GetAppDatabaseConnectionDetails(ctx, appI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppDatabaseConnectionDetails", reflect.TypeOf((*MockAppsService)(nil).GetAppDatabaseConnectionDetails), ctx, appID)
 }
 
+// GetAppHealth mocks base method.
+func (m *MockAppsService) GetAppHealth(ctx context.Context, appID string) (*godo.AppHealth, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAppHealth", ctx, appID)
+	ret0, _ := ret[0].(*godo.AppHealth)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetAppHealth indicates an expected call of GetAppHealth.
+func (mr *MockAppsServiceMockRecorder) GetAppHealth(ctx, appID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppHealth", reflect.TypeOf((*MockAppsService)(nil).GetAppHealth), ctx, appID)
+}
+
 // GetAppInstances mocks base method.
 func (m *MockAppsService) GetAppInstances(ctx context.Context, appID string, opts *godo.GetAppInstancesOpts) ([]*godo.AppInstance, *godo.Response, error) {
 	m.ctrl.T.Helper()

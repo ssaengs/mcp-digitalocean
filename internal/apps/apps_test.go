@@ -374,6 +374,19 @@ func TestGetDeploymentStatus(t *testing.T) {
 			mock: func(app *MockAppsService, deployments []*godo.Deployment) {
 				app.EXPECT().ListDeployments(gomock.Any(), testAppId, gomock.Any()).
 					Return(deployments, nil, nil).Times(1)
+				app.EXPECT().GetAppHealth(gomock.Any(), testAppId).
+					Return(&godo.AppHealth{
+						Components: []*godo.ComponentHealth{
+							{
+								Name:               "web",
+								CPUUsagePercent:    90,
+								MemoryUsagePercent: 50,
+								ReplicasDesired:    1,
+								ReplicasReady:      1,
+								State:              "HEALTHY",
+							},
+						},
+					}, nil, nil).Times(1)
 			},
 			toolRequest: mcp.CallToolRequest{
 				Params: mcp.CallToolParams{Arguments: map[string]any{"AppID": testAppId}},
@@ -382,8 +395,22 @@ func TestGetDeploymentStatus(t *testing.T) {
 				Content: []mcp.Content{
 					mcp.TextContent{
 						Type: "text",
-						Text: toJSONString(&godo.Deployment{
-							ID: "deployment-1", Cause: "manual", Phase: godo.DeploymentPhase_Deploying,
+						Text: toJSONString(&DeploymentStatus{
+							Health: &godo.AppHealth{
+								Components: []*godo.ComponentHealth{
+									{
+										Name:               "web",
+										CPUUsagePercent:    90,
+										MemoryUsagePercent: 50,
+										ReplicasDesired:    1,
+										ReplicasReady:      1,
+										State:              "HEALTHY",
+									},
+								},
+							},
+							Deployment: &godo.Deployment{
+								ID: "deployment-1", Cause: "manual", Phase: godo.DeploymentPhase_Deploying,
+							},
 						}),
 					},
 				},

@@ -99,6 +99,12 @@ func (a *AppPlatformTool) DeleteApp(ctx context.Context, req mcp.CallToolRequest
 	return mcp.NewToolResultText("App deleted successfully"), nil
 }
 
+// DeploymentStatus represents the status of a deployment, including health and deployment details.
+type DeploymentStatus struct {
+	Health     *godo.AppHealth  `json:"health"`
+	Deployment *godo.Deployment `json:"deployment"`
+}
+
 // GetDeploymentStatus retrieves the deployment status of an app by its ID.
 func (a *AppPlatformTool) GetDeploymentStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	appID, ok := req.GetArguments()["AppID"].(string)
@@ -117,19 +123,25 @@ func (a *AppPlatformTool) GetDeploymentStatus(ctx context.Context, req mcp.CallT
 		return mcp.NewToolResultText(fmt.Sprintf("there are no deployments found for AppID %s", appID)), nil
 	}
 
+	// Get the health status of the deployment
+	health, _, err := a.client.Apps.GetAppHealth(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get health status for app %s: %w", appID, err)
+	}
+
+	// Combine these two into a single response.
+	deploymentStatus := DeploymentStatus{
+		Health:     health,
+		Deployment: deployments[0],
+	}
+
 	// Convert the deployment information to JSON format
-	activeDeploymentJSON, err := json.MarshalIndent(deployments[0], "", "  ")
+	activeDeploymentJSON, err := json.MarshalIndent(deploymentStatus, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal deployment for app %s: %w", appID, err)
 	}
 
 	return mcp.NewToolResultText(string(activeDeploymentJSON)), nil
-}
-
-// GetAppUsage retrieves the usage information for an app by its ID.
-// We're going to need to expose this through the godo api
-func (a *AppPlatformTool) GetAppUsage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return nil, nil // Not implemented yet
 }
 
 // GetAppInfo retrieves an app by its ID
@@ -217,7 +229,7 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 		{
 			Handler: a.GetDeploymentStatus,
 			Tool: mcp.NewTool("digitalocean-apps-get-deployment-status",
-				mcp.WithDescription("Retrieves the active deployment for an application on DigitalOcean App Platform. This is useful for getting the current state of an app's latest deployment."),
+				mcp.WithDescription("Retrieves the active deployment for an application on DigitalOcean App Platform. This is useful for getting the current state of an app's latest deployment and it's health status."),
 				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application ID of the app to retrieve active deployment for"))),
 		},
 		{
@@ -240,13 +252,6 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool("digitalocean-apps-get-info",
 				mcp.WithDescription("Get information about an application on DigitalOcean App Platform"),
 				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application ID of the app to retrieve information for")),
-			),
-		},
-		{
-			Handler: a.GetAppUsage,
-			Tool: mcp.NewTool("digitalocean-apps-usage",
-				mcp.WithDescription("Get usage information for an application on DigitalOcean App Platform"),
-				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application ID of the app to retrieve usage information for")),
 			),
 		},
 	}

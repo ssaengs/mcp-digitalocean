@@ -3,7 +3,7 @@ module mcp-digitalocean
 go 1.24.1
 
 require (
-	github.com/digitalocean/godo v1.155.0
+	github.com/digitalocean/godo v1.156.0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/stretchr/testify v1.10.0
