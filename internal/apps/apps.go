@@ -56,17 +56,17 @@ func (a *AppPlatformTool) createAppFromAppSpec(ctx context.Context, req mcp.Call
 
 // listApps lists all apps on the DigitalOcean App Platform
 func (a *AppPlatformTool) listApps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	page, ok := req.GetArguments()["Page"].(int)
+	page, ok := req.GetArguments()["Page"].(float64)
 	if !ok {
 		page = defaultPage
 	}
 
-	perPage, ok := req.GetArguments()["PerPage"].(int)
+	perPage, ok := req.GetArguments()["PerPage"].(float64)
 	if !ok {
 		perPage = defaultPageSize
 	}
 
-	apps, _, err := a.client.Apps.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	apps, _, err := a.client.Apps.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

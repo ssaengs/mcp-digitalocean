@@ -162,7 +162,7 @@ func TestListApps(t *testing.T) {
 	}{
 		{
 			name:         "Successful list",
-			args:         map[string]any{"Page": 1, "PerPage": 2},
+			args:         map[string]any{"Page": float64(1), "PerPage": float64(2)},
 			expectedApps: []*godo.App{{ID: "1"}, {ID: "2"}},
 			mock: func(app *MockAppsService, apps []*godo.App) {
 				app.EXPECT().List(gomock.Any(), &godo.ListOptions{Page: 1, PerPage: 2}).
@@ -171,7 +171,7 @@ func TestListApps(t *testing.T) {
 		},
 		{
 			name: "API error",
-			args: map[string]any{"Page": 1, "PerPage": 2},
+			args: map[string]any{"Page": float64(1), "PerPage": float64(2)},
 			mock: func(app *MockAppsService, apps []*godo.App) {
 				app.EXPECT().List(gomock.Any(), &godo.ListOptions{Page: 1, PerPage: 2}).
 					Return(nil, nil, fmt.Errorf("api error")).Times(1)
