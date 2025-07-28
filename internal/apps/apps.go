@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -54,6 +55,30 @@ func (a *AppPlatformTool) createAppFromAppSpec(ctx context.Context, req mcp.Call
 	return mcp.NewToolResultText(string(appJSON)), nil
 }
 
+type AppSummary struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Url       string          `json:"url"`
+	ProjectID string          `json:"project_id,omitempty"` // Optional field, not always present
+	Region    *godo.AppRegion `json:"region"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+	Tier      string          `json:"tier"`
+}
+
+func toAppSummary(app *godo.App) *AppSummary {
+	return &AppSummary{
+		ID:        app.GetID(),
+		Name:      app.GetSpec().GetName(),
+		Url:       app.GetLiveURL(),
+		ProjectID: app.GetProjectID(),
+		Region:    app.GetRegion(),
+		CreatedAt: app.GetCreatedAt(),
+		UpdatedAt: app.GetUpdatedAt(),
+		Tier:      app.GetTierSlug(),
+	}
+}
+
 // listApps lists all apps on the DigitalOcean App Platform
 func (a *AppPlatformTool) listApps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	page, ok := req.GetArguments()["Page"].(float64)
@@ -71,7 +96,14 @@ func (a *AppPlatformTool) listApps(ctx context.Context, req mcp.CallToolRequest)
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
 
-	appsJSON, err := json.MarshalIndent(apps, "", "  ")
+	// create a slice of app summaries
+	summaries := make([]*AppSummary, len(apps))
+	for i, app := range apps {
+		// Convert each app to a summary format
+		summaries[i] = toAppSummary(app)
+	}
+
+	appsJSON, err := json.MarshalIndent(summaries, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -220,7 +252,7 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 		{
 			Handler: a.listApps,
 			Tool: mcp.NewTool("apps-list",
-				mcp.WithDescription("List all applications on DigitalOcean App Platform"),
+				mcp.WithDescription("List all applications on DigitalOcean App Platform. By default, we only return a summary of the apps. To get detailed information about an app, use the `apps-get-info` with the app id."),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultPage), mcp.Description("The page number to retrieve (default is 1)")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultPageSize), mcp.Description("The number of items per page (default is 200)")),
 			),
