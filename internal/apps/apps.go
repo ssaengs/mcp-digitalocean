@@ -229,7 +229,6 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 			Handler: a.deleteApp,
 			Tool: mcp.NewTool("apps-delete",
 				mcp.WithDescription("Delete an existing app on DigitalOcean App Platform. This is a destructive operation and cannot be undone."),
-				mcp.WithString("ConfirmationToken", mcp.Required(), mcp.Description("A confirmation token to confirm the deletion of the app. This is a security measure to prevent accidental deletions.")),
 				mcp.WithDestructiveHintAnnotation(true),
 				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application ID of the app we want to delete.")),
 			),
