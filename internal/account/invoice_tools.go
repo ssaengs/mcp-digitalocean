@@ -46,6 +46,36 @@ func (i *InvoiceTools) listInvoices(ctx context.Context, req mcp.CallToolRequest
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// getInvoice retrieves a specific invoice by UUID.
+func (i *InvoiceTools) getInvoice(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	page, ok := req.GetArguments()["Page"].(float64)
+	if !ok {
+		page = defaultInvoicesPage
+	}
+
+	perPage, ok := req.GetArguments()["PerPage"].(float64)
+	if !ok {
+		perPage = defaultInvoicesPageSize
+	}
+
+	invoiceUUID, ok := req.GetArguments()["InvoiceUUID"].(string)
+	if !ok {
+		return mcp.NewToolResultError("missing InvoiceUUID"), nil
+	}
+
+	invoice, _, err := i.client.Invoices.Get(ctx, invoiceUUID, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	jsonData, err := json.MarshalIndent(invoice, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
 // Tools returns the list of server tools for invoices.
 func (i *InvoiceTools) Tools() []server.ServerTool {
 	return []server.ServerTool{
@@ -53,6 +83,15 @@ func (i *InvoiceTools) Tools() []server.ServerTool {
 			Handler: i.listInvoices,
 			Tool: mcp.NewTool("invoice-list",
 				mcp.WithDescription("List invoices with pagination"),
+				mcp.WithNumber("Page", mcp.DefaultNumber(defaultInvoicesPage), mcp.Description("Page number")),
+				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultInvoicesPageSize), mcp.Description("Items per page")),
+			),
+		},
+		{
+			Handler: i.getInvoice,
+			Tool: mcp.NewTool("get-invoice",
+				mcp.WithDescription("Get a specific invoice"),
+				mcp.WithString("InvoiceUUID", mcp.Required(), mcp.Description("The UUID of the invoice")),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultInvoicesPage), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultInvoicesPageSize), mcp.Description("Items per page")),
 			),
