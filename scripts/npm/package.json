@@ -26,11 +26,11 @@
   },
   "mcp-server-binaries": {
     "mcp-digitalocean-darwin-arm64": "./dist/mcp-digitalocean-darwin-arm64",
-    "mcp-digitalocean-darwin-amd64": "./dist/mcp-digitalocean-darwin-amd64",
+    "mcp-digitalocean-darwin-x64": "./dist/mcp-digitalocean-darwin-amd64",
     "mcp-digitalocean-linux-arm64": "./dist/mcp-digitalocean-linux-arm64",
-    "mcp-digitalocean-linux-amd64": "./dist/mcp-digitalocean-linux-amd64",
-    "mcp-digitalocean-win32-arm64": "./dist/mcp-digitalocean-windows-arm64",
-    "mcp-digitalocean-win32-amd64": "./dist/mcp-digitalocean-windows-amd64"
+    "mcp-digitalocean-linux-x64": "./dist/mcp-digitalocean-linux-amd64",
+    "mcp-digitalocean-win32-arm64": "./dist/mcp-digitalocean-windows-arm64.exe",
+    "mcp-digitalocean-win32-x64": "./dist/mcp-digitalocean-windows-amd64.exe"
   },
   "os": [
     "darwin",
