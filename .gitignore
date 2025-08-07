@@ -29,6 +29,8 @@ scripts/npm/node_modules/
 # Build output
 scripts/npm/dist/
 
+scripts/npm/package-lock.json
+
 .vscode/
 docode/*
 dist/

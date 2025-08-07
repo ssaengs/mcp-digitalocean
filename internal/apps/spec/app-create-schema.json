@@ -1921,6 +1921,15 @@
           },
           "type": "object"
         },
+        "vpc": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The id of the target VPC, in UUID format."
+            }
+          },
+          "type": "object"
+        },
         "disable_edge_cache": {
           "type": "boolean",
           "description": "Specification to disable edge (CDN) cache for all domains of the app. Note that this feature is in private preview."

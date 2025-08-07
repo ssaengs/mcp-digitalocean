@@ -2,9 +2,9 @@ package apps
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -12,6 +12,10 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+//go:embed spec/app-create-schema.json
+//go:embed spec/app-update-schema.json
+var eFS embed.FS
 
 const (
 	defaultPageSize = 30 // Default page size for listing apps
@@ -242,6 +246,17 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 }
 
 func (a *AppPlatformTool) Tools() []server.ServerTool {
+
+	appCreateSchema, err := loadSchema("app-create-schema.json")
+	if err != nil {
+		panic(fmt.Errorf("failed to generate app create schema: %w", err))
+	}
+
+	appUpdateSchema, err := loadSchema("app-update-schema.json")
+	if err != nil {
+		panic(fmt.Errorf("failed to generate app create schema: %w", err))
+	}
+
 	tools := []server.ServerTool{
 		{
 			Handler: a.getDeploymentStatus,
@@ -272,48 +287,31 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 				mcp.WithString("AppID", mcp.Required(), mcp.Description("The application ID of the app to retrieve information for")),
 			),
 		},
+		{
+			Handler: a.createAppFromAppSpec,
+			Tool: mcp.NewToolWithRawSchema(
+				"apps-create-app-from-spec",
+				"Creates an application from a given app spec. Within the app spec, a source has to be provided. The source can be a Git repository, a Dockerfile, or a container image.",
+				appCreateSchema,
+			),
+		},
+		{
+			Handler: a.updateApp,
+			Tool: mcp.NewToolWithRawSchema(
+				"apps-update",
+				"Updates an existing application on DigitalOcean App Platform. The app ID and the AppSpec must be provided in the request.",
+				appUpdateSchema,
+			),
+		},
 	}
 
-	appCreateSchema, err := loadSchema("app-create-schema.json")
-	if err != nil {
-		panic(fmt.Errorf("failed to generate app create schema: %w", err))
-	}
-
-	appCreateTool := server.ServerTool{
-		Handler: a.createAppFromAppSpec,
-		Tool: mcp.NewToolWithRawSchema(
-			"apps-create-app-from-spec",
-			"Creates an application from a given app spec. Within the app spec, a source has to be provided. The source can be a Git repository, a Dockerfile, or a container image.",
-			appCreateSchema,
-		),
-	}
-
-	appUpdateSchema, err := loadSchema("app-update-schema.json")
-	if err != nil {
-		panic(fmt.Errorf("failed to generate app create schema: %w", err))
-	}
-
-	appUpdateTool := server.ServerTool{
-		Handler: a.updateApp,
-		Tool: mcp.NewToolWithRawSchema(
-			"apps-update",
-			"Updates an existing application on DigitalOcean App Platform. The app ID and the AppSpec must be provided in the request.",
-			appUpdateSchema,
-		),
-	}
-
-	return append(tools, appCreateTool, appUpdateTool)
+	return tools
 }
 
 // loadSchema attempts to load the JSON schema from the specified file.
 func loadSchema(file string) ([]byte, error) {
-	executablePath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
-	}
-	executableDir := filepath.Dir(executablePath)
-
-	schema, err := os.ReadFile(filepath.Join(executableDir, file))
+	appsSchemaPath := "spec"
+	schema, err := eFS.ReadFile(filepath.Join(appsSchemaPath, file))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read schema file %s: %w", file, err)
 	}
