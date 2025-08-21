@@ -102,6 +102,8 @@ claude mcp remove -s user digitalocean-mcp-user-scope
 
 ### Cursor
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=digitalocean&config=eyJjb21tYW5kIjoibnB4IEBkaWdpdGFsb2NlYW4vbWNwIC0tc2VydmljZXMgYXBwcyIsImVudiI6eyJESUdJVEFMT0NFQU5fQVBJX1RPS0VOIjoiWU9VUl9BUElfVE9LRU4ifX0%3D)
+
 Add the following to your Cursor settings file located at `~/.cursor/config.json`:
 
 ```json
@@ -121,19 +123,20 @@ Add the following to your Cursor settings file located at `~/.cursor/config.json
 #### Verify Installation in Cursor
 1. Open Cursor and navigate to Settings (⌘+, on Mac or Ctrl+, on Windows/Linux)
 2. Search for "MCP" in the settings search bar
-3. Look for "Model Context Protocol" section
-4. You should see "digitalocean" listed under Available MCP Servers
-5. Click on the server name to view its available tools and resources
+3. Select "View: Open MCP Settings"
+4. Select "Tools & Integrations" from the left sidebar
+5. You should see "digitalocean" listed under Available MCP Servers
+6. Click on "N tools enabled" (N is the number of tools currently enabled). 
 
 #### Debugging in Cursor
 To check MCP server logs and debug issues:
 1. Open the Command Palette (⌘+Shift+P on Mac or Ctrl+Shift+P on Windows/Linux)
 2. Type "Developer: Toggle Developer Tools" and press Enter
 3. Navigate to the Console tab to view MCP server logs
-4. Look for messages prefixed with `[MCP]` to debug connection issues
+4. You'll find MCP related logs as you interact with the MCP server
 
 #### Testing the Connection
-In Cursor's chat, try asking: "List all my DigitalOcean apps" - this should trigger the MCP server to fetch your apps if properly configured.
+In Cursor's chat, try asking: "List all my DigitalOcean apps" - this should trigger the MCP server to fetch your apps if properly configured. If you are getting an 401 error or authentication related errors, it is likely due to misconfiguring your access token.
 
 ### VS Code
 
