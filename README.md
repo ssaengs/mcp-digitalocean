@@ -2,8 +2,7 @@
 
 MCP DigitalOcean Integration is an open-source project that provides a comprehensive interface for managing DigitalOcean resources and performing actions using the [DigitalOcean API](https://docs.digitalocean.com/reference/api/). Built on top of the [godo](https://github.com/digitalocean/godo) library and the [MCP framework](https://github.com/mark3labs/mcp-go), this project exposes a wide range of tools to simplify cloud infrastructure management.
 
-> **DISCLAIMER:** "Use of MCP technology to interact with your DigitalOcean account
-> [can come with risks]"
+> **DISCLAIMER:** "Use of MCP technology to interact with your DigitalOcean account [can come with risks](https://www.wiz.io/blog/mcp-security-research-briefing)"
 
 ## Prerequisites
 
@@ -121,14 +120,16 @@ Add the following to your Cursor settings file located at `~/.cursor/config.json
 ```
 
 #### Verify Installation in Cursor
-1. Open Cursor and navigate to Settings (⌘+, on Mac or Ctrl+, on Windows/Linux)
-2. Search for "MCP" in the settings search bar
+
+1. Open Cursor and open Command Pallet ( `Shift + ⌘ + P` on Mac or `Ctrl+ Shift + P` on Windows/Linux )
+2. Search for "MCP" in the command pallet search bar
 3. Select "View: Open MCP Settings"
 4. Select "Tools & Integrations" from the left sidebar
 5. You should see "digitalocean" listed under Available MCP Servers
 6. Click on "N tools enabled" (N is the number of tools currently enabled). 
 
 #### Debugging in Cursor
+
 To check MCP server logs and debug issues:
 1. Open the Command Palette (⌘+Shift+P on Mac or Ctrl+Shift+P on Windows/Linux)
 2. Type "Developer: Toggle Developer Tools" and press Enter
@@ -136,6 +137,7 @@ To check MCP server logs and debug issues:
 4. You'll find MCP related logs as you interact with the MCP server
 
 #### Testing the Connection
+
 In Cursor's chat, try asking: "List all my DigitalOcean apps" - this should trigger the MCP server to fetch your apps if properly configured. If you are getting an 401 error or authentication related errors, it is likely due to misconfiguring your access token.
 
 ### VS Code
@@ -164,24 +166,28 @@ Add the following to your VS Code MCP configuration file:
 ```
 
 #### Verify Installation in VS Code
-1. Install an MCP-compatible extension if you haven't already (such as Continue or Codeium)
-2. Open VS Code Settings (⌘+, on Mac or Ctrl+, on Windows/Linux)
-3. Search for "MCP" or your extension's MCP settings
+
+1. Open Cursor and open Command Pallet ( `Shift + ⌘ + P` on Mac or `Ctrl+ Shift + P` on Windows/Linux )
+2. Search for "MCP" in the command pallet search bar
+3. Select "MCP: List Servers"
 4. Verify that "mcpDigitalOcean" appears in the list of configured servers
-5. Some extensions provide a status indicator showing active MCP connections
 
 #### Viewing Available Tools
+
 To see what tools are available from the MCP server:
 1. Open the Command Palette (⌘+Shift+P on Mac or Ctrl+Shift+P on Windows/Linux)
-2. Look for MCP-related commands (varies by extension)
-3. You should be able to list available tools like `app-create`, `app-list`, `app-delete`, etc.
+2. Select "Agent" mode in the chatbox, 
+3. Click "Configure tools" on the right, and check for digitalocean related tools under `MCP Server: mcpDigitalocean`. You should be able to list available tools like `app-create`, `app-list`, `app-delete`, etc.
 
 #### Debugging in VS Code
+
 To troubleshoot MCP connections:
-1. Open the Output panel (View → Output)
-2. Select your MCP extension from the dropdown (e.g., "Continue - MCP" or "Codeium")
+1. Open the Command Palette (⌘+Shift+P on Mac or Ctrl+Shift+P on Windows/Linux)
+2. Type "Developer: Toggle Developer Tools" and press Enter
+3. Navigate to the Console tab to view MCP server logs
 3. Check for connection status and error messages
-4. Enable verbose logging if available in your extension's settings
+
+If you are getting an 401 error or authentication related errors, it is likely due to misconfiguring your access token.
 
 ## Configuration
 
