@@ -9,6 +9,9 @@ MCP DigitalOcean Integration is an open-source project that provides a comprehen
 - Node.js (v18 or later)
 - NPM (v8 or later)
 
+You can find installation guides at [https://nodejs.org/en/download](https://nodejs.org/en/download)
+
+
 Verify your installation:
 ```bash
 node --version
