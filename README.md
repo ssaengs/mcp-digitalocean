@@ -91,7 +91,7 @@ claude mcp add -s user digitalocean-mcp-user-scope \
 ```
 
 This will:
-- Make the server is available in all folders, not just the one you're in
+- Make the server available in all folders, not just the one you're in
 - Scope it to your user account
 - Store it in your global Claude config at `~/.claude.json`
 
