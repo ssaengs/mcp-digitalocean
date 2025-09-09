@@ -13,8 +13,11 @@ import (
 )
 
 func setupImagesToolWithMock(images *MockImagesService) *ImagesTool {
-	client := &godo.Client{}
-	client.Images = images
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Images: images,
+		}
+	}
 	return NewImagesTool(client)
 }
 

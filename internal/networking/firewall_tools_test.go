@@ -13,8 +13,11 @@ import (
 )
 
 func setupFirewallToolWithMock(firewalls *MockFirewallsService) *FirewallTool {
-	client := &godo.Client{}
-	client.Firewalls = firewalls
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Firewalls: firewalls,
+		}
+	}
 	return NewFirewallTool(client)
 }
 

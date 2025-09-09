@@ -18,8 +18,11 @@ func TestPostgreSQLTool_getPostgreSQLConfig(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	val := 42
 	mockDB.EXPECT().GetPostgreSQLConfig(gomock.Any(), "cid").Return(&godo.PostgreSQLConfig{BackupHour: &val}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	pt := &PostgreSQLTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -46,8 +49,11 @@ func TestPostgreSQLTool_updatePostgreSQLConfig(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	val := 99
 	mockDB.EXPECT().UpdatePostgreSQLConfig(gomock.Any(), "cid", gomock.Any()).Return(&godo.Response{}, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	pt := &PostgreSQLTool{client: client}
 	config := map[string]any{"backup_hour": val}
 	args := map[string]interface{}{"id": "cid", "config": config}

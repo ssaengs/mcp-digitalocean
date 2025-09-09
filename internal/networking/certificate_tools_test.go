@@ -13,8 +13,11 @@ import (
 )
 
 func setupCertificateToolWithMock(cert *MockCertificatesService) *CertificateTool {
-	client := &godo.Client{}
-	client.Certificates = cert
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Certificates: cert,
+		}
+	}
 	return NewCertificateTool(client)
 }
 

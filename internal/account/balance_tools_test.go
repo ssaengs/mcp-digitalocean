@@ -12,8 +12,11 @@ import (
 )
 
 func setupBalanceToolsWithMock(mockBalance *MockBalanceService) *BalanceTools {
-	client := &godo.Client{}
-	client.Balance = mockBalance
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Balance: mockBalance,
+		}
+	}
 	return NewBalanceTools(client)
 }
 

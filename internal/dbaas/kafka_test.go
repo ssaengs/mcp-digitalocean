@@ -17,8 +17,11 @@ func TestKafkaTool_getKafkaConfig(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().GetKafkaConfig(gomock.Any(), "cid").Return(&godo.KafkaConfig{}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -37,8 +40,11 @@ func TestKafkaTool_updateKafkaConfig(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().UpdateKafkaConfig(gomock.Any(), "cid", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	cfg := map[string]any{}
 	args := map[string]interface{}{"id": "cid", "config": cfg}
@@ -59,8 +65,11 @@ func TestKafkaTool_listTopics(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().ListTopics(gomock.Any(), "cid", gomock.Any()).Return([]godo.DatabaseTopic{{Name: "topic1"}}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -79,8 +88,11 @@ func TestKafkaTool_createTopic(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().CreateTopic(gomock.Any(), "cid", gomock.Any()).Return(&godo.DatabaseTopic{Name: "topic2"}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	args := map[string]interface{}{"id": "cid", "name": "topic2"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -100,8 +112,11 @@ func TestKafkaTool_getTopic(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().GetTopic(gomock.Any(), "cid", "topic3").Return(&godo.DatabaseTopic{Name: "topic3"}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	args := map[string]interface{}{"id": "cid", "name": "topic3"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -121,8 +136,11 @@ func TestKafkaTool_deleteTopic(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().DeleteTopic(gomock.Any(), "cid", "topic4").Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	args := map[string]interface{}{"id": "cid", "name": "topic4"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -142,8 +160,11 @@ func TestKafkaTool_updateTopic(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().UpdateTopic(gomock.Any(), "cid", "topic5", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	kt := &KafkaTool{client: client}
 	args := map[string]interface{}{"id": "cid", "name": "topic5"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}

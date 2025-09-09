@@ -17,8 +17,11 @@ func TestMysqlTool_getMySQLConfig(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().GetMySQLConfig(gomock.Any(), "cid").Return(&godo.MySQLConfig{SQLMode: new(string)}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	mt := &MysqlTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -37,8 +40,11 @@ func TestMysqlTool_updateMySQLConfig(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().UpdateMySQLConfig(gomock.Any(), "cid", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	mt := &MysqlTool{client: client}
 	cfg := map[string]any{}
 	args := map[string]interface{}{"id": "cid", "config": cfg}
@@ -59,8 +65,11 @@ func TestMysqlTool_getSQLMode(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().GetSQLMode(gomock.Any(), "cid").Return("STRICT_TRANS_TABLES", nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	mt := &MysqlTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -79,8 +88,11 @@ func TestMysqlTool_setSQLMode(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().SetSQLMode(gomock.Any(), "cid", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	mt := &MysqlTool{client: client}
 	args := map[string]interface{}{"id": "cid", "modes": "STRICT_TRANS_TABLES"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}

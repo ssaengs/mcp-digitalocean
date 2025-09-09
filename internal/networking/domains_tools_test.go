@@ -13,8 +13,11 @@ import (
 )
 
 func setupDomainsToolWithMock(domains *MockDomainsService) *DomainsTool {
-	client := &godo.Client{}
-	client.Domains = domains
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Domains: domains,
+		}
+	}
 	return NewDomainsTool(client)
 }
 

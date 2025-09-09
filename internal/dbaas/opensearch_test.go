@@ -18,8 +18,11 @@ func TestOpenSearchTool_getOpensearchConfig(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	val := 12345
 	mockDB.EXPECT().GetOpensearchConfig(gomock.Any(), "cid").Return(&godo.OpensearchConfig{HttpMaxContentLengthBytes: &val}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ot := &OpenSearchTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -46,8 +49,11 @@ func TestOpenSearchTool_updateOpensearchConfig(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	val := 54321
 	mockDB.EXPECT().UpdateOpensearchConfig(gomock.Any(), "cid", gomock.Any()).Return(&godo.Response{}, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ot := &OpenSearchTool{client: client}
 	config := map[string]any{"http_max_content_length_bytes": val}
 	args := map[string]interface{}{"id": "cid", "config": config}

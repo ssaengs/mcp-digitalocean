@@ -12,8 +12,11 @@ import (
 )
 
 func setupBillingToolsWithMock(mockBilling *MockBillingHistoryService) *BillingTools {
-	client := &godo.Client{}
-	client.BillingHistory = mockBilling
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			BillingHistory: mockBilling,
+		}
+	}
 	return NewBillingTools(client)
 }
 

@@ -12,8 +12,11 @@ import (
 )
 
 func setupKeysToolWithMock(mockKeys *MockKeysService) *KeysTool {
-	client := &godo.Client{}
-	client.Keys = mockKeys
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Keys: mockKeys,
+		}
+	}
 	return NewKeysTool(client)
 }
 

@@ -12,8 +12,11 @@ import (
 )
 
 func setupActionToolsWithMock(mockActions *MockActionsService) *ActionTools {
-	client := &godo.Client{}
-	client.Actions = mockActions
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Actions: mockActions,
+		}
+	}
 	return NewActionTools(client)
 }
 

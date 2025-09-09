@@ -21,11 +21,14 @@ func setupReservedIPToolWithMocks(
 	ipv4Actions *MockReservedIPActionsService,
 	ipv6Actions *MockReservedIPV6ActionsService,
 ) *ReservedIPTool {
-	client := &godo.Client{}
-	client.ReservedIPs = ipv4
-	client.ReservedIPV6s = ipv6
-	client.ReservedIPActions = ipv4Actions
-	client.ReservedIPV6Actions = ipv6Actions
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			ReservedIPs:         ipv4,
+			ReservedIPV6s:       ipv6,
+			ReservedIPActions:   ipv4Actions,
+			ReservedIPV6Actions: ipv6Actions,
+		}
+	}
 	return NewReservedIPTool(client)
 }
 

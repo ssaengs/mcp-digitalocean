@@ -12,8 +12,11 @@ import (
 )
 
 func setupUptimeToolWithMock(mockChecks godo.UptimeChecksService) *UptimeTool {
-	client := &godo.Client{}
-	client.UptimeChecks = mockChecks
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			UptimeChecks: mockChecks,
+		}
+	}
 	return NewUptimeTool(client)
 }
 

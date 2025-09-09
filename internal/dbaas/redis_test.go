@@ -18,8 +18,11 @@ func TestRedisTool_getRedisConfig(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	val := "volatile-lru"
 	mockDB.EXPECT().GetRedisConfig(gomock.Any(), "cid").Return(&godo.RedisConfig{RedisMaxmemoryPolicy: &val}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	rt := &RedisTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -46,8 +49,11 @@ func TestRedisTool_updateRedisConfig(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	val := "allkeys-lru"
 	mockDB.EXPECT().UpdateRedisConfig(gomock.Any(), "cid", gomock.Any()).Return(&godo.Response{}, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	rt := &RedisTool{client: client}
 	config := map[string]any{"redis_maxmemory_policy": val}
 	args := map[string]interface{}{"id": "cid", "config": config}
