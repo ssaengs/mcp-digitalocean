@@ -34,6 +34,7 @@ var supportedServices = map[string]struct{}{
 	"doks":        {},
 }
 
+// TODO, this function should return client and an error.
 type getClientFn func(ctx context.Context) *godo.Client
 
 // registerAppTools registers the app platform tools with the MCP server.

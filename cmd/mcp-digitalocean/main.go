@@ -91,28 +91,47 @@ func main() {
 	}
 }
 
-func clientFromApiToken(ctx context.Context) (*godo.Client, error) {
+// clientFromContext creates a godo client from authentication info in the context.
+func clientFromContext(ctx context.Context) *godo.Client {
 	auth, ok := ctx.Value(authKey{}).(string)
-	if !ok || auth == "" {
-		return nil, fmt.Errorf("no auth token provided")
+	if !ok || strings.TrimSpace(auth) == "" {
+		return nil
 	}
-
-	parts := strings.SplitN(auth, " ", 2)
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return nil, fmt.Errorf("invalid auth token format")
+	token := strings.TrimPrefix(auth, "Bearer ")
+	if token == "" {
+		return nil
 	}
-	token := parts[1]
-
 	endpoint := os.Getenv("DIGITALOCEAN_API_ENDPOINT")
 	if endpoint == "" {
 		endpoint = defaultEndpoint
 	}
+	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+	if err != nil {
+		return nil
+	}
 
-	return newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+	return client
+}
+
+// clientFromApiToken creates a godo client from a static API token provided via flag or environment variable.
+func clientFromApiToken(ctx context.Context) *godo.Client {
+	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
+	if token == "" {
+		return nil
+	}
+	endpoint := os.Getenv("DIGITALOCEAN_API_ENDPOINT")
+	if endpoint == "" {
+		endpoint = defaultEndpoint
+	}
+	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+	if err != nil {
+		return nil
+	}
+	return client
 }
 
 func runHTTPServer(s *server.MCPServer, logger *slog.Logger, bindAddr string, services []string) {
-	err := registry.Register(logger, s, clientFromApiToken, services...)
+	err := registry.Register(logger, s, clientFromContext, services...)
 	if err != nil {
 		logger.Error("Failed to register tools: " + err.Error())
 		os.Exit(1)
