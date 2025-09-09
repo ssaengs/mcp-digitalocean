@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
@@ -23,10 +23,24 @@ const (
 	defaultEndpoint = "https://api.digitalocean.com"
 )
 
+type authKey struct{}
+
+// authFromRequest extracts the auth token from the request headers.
+func authFromRequest(ctx context.Context, r *http.Request) context.Context {
+	return withAuthKey(ctx, r.Header.Get("Authorization"))
+}
+
+// withAuthKey adds an auth key to the context.
+func withAuthKey(ctx context.Context, auth string) context.Context {
+	return context.WithValue(ctx, authKey{}, auth)
+}
+
 func main() {
 	logLevelFlag := flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	serviceFlag := flag.String("services", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
 	tokenFlag := flag.String("digitalocean-api-token", "", "DigitalOcean API token")
+	transport := flag.String("transport", "stdio", "Transport protocol (http or stdio)")
+	bindAddr := flag.String("bind-addr", "0.0.0.0:8080", "Bind address to bind to")
 
 	// optional
 	endpointFlag := flag.String("digitalocean-api-endpoint", "", "DigitalOcean API endpoint")
@@ -69,31 +83,50 @@ func main() {
 		services = strings.Split(*serviceFlag, ",")
 	}
 
+	// The godo-client should be created on a per-request basis, but for the sake of this MCP server.
 	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, endpoint)
 	if err != nil {
 		logger.Error("Failed to create DigitalOcean client: " + err.Error())
 		os.Exit(1)
 	}
 
-	s := server.NewMCPServer(mcpName, mcpVersion)
-	err = registry.Register(logger, s, client, services...)
+	svr := newMcpServer(logger, client, services)
+	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
+	if *transport == "http" {
+		httpServer := server.NewStreamableHTTPServer(svr, server.WithHTTPContextFunc(authFromRequest))
+		// listen on port 8080
+		logger.Debug("Http server start listening: " + *bindAddr)
+		err = httpServer.Start(*bindAddr)
+		if err != nil {
+			logger.Error("Failed to serve MCP server over HTTP: " + err.Error())
+			os.Exit(1)
+		}
+	} else {
+		logger.Debug("starting stdio server")
+		err = server.ServeStdio(svr)
+		if err != nil {
+			logger.Error("Failed to serve MCP server over stdio: " + err.Error())
+			os.Exit(1)
+		}
+	}
+}
+
+func newMcpServer(logger *slog.Logger, client *godo.Client, services []string) *server.MCPServer {
+	s := server.NewMCPServer(
+		mcpName,
+		mcpVersion,
+		server.WithToolCapabilities(true),
+		server.WithPromptCapabilities(true),
+		server.WithLogging(),
+	)
+
+	err := registry.Register(logger, s, client, services...)
 	if err != nil {
 		logger.Error("Failed to register tools: " + err.Error())
 		os.Exit(1)
 	}
 
-	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
-	err = server.ServeStdio(s)
-	if err != nil {
-		// if context cancelled or sigterm then shutdown gracefully
-		if errors.Is(err, context.Canceled) {
-			logger.Info("Server shutdown gracefully")
-			os.Exit(0)
-		} else {
-			logger.Error("Failed to serve MCP server: " + err.Error())
-			os.Exit(1)
-		}
-	}
+	return s
 }
 
 // newGodoClientWithTokenAndEndpoint initializes a new godo client with a custom user agent and endpoint.
