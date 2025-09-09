@@ -11,10 +11,10 @@ import (
 )
 
 type RedisTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewRedisTool(client *godo.Client) *RedisTool {
+func NewRedisTool(client func(ctx context.Context) *godo.Client) *RedisTool {
 	return &RedisTool{
 		client: client,
 	}
@@ -26,7 +26,7 @@ func (s *RedisTool) getRedisConfig(ctx context.Context, req mcp.CallToolRequest)
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cfg, _, err := s.client.Databases.GetRedisConfig(ctx, id)
+	cfg, _, err := s.client(ctx).Databases.GetRedisConfig(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -60,7 +60,7 @@ func (s *RedisTool) updateRedisConfig(ctx context.Context, req mcp.CallToolReque
 		return mcp.NewToolResultError("Invalid config object: " + err.Error()), nil
 	}
 
-	_, err = s.client.Databases.UpdateRedisConfig(ctx, id, &config)
+	_, err = s.client(ctx).Databases.UpdateRedisConfig(ctx, id, &config)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

@@ -18,11 +18,11 @@ import (
 var eFS embed.FS
 
 type DoksTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewDoksTool creates a new DOKS tool
-func NewDoksTool(client *godo.Client) *DoksTool {
+func NewDoksTool(client func(ctx context.Context) *godo.Client) *DoksTool {
 	return &DoksTool{client: client}
 }
 
@@ -37,7 +37,7 @@ func (d *DoksTool) getDoksCluster(ctx context.Context, req mcp.CallToolRequest) 
 	}
 
 	// Make the API call
-	cluster, _, err := d.client.Kubernetes.Get(ctx, clusterID)
+	cluster, _, err := d.client(ctx).Kubernetes.Get(ctx, clusterID)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (d *DoksTool) listDOKSClusters(ctx context.Context, req mcp.CallToolRequest
 	}
 
 	// Make the API call
-	clusters, _, err := d.client.Kubernetes.List(ctx, &godo.ListOptions{
+	clusters, _, err := d.client(ctx).Kubernetes.List(ctx, &godo.ListOptions{
 		Page:    page,
 		PerPage: perPage,
 	})
@@ -99,7 +99,7 @@ func (d *DoksTool) createDOKSCluster(ctx context.Context, req mcp.CallToolReques
 	}
 
 	// Make the API call
-	cluster, resp, err := d.client.Kubernetes.Create(ctx, createRequest)
+	cluster, resp, err := d.client(ctx).Kubernetes.Create(ctx, createRequest)
 	if err != nil {
 		// Include more context in the error message for better debugging
 		if resp != nil {
@@ -181,7 +181,7 @@ func (d *DoksTool) updateDOKSCluster(ctx context.Context, req mcp.CallToolReques
 	}
 
 	// Make the API call
-	cluster, _, err := d.client.Kubernetes.Update(ctx, clusterID, updateRequest)
+	cluster, _, err := d.client(ctx).Kubernetes.Update(ctx, clusterID, updateRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to update cluster", err), nil
 	}
@@ -206,7 +206,7 @@ func (d *DoksTool) deleteDOKSCluster(ctx context.Context, req mcp.CallToolReques
 	}
 
 	// Make the API call
-	_, err := d.client.Kubernetes.Delete(ctx, clusterID)
+	_, err := d.client(ctx).Kubernetes.Delete(ctx, clusterID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to delete cluster", err), nil
 	}
@@ -231,7 +231,7 @@ func (d *DoksTool) upgradeDOKSCluster(ctx context.Context, req mcp.CallToolReque
 	}
 
 	// Make the API call
-	_, err := d.client.Kubernetes.Upgrade(ctx, clusterID, &godo.KubernetesClusterUpgradeRequest{
+	_, err := d.client(ctx).Kubernetes.Upgrade(ctx, clusterID, &godo.KubernetesClusterUpgradeRequest{
 		VersionSlug: version,
 	})
 	if err != nil {
@@ -252,7 +252,7 @@ func (d *DoksTool) getDOKSClusterUpgrades(ctx context.Context, req mcp.CallToolR
 	}
 
 	// Make the API call
-	upgrades, _, err := d.client.Kubernetes.GetUpgrades(ctx, clusterID)
+	upgrades, _, err := d.client(ctx).Kubernetes.GetUpgrades(ctx, clusterID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to get upgrades", err), nil
 	}
@@ -277,7 +277,7 @@ func (d *DoksTool) getDOKSClusterKubeConfig(ctx context.Context, req mcp.CallToo
 	}
 
 	// Make the API call
-	kubecfg, _, err := d.client.Kubernetes.GetKubeConfig(ctx, clusterID)
+	kubecfg, _, err := d.client(ctx).Kubernetes.GetKubeConfig(ctx, clusterID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to get kubeconfig", err), nil
 	}
@@ -296,7 +296,7 @@ func (d *DoksTool) getDOKSClusterCredentials(ctx context.Context, req mcp.CallTo
 	}
 
 	// Make the API call
-	credentials, _, err := d.client.Kubernetes.GetCredentials(ctx, clusterID, &godo.KubernetesClusterCredentialsGetRequest{})
+	credentials, _, err := d.client(ctx).Kubernetes.GetCredentials(ctx, clusterID, &godo.KubernetesClusterCredentialsGetRequest{})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to get credentials", err), nil
 	}
@@ -354,7 +354,7 @@ func (d *DoksTool) createDOKSNodePool(ctx context.Context, req mcp.CallToolReque
 	}
 
 	// Make the API call
-	nodePool, _, err := d.client.Kubernetes.CreateNodePool(ctx, clusterID, createRequest)
+	nodePool, _, err := d.client(ctx).Kubernetes.CreateNodePool(ctx, clusterID, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create node pool", err), nil
 	}
@@ -385,7 +385,7 @@ func (d *DoksTool) getDOKSNodePool(ctx context.Context, req mcp.CallToolRequest)
 	}
 
 	// Make the API call
-	nodePool, _, err := d.client.Kubernetes.GetNodePool(ctx, clusterID, nodePoolID)
+	nodePool, _, err := d.client(ctx).Kubernetes.GetNodePool(ctx, clusterID, nodePoolID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to get node pool", err), nil
 	}
@@ -410,7 +410,7 @@ func (d *DoksTool) listDOKSNodePools(ctx context.Context, req mcp.CallToolReques
 	}
 
 	// Make the API call
-	nodePools, _, err := d.client.Kubernetes.ListNodePools(ctx, clusterID, nil)
+	nodePools, _, err := d.client(ctx).Kubernetes.ListNodePools(ctx, clusterID, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to list node pools", err), nil
 	}
@@ -526,7 +526,7 @@ func (d *DoksTool) updateDOKSNodePool(ctx context.Context, req mcp.CallToolReque
 	}
 
 	// Make the API call
-	nodePool, _, err := d.client.Kubernetes.UpdateNodePool(ctx, clusterID, nodePoolID, updateRequest)
+	nodePool, _, err := d.client(ctx).Kubernetes.UpdateNodePool(ctx, clusterID, nodePoolID, updateRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to update node pool", err), nil
 	}
@@ -557,7 +557,7 @@ func (d *DoksTool) deleteDOKSNodePool(ctx context.Context, req mcp.CallToolReque
 	}
 
 	// Make the API call
-	_, err := d.client.Kubernetes.DeleteNodePool(ctx, clusterID, nodePoolID)
+	_, err := d.client(ctx).Kubernetes.DeleteNodePool(ctx, clusterID, nodePoolID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to delete node pool", err), nil
 	}
@@ -600,7 +600,7 @@ func (d *DoksTool) deleteDOKSNode(ctx context.Context, req mcp.CallToolRequest) 
 	}
 
 	// Make the API call
-	_, err := d.client.Kubernetes.DeleteNode(ctx, clusterID, nodePoolID, nodeID, &godo.KubernetesNodeDeleteRequest{
+	_, err := d.client(ctx).Kubernetes.DeleteNode(ctx, clusterID, nodePoolID, nodeID, &godo.KubernetesNodeDeleteRequest{
 		SkipDrain: skipDrain,
 		Replace:   replace,
 	})
@@ -643,7 +643,7 @@ func (d *DoksTool) recycleDOKSNodes(ctx context.Context, req mcp.CallToolRequest
 	}
 
 	// Make the API call
-	_, err := d.client.Kubernetes.RecycleNodePoolNodes(ctx, clusterID, nodePoolID, &godo.KubernetesNodePoolRecycleNodesRequest{
+	_, err := d.client(ctx).Kubernetes.RecycleNodePoolNodes(ctx, clusterID, nodePoolID, &godo.KubernetesNodePoolRecycleNodesRequest{
 		Nodes: nodeIDs,
 	})
 	if err != nil {

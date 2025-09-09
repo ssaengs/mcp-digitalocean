@@ -11,10 +11,10 @@ import (
 )
 
 type DomainsTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewDomainsTool(client *godo.Client) *DomainsTool {
+func NewDomainsTool(client func(ctx context.Context) *godo.Client) *DomainsTool {
 	return &DomainsTool{
 		client: client,
 	}
@@ -26,7 +26,7 @@ func (d *DomainsTool) getDomain(ctx context.Context, req mcp.CallToolRequest) (*
 	if !ok || name == "" {
 		return mcp.NewToolResultError("Domain name is required"), nil
 	}
-	domain, _, err := d.client.Domains.Get(ctx, name)
+	domain, _, err := d.client(ctx).Domains.Get(ctx, name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -47,7 +47,7 @@ func (d *DomainsTool) listDomains(ctx context.Context, req mcp.CallToolRequest) 
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	domains, _, err := d.client.Domains.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	domains, _, err := d.client(ctx).Domains.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -69,7 +69,7 @@ func (d *DomainsTool) getDomainRecord(ctx context.Context, req mcp.CallToolReque
 		return mcp.NewToolResultError("RecordID is required"), nil
 	}
 	recordID := int(recordIDf)
-	record, _, err := d.client.Domains.Record(ctx, domain, recordID)
+	record, _, err := d.client(ctx).Domains.Record(ctx, domain, recordID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -94,7 +94,7 @@ func (d *DomainsTool) listDomainRecords(ctx context.Context, req mcp.CallToolReq
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	records, _, err := d.client.Domains.Records(ctx, domain, &godo.ListOptions{Page: page, PerPage: perPage})
+	records, _, err := d.client(ctx).Domains.Records(ctx, domain, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -114,7 +114,7 @@ func (d *DomainsTool) createDomain(ctx context.Context, req mcp.CallToolRequest)
 		IPAddress: ipAddress,
 	}
 
-	domain, _, err := d.client.Domains.Create(ctx, createRequest)
+	domain, _, err := d.client(ctx).Domains.Create(ctx, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -130,7 +130,7 @@ func (d *DomainsTool) createDomain(ctx context.Context, req mcp.CallToolRequest)
 func (d *DomainsTool) deleteDomain(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	name := req.GetArguments()["Name"].(string)
 
-	_, err := d.client.Domains.Delete(ctx, name)
+	_, err := d.client(ctx).Domains.Delete(ctx, name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -150,7 +150,7 @@ func (d *DomainsTool) createRecord(ctx context.Context, req mcp.CallToolRequest)
 		Data: data,
 	}
 
-	record, _, err := d.client.Domains.CreateRecord(ctx, domain, createRequest)
+	record, _, err := d.client(ctx).Domains.CreateRecord(ctx, domain, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -167,7 +167,7 @@ func (d *DomainsTool) deleteRecord(ctx context.Context, req mcp.CallToolRequest)
 	domain := req.GetArguments()["Domain"].(string)
 	recordID := int(req.GetArguments()["RecordID"].(float64))
 
-	_, err := d.client.Domains.DeleteRecord(ctx, domain, recordID)
+	_, err := d.client(ctx).Domains.DeleteRecord(ctx, domain, recordID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -188,7 +188,7 @@ func (d *DomainsTool) editRecord(ctx context.Context, req mcp.CallToolRequest) (
 		Data: data,
 	}
 
-	record, _, err := d.client.Domains.EditRecord(ctx, domain, recordID, editRequest)
+	record, _, err := d.client(ctx).Domains.EditRecord(ctx, domain, recordID, editRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

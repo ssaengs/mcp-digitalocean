@@ -16,11 +16,11 @@ const (
 
 // UptimeTool provides UptimeCheck and Alert management tools
 type UptimeTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewUptimeTool creates a new UptimeCheck tool
-func NewUptimeTool(client *godo.Client) *UptimeTool {
+func NewUptimeTool(client func(ctx context.Context) *godo.Client) *UptimeTool {
 	return &UptimeTool{
 		client: client,
 	}
@@ -33,7 +33,7 @@ func (c *UptimeTool) getUptimeCheck(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError("UptimeCheck ID is required"), nil
 	}
 
-	uptimeCheck, _, err := c.client.UptimeChecks.Get(ctx, id)
+	uptimeCheck, _, err := c.client(ctx).UptimeChecks.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -53,7 +53,7 @@ func (c *UptimeTool) getUptimeCheckState(ctx context.Context, req mcp.CallToolRe
 		return mcp.NewToolResultError("UptimeCheck ID is required"), nil
 	}
 
-	uptimeCheck, _, err := c.client.UptimeChecks.GetState(ctx, id)
+	uptimeCheck, _, err := c.client(ctx).UptimeChecks.GetState(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -76,7 +76,7 @@ func (c *UptimeTool) listUptimeChecks(ctx context.Context, req mcp.CallToolReque
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	uptimeChecks, _, err := c.client.UptimeChecks.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	uptimeChecks, _, err := c.client(ctx).UptimeChecks.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -113,7 +113,7 @@ func (c *UptimeTool) createUptimeCheck(ctx context.Context, req mcp.CallToolRequ
 		Enabled: enabled,
 	}
 
-	uptimeCheck, _, err := c.client.UptimeChecks.Create(ctx, createRequest)
+	uptimeCheck, _, err := c.client(ctx).UptimeChecks.Create(ctx, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -157,7 +157,7 @@ func (c *UptimeTool) updateUptimeCheck(ctx context.Context, req mcp.CallToolRequ
 		Enabled: enabled,
 	}
 
-	uptimeCheck, _, err := c.client.UptimeChecks.Update(ctx, id, updateRequest)
+	uptimeCheck, _, err := c.client(ctx).UptimeChecks.Update(ctx, id, updateRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -176,7 +176,7 @@ func (c *UptimeTool) deleteUptimeCheck(ctx context.Context, req mcp.CallToolRequ
 	if !ok || id == "" {
 		return mcp.NewToolResultError("UptimeCheck ID is required"), nil
 	}
-	_, err := c.client.UptimeChecks.Delete(ctx, id)
+	_, err := c.client(ctx).UptimeChecks.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

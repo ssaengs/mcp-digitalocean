@@ -17,11 +17,11 @@ const (
 
 // BillingTools provides tool-based handlers for DigitalOcean Billing History.
 type BillingTools struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewBillingTools creates a new BillingTools instance.
-func NewBillingTools(client *godo.Client) *BillingTools {
+func NewBillingTools(client func(ctx context.Context) *godo.Client) *BillingTools {
 	return &BillingTools{client: client}
 }
 
@@ -40,7 +40,7 @@ func (b *BillingTools) listBillingHistory(ctx context.Context, req mcp.CallToolR
 		PerPage: int(perPage),
 	}
 
-	billingHistory, _, err := b.client.BillingHistory.List(ctx, opt)
+	billingHistory, _, err := b.client(ctx).BillingHistory.List(ctx, opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

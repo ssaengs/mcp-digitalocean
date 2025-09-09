@@ -11,10 +11,10 @@ import (
 )
 
 type OpenSearchTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewOpenSearchTool(client *godo.Client) *OpenSearchTool {
+func NewOpenSearchTool(client func(ctx context.Context) *godo.Client) *OpenSearchTool {
 	return &OpenSearchTool{
 		client: client,
 	}
@@ -26,7 +26,7 @@ func (s *OpenSearchTool) getOpensearchConfig(ctx context.Context, req mcp.CallTo
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cfg, _, err := s.client.Databases.GetOpensearchConfig(ctx, id)
+	cfg, _, err := s.client(ctx).Databases.GetOpensearchConfig(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -59,7 +59,7 @@ func (s *OpenSearchTool) updateOpensearchConfig(ctx context.Context, req mcp.Cal
 		return mcp.NewToolResultError("Invalid config object: " + err.Error()), nil
 	}
 
-	_, err = s.client.Databases.UpdateOpensearchConfig(ctx, id, &config)
+	_, err = s.client(ctx).Databases.UpdateOpensearchConfig(ctx, id, &config)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

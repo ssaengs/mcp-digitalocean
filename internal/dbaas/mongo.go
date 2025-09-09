@@ -11,10 +11,10 @@ import (
 )
 
 type MongoTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewMongoTool(client *godo.Client) *MongoTool {
+func NewMongoTool(client func(ctx context.Context) *godo.Client) *MongoTool {
 	return &MongoTool{
 		client: client,
 	}
@@ -26,7 +26,7 @@ func (s *MongoTool) getMongoDBConfig(ctx context.Context, req mcp.CallToolReques
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cfg, _, err := s.client.Databases.GetMongoDBConfig(ctx, id)
+	cfg, _, err := s.client(ctx).Databases.GetMongoDBConfig(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -59,7 +59,7 @@ func (s *MongoTool) updateMongoDBConfig(ctx context.Context, req mcp.CallToolReq
 		return mcp.NewToolResultError("Invalid config object: " + err.Error()), nil
 	}
 
-	_, err = s.client.Databases.UpdateMongoDBConfig(ctx, id, &config)
+	_, err = s.client(ctx).Databases.UpdateMongoDBConfig(ctx, id, &config)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

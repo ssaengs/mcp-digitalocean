@@ -12,11 +12,11 @@ import (
 
 // VPCPeeringTool represents a tool for managing VPC peering connections.
 type VPCPeeringTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewVPCPeeringTool creates a new VPCPeeringTool instance.
-func NewVPCPeeringTool(client *godo.Client) *VPCPeeringTool {
+func NewVPCPeeringTool(client func(ctx context.Context) *godo.Client) *VPCPeeringTool {
 	return &VPCPeeringTool{
 		client: client,
 	}
@@ -27,7 +27,7 @@ func (t *VPCPeeringTool) getVPCPeering(ctx context.Context, req mcp.CallToolRequ
 	if !ok || id == "" {
 		return mcp.NewToolResultError("VPC Peering ID is required"), nil
 	}
-	peering, _, err := t.client.VPCs.GetVPCPeering(ctx, id)
+	peering, _, err := t.client(ctx).VPCs.GetVPCPeering(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -47,7 +47,7 @@ func (t *VPCPeeringTool) listVPCPeerings(ctx context.Context, req mcp.CallToolRe
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	peerings, _, err := t.client.VPCs.ListVPCPeerings(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	peerings, _, err := t.client(ctx).VPCs.ListVPCPeerings(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -66,7 +66,7 @@ func (t *VPCPeeringTool) createPeering(ctx context.Context, req mcp.CallToolRequ
 	vpc2 := args["Vpc2"].(string)
 
 	// Create a new VPC peering connection
-	peering, _, err := t.client.VPCs.CreateVPCPeering(ctx, &godo.VPCPeeringCreateRequest{
+	peering, _, err := t.client(ctx).VPCs.CreateVPCPeering(ctx, &godo.VPCPeeringCreateRequest{
 		Name:   peeringName,
 		VPCIDs: []string{vpc1, vpc2},
 	})
@@ -88,7 +88,7 @@ func (t *VPCPeeringTool) deletePeering(ctx context.Context, req mcp.CallToolRequ
 	peeringID := args["ID"].(string)
 
 	// Delete the VPC peering connection
-	_, err := t.client.VPCs.DeleteVPCPeering(ctx, peeringID)
+	_, err := t.client(ctx).VPCs.DeleteVPCPeering(ctx, peeringID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

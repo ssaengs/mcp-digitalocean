@@ -11,10 +11,10 @@ import (
 )
 
 type FirewallTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewFirewallTool(client *godo.Client) *FirewallTool {
+func NewFirewallTool(client func(ctx context.Context) *godo.Client) *FirewallTool {
 	return &FirewallTool{
 		client: client,
 	}
@@ -27,7 +27,7 @@ func (s *FirewallTool) getFirewallRules(ctx context.Context, req mcp.CallToolReq
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
 
-	rules, _, err := s.client.Databases.GetFirewallRules(ctx, id)
+	rules, _, err := s.client(ctx).Databases.GetFirewallRules(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -73,7 +73,7 @@ func (s *FirewallTool) updateFirewallRules(ctx context.Context, req mcp.CallTool
 	}
 
 	updateReq := &godo.DatabaseUpdateFirewallRulesRequest{Rules: rules}
-	_, err := s.client.Databases.UpdateFirewallRules(ctx, id, updateReq)
+	_, err := s.client(ctx).Databases.UpdateFirewallRules(ctx, id, updateReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

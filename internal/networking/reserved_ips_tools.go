@@ -14,11 +14,11 @@ import (
 
 // ReservedIPTool provides tools for managing reserved IPs
 type ReservedIPTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewReservedIPTool creates a new ReservedIPTool
-func NewReservedIPTool(client *godo.Client) *ReservedIPTool {
+func NewReservedIPTool(client func(ctx context.Context) *godo.Client) *ReservedIPTool {
 	return &ReservedIPTool{
 		client: client,
 	}
@@ -37,9 +37,9 @@ func (t *ReservedIPTool) getReservedIP(ctx context.Context, req mcp.CallToolRequ
 	}
 	var reservedIP any
 	if netip.Is4() {
-		reservedIP, _, err = t.client.ReservedIPs.Get(ctx, ip)
+		reservedIP, _, err = t.client(ctx).ReservedIPs.Get(ctx, ip)
 	} else if netip.Is6() {
-		reservedIP, _, err = t.client.ReservedIPV6s.Get(ctx, ip)
+		reservedIP, _, err = t.client(ctx).ReservedIPV6s.Get(ctx, ip)
 	} else {
 		return mcp.NewToolResultError("unsupported IP address type"), nil
 	}
@@ -70,9 +70,9 @@ func (t *ReservedIPTool) listReservedIPs(ctx context.Context, req mcp.CallToolRe
 	ipType := req.GetArguments()["Type"].(string) // "ipv4" or "ipv6"
 	switch ipType {
 	case "ipv4":
-		ips, _, err = t.client.ReservedIPs.List(ctx, opts)
+		ips, _, err = t.client(ctx).ReservedIPs.List(ctx, opts)
 	case "ipv6":
-		ips, _, err = t.client.ReservedIPV6s.List(ctx, opts)
+		ips, _, err = t.client(ctx).ReservedIPV6s.List(ctx, opts)
 	default:
 		return mcp.NewToolResultErrorFromErr("invalid IP type. Use 'ipv4' or 'ipv6'", errors.New("invalid IP type")), nil
 	}
@@ -96,9 +96,9 @@ func (t *ReservedIPTool) reserveIP(ctx context.Context, req mcp.CallToolRequest)
 
 	switch ipType {
 	case "ipv4":
-		reservedIP, _, err = t.client.ReservedIPs.Create(ctx, &godo.ReservedIPCreateRequest{Region: region})
+		reservedIP, _, err = t.client(ctx).ReservedIPs.Create(ctx, &godo.ReservedIPCreateRequest{Region: region})
 	case "ipv6":
-		reservedIP, _, err = t.client.ReservedIPV6s.Create(ctx, &godo.ReservedIPV6CreateRequest{Region: region})
+		reservedIP, _, err = t.client(ctx).ReservedIPV6s.Create(ctx, &godo.ReservedIPV6CreateRequest{Region: region})
 	default:
 		return mcp.NewToolResultErrorFromErr("invalid IP type. Use 'ipv4' or 'ipv6'", errors.New("invalid IP type")), nil
 	}
@@ -123,9 +123,9 @@ func (t *ReservedIPTool) releaseIP(ctx context.Context, req mcp.CallToolRequest)
 	var err error
 	switch ipType {
 	case "ipv4":
-		_, err = t.client.ReservedIPs.Delete(ctx, ip)
+		_, err = t.client(ctx).ReservedIPs.Delete(ctx, ip)
 	case "ipv6":
-		_, err = t.client.ReservedIPV6s.Delete(ctx, ip)
+		_, err = t.client(ctx).ReservedIPV6s.Delete(ctx, ip)
 	default:
 		return mcp.NewToolResultErrorFromErr("invalid IP type. Use 'ipv4' or 'ipv6'", errors.New("invalid IP type")), nil
 	}
@@ -148,9 +148,9 @@ func (t *ReservedIPTool) assignIP(ctx context.Context, req mcp.CallToolRequest) 
 
 	switch ipType {
 	case "ipv4":
-		action, _, err = t.client.ReservedIPActions.Assign(ctx, ip, dropletID)
+		action, _, err = t.client(ctx).ReservedIPActions.Assign(ctx, ip, dropletID)
 	case "ipv6":
-		action, _, err = t.client.ReservedIPV6Actions.Assign(ctx, ip, dropletID)
+		action, _, err = t.client(ctx).ReservedIPV6Actions.Assign(ctx, ip, dropletID)
 	default:
 		return mcp.NewToolResultErrorFromErr("invalid IP type. Use 'ipv4' or 'ipv6'", errors.New("invalid IP type")), nil
 	}
@@ -177,9 +177,9 @@ func (t *ReservedIPTool) unassignIP(ctx context.Context, req mcp.CallToolRequest
 
 	switch ipType {
 	case "ipv4":
-		action, _, err = t.client.ReservedIPActions.Unassign(ctx, ip)
+		action, _, err = t.client(ctx).ReservedIPActions.Unassign(ctx, ip)
 	case "ipv6":
-		action, _, err = t.client.ReservedIPV6Actions.Unassign(ctx, ip)
+		action, _, err = t.client(ctx).ReservedIPV6Actions.Unassign(ctx, ip)
 	default:
 		return mcp.NewToolResultErrorFromErr("invalid IP type. Use 'ipv4' or 'ipv6'", errors.New("invalid IP type")), nil
 	}

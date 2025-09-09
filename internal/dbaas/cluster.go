@@ -13,10 +13,10 @@ import (
 )
 
 type ClusterTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewClusterTool(client *godo.Client) *ClusterTool {
+func NewClusterTool(client func(ctx context.Context) *godo.Client) *ClusterTool {
 	return &ClusterTool{
 		client: client,
 	}
@@ -41,8 +41,8 @@ func (s *ClusterTool) listCluster(ctx context.Context, req mcp.CallToolRequest) 
 	if page > 0 || perPage > 0 {
 		opts = &godo.ListOptions{Page: page, PerPage: perPage}
 	}
-
-	clusters, _, err := s.client.Databases.List(ctx, opts)
+	client := s.client(ctx)
+	clusters, _, err := client.Databases.List(ctx, opts)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -58,7 +58,8 @@ func (s *ClusterTool) getCluster(ctx context.Context, req mcp.CallToolRequest) (
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cluster, _, err := s.client.Databases.Get(ctx, id)
+	client := s.client(ctx)
+	cluster, _, err := client.Databases.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -99,7 +100,8 @@ func (s *ClusterTool) createCluster(ctx context.Context, req mcp.CallToolRequest
 		Tags:       tags,
 	}
 
-	cluster, _, err := s.client.Databases.Create(ctx, createReq)
+	client := s.client(ctx)
+	cluster, _, err := client.Databases.Create(ctx, createReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -115,7 +117,8 @@ func (s *ClusterTool) deleteCluster(ctx context.Context, req mcp.CallToolRequest
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	_, err := s.client.Databases.Delete(ctx, id)
+	client := s.client(ctx)
+	_, err := client.Databases.Delete(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -150,7 +153,8 @@ func (s *ClusterTool) resizeCluster(ctx context.Context, req mcp.CallToolRequest
 		resizeReq.StorageSizeMib = storageSizeMib
 	}
 
-	_, err := s.client.Databases.Resize(ctx, id, resizeReq)
+	client := s.client(ctx)
+	_, err := client.Databases.Resize(ctx, id, resizeReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -162,7 +166,8 @@ func (s *ClusterTool) getCA(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	ca, _, err := s.client.Databases.GetCA(ctx, id)
+	client := s.client(ctx)
+	ca, _, err := client.Databases.GetCA(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -196,8 +201,8 @@ func (s *ClusterTool) listBackups(ctx context.Context, req mcp.CallToolRequest) 
 	if page > 0 || perPage > 0 {
 		opts = &godo.ListOptions{Page: page, PerPage: perPage}
 	}
-
-	backups, _, err := s.client.Databases.ListBackups(ctx, id, opts)
+	client := s.client(ctx)
+	backups, _, err := client.Databases.ListBackups(ctx, id, opts)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -209,7 +214,8 @@ func (s *ClusterTool) listBackups(ctx context.Context, req mcp.CallToolRequest) 
 }
 
 func (s *ClusterTool) listOptions(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	options, _, err := s.client.Databases.ListOptions(ctx)
+	client := s.client(ctx)
+	options, _, err := client.Databases.ListOptions(ctx)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -231,7 +237,8 @@ func (s *ClusterTool) upgradeMajorVersion(ctx context.Context, req mcp.CallToolR
 		return mcp.NewToolResultError("Target version is required"), nil
 	}
 	upgradeReq := &godo.UpgradeVersionRequest{Version: version}
-	_, err := s.client.Databases.UpgradeMajorVersion(ctx, id, upgradeReq)
+	client := s.client(ctx)
+	_, err := client.Databases.UpgradeMajorVersion(ctx, id, upgradeReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -279,7 +286,8 @@ func (s *ClusterTool) startOnlineMigration(ctx context.Context, req mcp.CallTool
 		DisableSSL: disableSSL,
 		IgnoreDBs:  ignoreDBs,
 	}
-	status, _, err := s.client.Databases.StartOnlineMigration(ctx, id, startReq)
+	client := s.client(ctx)
+	status, _, err := client.Databases.StartOnlineMigration(ctx, id, startReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -300,7 +308,8 @@ func (s *ClusterTool) stopOnlineMigration(ctx context.Context, req mcp.CallToolR
 	if !ok || migrationID == "" {
 		return mcp.NewToolResultError("migration_id is required"), nil
 	}
-	_, err := s.client.Databases.StopOnlineMigration(ctx, id, migrationID)
+	client := s.client(ctx)
+	_, err := client.Databases.StopOnlineMigration(ctx, id, migrationID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -313,7 +322,8 @@ func (s *ClusterTool) getOnlineMigrationStatus(ctx context.Context, req mcp.Call
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	status, _, err := s.client.Databases.GetOnlineMigrationStatus(ctx, id)
+	client := s.client(ctx)
+	status, _, err := client.Databases.GetOnlineMigrationStatus(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

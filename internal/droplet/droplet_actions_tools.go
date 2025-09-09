@@ -13,11 +13,11 @@ import (
 
 // DropletActionsTool provides tools for droplet actions
 type DropletActionsTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewDropletActionsTool creates a new droplet actions tool
-func NewDropletActionsTool(client *godo.Client) *DropletActionsTool {
+func NewDropletActionsTool(client func(ctx context.Context) *godo.Client) *DropletActionsTool {
 	return &DropletActionsTool{
 		client: client,
 	}
@@ -26,7 +26,7 @@ func NewDropletActionsTool(client *godo.Client) *DropletActionsTool {
 // rebootDroplet reboots a droplet
 func (da *DropletActionsTool) rebootDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.Reboot(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.Reboot(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -42,7 +42,7 @@ func (da *DropletActionsTool) rebootDroplet(ctx context.Context, req mcp.CallToo
 // passwordResetDroplet resets the password for a droplet
 func (da *DropletActionsTool) passwordResetDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.PasswordReset(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.PasswordReset(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -59,7 +59,7 @@ func (da *DropletActionsTool) passwordResetDroplet(ctx context.Context, req mcp.
 func (da *DropletActionsTool) rebuildByImageSlugDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
 	imageSlug := req.GetArguments()["ImageSlug"].(string)
-	action, _, err := da.client.DropletActions.RebuildByImageSlug(ctx, int(dropletID), imageSlug)
+	action, _, err := da.client(ctx).DropletActions.RebuildByImageSlug(ctx, int(dropletID), imageSlug)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -75,7 +75,7 @@ func (da *DropletActionsTool) rebuildByImageSlugDroplet(ctx context.Context, req
 // powerCycleByTag power cycles droplets by tag
 func (da *DropletActionsTool) powerCycleByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.PowerCycleByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.PowerCycleByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -91,7 +91,7 @@ func (da *DropletActionsTool) powerCycleByTag(ctx context.Context, req mcp.CallT
 // powerOnByTag powers on droplets by tag
 func (da *DropletActionsTool) powerOnByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.PowerOnByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.PowerOnByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -107,7 +107,7 @@ func (da *DropletActionsTool) powerOnByTag(ctx context.Context, req mcp.CallTool
 // powerOffByTag powers off droplets by tag
 func (da *DropletActionsTool) powerOffByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.PowerOffByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.PowerOffByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -123,7 +123,7 @@ func (da *DropletActionsTool) powerOffByTag(ctx context.Context, req mcp.CallToo
 // shutdownByTag shuts down droplets by tag
 func (da *DropletActionsTool) shutdownByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.ShutdownByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.ShutdownByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -139,7 +139,7 @@ func (da *DropletActionsTool) shutdownByTag(ctx context.Context, req mcp.CallToo
 // enableBackupsByTag enables backups on droplets by tag
 func (da *DropletActionsTool) enableBackupsByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.EnableBackupsByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.EnableBackupsByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -155,7 +155,7 @@ func (da *DropletActionsTool) enableBackupsByTag(ctx context.Context, req mcp.Ca
 // disableBackupsByTag disables backups on droplets by tag
 func (da *DropletActionsTool) disableBackupsByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.DisableBackupsByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.DisableBackupsByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -172,7 +172,7 @@ func (da *DropletActionsTool) disableBackupsByTag(ctx context.Context, req mcp.C
 func (da *DropletActionsTool) snapshotByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
 	name := req.GetArguments()["Name"].(string)
-	actions, _, err := da.client.DropletActions.SnapshotByTag(ctx, tag, name)
+	actions, _, err := da.client(ctx).DropletActions.SnapshotByTag(ctx, tag, name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -188,7 +188,7 @@ func (da *DropletActionsTool) snapshotByTag(ctx context.Context, req mcp.CallToo
 // enableIPv6ByTag enables IPv6 on droplets by tag
 func (da *DropletActionsTool) enableIPv6ByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.EnableIPv6ByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.EnableIPv6ByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -204,7 +204,7 @@ func (da *DropletActionsTool) enableIPv6ByTag(ctx context.Context, req mcp.CallT
 // enablePrivateNetworkingByTag enables private networking on droplets by tag
 func (da *DropletActionsTool) enablePrivateNetworkingByTag(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	tag := req.GetArguments()["Tag"].(string)
-	actions, _, err := da.client.DropletActions.EnablePrivateNetworkingByTag(ctx, tag)
+	actions, _, err := da.client(ctx).DropletActions.EnablePrivateNetworkingByTag(ctx, tag)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -220,7 +220,7 @@ func (da *DropletActionsTool) enablePrivateNetworkingByTag(ctx context.Context, 
 // powerCycleDroplet power cycles a droplet
 func (da *DropletActionsTool) powerCycleDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.PowerCycle(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.PowerCycle(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -236,7 +236,7 @@ func (da *DropletActionsTool) powerCycleDroplet(ctx context.Context, req mcp.Cal
 // powerOnDroplet powers on a droplet
 func (da *DropletActionsTool) powerOnDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.PowerOn(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.PowerOn(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -252,7 +252,7 @@ func (da *DropletActionsTool) powerOnDroplet(ctx context.Context, req mcp.CallTo
 // powerOffDroplet powers off a droplet
 func (da *DropletActionsTool) powerOffDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.PowerOff(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.PowerOff(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -268,7 +268,7 @@ func (da *DropletActionsTool) powerOffDroplet(ctx context.Context, req mcp.CallT
 // shutdownDroplet shuts down a droplet
 func (da *DropletActionsTool) shutdownDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.Shutdown(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.Shutdown(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -285,7 +285,7 @@ func (da *DropletActionsTool) shutdownDroplet(ctx context.Context, req mcp.CallT
 func (da *DropletActionsTool) restoreDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
 	imageID := req.GetArguments()["ImageID"].(float64)
-	action, _, err := da.client.DropletActions.Restore(ctx, int(dropletID), int(imageID))
+	action, _, err := da.client(ctx).DropletActions.Restore(ctx, int(dropletID), int(imageID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -303,7 +303,7 @@ func (da *DropletActionsTool) resizeDroplet(ctx context.Context, req mcp.CallToo
 	dropletID := req.GetArguments()["ID"].(float64)
 	size := req.GetArguments()["Size"].(string)
 	resizeDisk, _ := req.GetArguments()["ResizeDisk"].(bool) // Defaults to false
-	action, _, err := da.client.DropletActions.Resize(ctx, int(dropletID), size, resizeDisk)
+	action, _, err := da.client(ctx).DropletActions.Resize(ctx, int(dropletID), size, resizeDisk)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -320,7 +320,7 @@ func (da *DropletActionsTool) resizeDroplet(ctx context.Context, req mcp.CallToo
 func (da *DropletActionsTool) rebuildDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
 	imageID := req.GetArguments()["ImageID"].(float64)
-	action, _, err := da.client.DropletActions.RebuildByImageID(ctx, int(dropletID), int(imageID))
+	action, _, err := da.client(ctx).DropletActions.RebuildByImageID(ctx, int(dropletID), int(imageID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -337,7 +337,7 @@ func (da *DropletActionsTool) rebuildDroplet(ctx context.Context, req mcp.CallTo
 func (da *DropletActionsTool) renameDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
 	name := req.GetArguments()["Name"].(string)
-	action, _, err := da.client.DropletActions.Rename(ctx, int(dropletID), name)
+	action, _, err := da.client(ctx).DropletActions.Rename(ctx, int(dropletID), name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -354,7 +354,7 @@ func (da *DropletActionsTool) renameDroplet(ctx context.Context, req mcp.CallToo
 func (da *DropletActionsTool) changeKernel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
 	kernelID := req.GetArguments()["KernelID"].(float64)
-	action, _, err := da.client.DropletActions.ChangeKernel(ctx, int(dropletID), int(kernelID))
+	action, _, err := da.client(ctx).DropletActions.ChangeKernel(ctx, int(dropletID), int(kernelID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -370,7 +370,7 @@ func (da *DropletActionsTool) changeKernel(ctx context.Context, req mcp.CallTool
 // enableIPv6 enables IPv6 on a droplet
 func (da *DropletActionsTool) enableIPv6(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.EnableIPv6(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.EnableIPv6(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -386,7 +386,7 @@ func (da *DropletActionsTool) enableIPv6(ctx context.Context, req mcp.CallToolRe
 // enableBackups enables backups on a droplet
 func (da *DropletActionsTool) enableBackups(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.EnableBackups(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.EnableBackups(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -402,7 +402,7 @@ func (da *DropletActionsTool) enableBackups(ctx context.Context, req mcp.CallToo
 // disableBackups disables backups on a droplet
 func (da *DropletActionsTool) disableBackups(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := da.client.DropletActions.DisableBackups(ctx, int(dropletID))
+	action, _, err := da.client(ctx).DropletActions.DisableBackups(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -419,7 +419,7 @@ func (da *DropletActionsTool) disableBackups(ctx context.Context, req mcp.CallTo
 func (da *DropletActionsTool) snapshotDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
 	name := req.GetArguments()["Name"].(string)
-	action, _, err := da.client.DropletActions.Snapshot(ctx, int(dropletID), name)
+	action, _, err := da.client(ctx).DropletActions.Snapshot(ctx, int(dropletID), name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

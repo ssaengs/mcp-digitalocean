@@ -17,11 +17,11 @@ const (
 
 // SizesTool provides tool-based handlers for DigitalOcean droplet sizes.
 type SizesTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewSizesTool creates a new SizesTool instance.
-func NewSizesTool(client *godo.Client) *SizesTool {
+func NewSizesTool(client func(ctx context.Context) *godo.Client) *SizesTool {
 	return &SizesTool{client: client}
 }
 
@@ -41,7 +41,7 @@ func (s *SizesTool) listSizes(ctx context.Context, req mcp.CallToolRequest) (*mc
 		PerPage: int(perPage),
 	}
 
-	sizes, _, err := s.client.Sizes.List(ctx, opt)
+	sizes, _, err := s.client(ctx).Sizes.List(ctx, opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

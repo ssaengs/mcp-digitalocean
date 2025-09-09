@@ -13,10 +13,10 @@ import (
 )
 
 type KafkaTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewKafkaTool(client *godo.Client) *KafkaTool {
+func NewKafkaTool(client func(ctx context.Context) *godo.Client) *KafkaTool {
 	return &KafkaTool{client: client}
 }
 
@@ -26,7 +26,7 @@ func (s *KafkaTool) getKafkaConfig(ctx context.Context, req mcp.CallToolRequest)
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cfg, _, err := s.client.Databases.GetKafkaConfig(ctx, id)
+	cfg, _, err := s.client(ctx).Databases.GetKafkaConfig(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -56,7 +56,7 @@ func (s *KafkaTool) updateKafkaConfig(ctx context.Context, req mcp.CallToolReque
 	if err = json.Unmarshal(cfgBytes, &config); err != nil {
 		return mcp.NewToolResultError("Invalid config object: " + err.Error()), nil
 	}
-	_, err = s.client.Databases.UpdateKafkaConfig(ctx, id, &config)
+	_, err = s.client(ctx).Databases.UpdateKafkaConfig(ctx, id, &config)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -104,7 +104,7 @@ func (s *KafkaTool) listTopics(ctx context.Context, req mcp.CallToolRequest) (*m
 		opts.Usecases = ucList
 	}
 
-	topics, _, err := s.client.Databases.ListTopics(ctx, id, opts)
+	topics, _, err := s.client(ctx).Databases.ListTopics(ctx, id, opts)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -157,7 +157,7 @@ func (s *KafkaTool) createTopic(ctx context.Context, req mcp.CallToolRequest) (*
 		ReplicationFactor: replicationFactor,
 		Config:            topicConfig,
 	}
-	topic, _, err := s.client.Databases.CreateTopic(ctx, id, createReq)
+	topic, _, err := s.client(ctx).Databases.CreateTopic(ctx, id, createReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -178,7 +178,7 @@ func (s *KafkaTool) getTopic(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	if !ok || name == "" {
 		return mcp.NewToolResultError("Topic name is required"), nil
 	}
-	topic, _, err := s.client.Databases.GetTopic(ctx, id, name)
+	topic, _, err := s.client(ctx).Databases.GetTopic(ctx, id, name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -199,7 +199,7 @@ func (s *KafkaTool) deleteTopic(ctx context.Context, req mcp.CallToolRequest) (*
 	if !ok || name == "" {
 		return mcp.NewToolResultError("Topic name is required"), nil
 	}
-	_, err := s.client.Databases.DeleteTopic(ctx, id, name)
+	_, err := s.client(ctx).Databases.DeleteTopic(ctx, id, name)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -247,7 +247,7 @@ func (s *KafkaTool) updateTopic(ctx context.Context, req mcp.CallToolRequest) (*
 		ReplicationFactor: replicationFactor,
 		Config:            topicConfig,
 	}
-	_, err := s.client.Databases.UpdateTopic(ctx, id, name, updateReq)
+	_, err := s.client(ctx).Databases.UpdateTopic(ctx, id, name, updateReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

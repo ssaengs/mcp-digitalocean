@@ -11,17 +11,17 @@ import (
 )
 
 type AccountTools struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewAccountTools(client *godo.Client) *AccountTools {
+func NewAccountTools(client func(ctx context.Context) *godo.Client) *AccountTools {
 	return &AccountTools{
 		client: client,
 	}
 }
 
 func (a *AccountTools) getAccountInformation(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	account, _, err := a.client.Account.Get(ctx)
+	account, _, err := a.client(ctx).Account.Get(ctx)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

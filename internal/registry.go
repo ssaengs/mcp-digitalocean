@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -33,9 +34,11 @@ var supportedServices = map[string]struct{}{
 	"doks":        {},
 }
 
+type getClientFn func(ctx context.Context) *godo.Client
+
 // registerAppTools registers the app platform tools with the MCP server.
-func registerAppTools(s *server.MCPServer, c *godo.Client) error {
-	appTools, err := apps.NewAppPlatformTool(c)
+func registerAppTools(s *server.MCPServer, fn getClientFn) error {
+	appTools, err := apps.NewAppPlatformTool(fn)
 	if err != nil {
 		return fmt.Errorf("failed to create apps tool: %w", err)
 	}
@@ -46,92 +49,90 @@ func registerAppTools(s *server.MCPServer, c *godo.Client) error {
 }
 
 // registerCommonTools registers the common tools with the MCP server.
-func registerCommonTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(common.NewRegionTools(c).Tools()...)
+func registerCommonTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(common.NewRegionTools(fn).Tools()...)
 
 	return nil
 }
 
 // registerDropletTools registers the droplet tools with the MCP server.
-func registerDropletTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(droplet.NewDropletTool(c).Tools()...)
-	s.AddTools(droplet.NewDropletActionsTool(c).Tools()...)
-	s.AddTools(droplet.NewImagesTool(c).Tools()...)
-	s.AddTools(droplet.NewSizesTool(c).Tools()...)
+func registerDropletTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(droplet.NewDropletTool(fn).Tools()...)
+	s.AddTools(droplet.NewDropletActionsTool(fn).Tools()...)
+	s.AddTools(droplet.NewImagesTool(fn).Tools()...)
+	s.AddTools(droplet.NewSizesTool(fn).Tools()...)
 	return nil
 }
 
 // registerNetworkingTools registers the networking tools with the MCP server.
-func registerNetworkingTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(networking.NewCertificateTool(c).Tools()...)
-	s.AddTools(networking.NewDomainsTool(c).Tools()...)
-	s.AddTools(networking.NewFirewallTool(c).Tools()...)
-	s.AddTools(networking.NewReservedIPTool(c).Tools()...)
-	// Partner attachments doesn't have much users so this has been disabled
-	// s.AddTools(networking.NewPartnerAttachmentTool(c).Tools()...)
-	s.AddTools(networking.NewVPCTool(c).Tools()...)
-	s.AddTools(networking.NewVPCPeeringTool(c).Tools()...)
+func registerNetworkingTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(networking.NewCertificateTool(fn).Tools()...)
+	s.AddTools(networking.NewDomainsTool(fn).Tools()...)
+	s.AddTools(networking.NewFirewallTool(fn).Tools()...)
+	s.AddTools(networking.NewReservedIPTool(fn).Tools()...)
+	s.AddTools(networking.NewVPCTool(fn).Tools()...)
+	s.AddTools(networking.NewVPCPeeringTool(fn).Tools()...)
 	return nil
 }
 
 // registerAccountTools registers the account tools with the MCP server.
-func registerAccountTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(account.NewAccountTools(c).Tools()...)
-	s.AddTools(account.NewActionTools(c).Tools()...)
-	s.AddTools(account.NewBalanceTools(c).Tools()...)
-	s.AddTools(account.NewBillingTools(c).Tools()...)
-	s.AddTools(account.NewInvoiceTools(c).Tools()...)
-	s.AddTools(account.NewKeysTool(c).Tools()...)
+func registerAccountTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(account.NewAccountTools(fn).Tools()...)
+	s.AddTools(account.NewActionTools(fn).Tools()...)
+	s.AddTools(account.NewBalanceTools(fn).Tools()...)
+	s.AddTools(account.NewBillingTools(fn).Tools()...)
+	s.AddTools(account.NewInvoiceTools(fn).Tools()...)
+	s.AddTools(account.NewKeysTool(fn).Tools()...)
 
 	return nil
 }
 
 // registerSpacesTools registers the spaces tools and resources with the MCP server.
-func registerSpacesTools(s *server.MCPServer, c *godo.Client) error {
+func registerSpacesTools(s *server.MCPServer, fn getClientFn) error {
 	// Register the tools for spaces keys
-	s.AddTools(spaces.NewSpacesKeysTool(c).Tools()...)
-	s.AddTools(spaces.NewCDNTool(c).Tools()...)
+	s.AddTools(spaces.NewSpacesKeysTool(fn).Tools()...)
+	s.AddTools(spaces.NewCDNTool(fn).Tools()...)
 
 	return nil
 }
 
 // registerMarketplaceTools registers the marketplace tools with the MCP server.
-func registerMarketplaceTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(marketplace.NewOneClickTool(c).Tools()...)
+func registerMarketplaceTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(marketplace.NewOneClickTool(fn).Tools()...)
 
 	return nil
 }
 
-func registerInsightsTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(insights.NewUptimeTool(c).Tools()...)
-	s.AddTools(insights.NewUptimeCheckAlertTool(c).Tools()...)
-	s.AddTools(insights.NewAlertPolicyTool(c).Tools()...)
+func registerInsightsTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(insights.NewUptimeTool(fn).Tools()...)
+	s.AddTools(insights.NewUptimeCheckAlertTool(fn).Tools()...)
+	s.AddTools(insights.NewAlertPolicyTool(fn).Tools()...)
 	return nil
 }
 
-func registerDOKSTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(doks.NewDoksTool(c).Tools()...)
+func registerDOKSTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(doks.NewDoksTool(fn).Tools()...)
 
 	return nil
 }
 
-func registerDatabasesTools(s *server.MCPServer, c *godo.Client) error {
-	s.AddTools(dbaas.NewClusterTool(c).Tools()...)
-	s.AddTools(dbaas.NewFirewallTool(c).Tools()...)
-	s.AddTools(dbaas.NewKafkaTool(c).Tools()...)
-	s.AddTools(dbaas.NewMongoTool(c).Tools()...)
-	s.AddTools(dbaas.NewMysqlTool(c).Tools()...)
-	s.AddTools(dbaas.NewOpenSearchTool(c).Tools()...)
-	s.AddTools(dbaas.NewPostgreSQLTool(c).Tools()...)
-	s.AddTools(dbaas.NewRedisTool(c).Tools()...)
-	s.AddTools(dbaas.NewUserTool(c).Tools()...)
+func registerDatabasesTools(s *server.MCPServer, fn getClientFn) error {
+	s.AddTools(dbaas.NewClusterTool(fn).Tools()...)
+	s.AddTools(dbaas.NewFirewallTool(fn).Tools()...)
+	s.AddTools(dbaas.NewKafkaTool(fn).Tools()...)
+	s.AddTools(dbaas.NewMongoTool(fn).Tools()...)
+	s.AddTools(dbaas.NewMysqlTool(fn).Tools()...)
+	s.AddTools(dbaas.NewOpenSearchTool(fn).Tools()...)
+	s.AddTools(dbaas.NewPostgreSQLTool(fn).Tools()...)
+	s.AddTools(dbaas.NewRedisTool(fn).Tools()...)
+	s.AddTools(dbaas.NewUserTool(fn).Tools()...)
 
 	return nil
 }
 
 // Register registers the set of tools for the specified services with the MCP server.
 // We either register a subset of tools of the services are specified, or we register all tools if no services are specified.
-func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, servicesToActivate ...string) error {
+func Register(logger *slog.Logger, s *server.MCPServer, fn getClientFn, servicesToActivate ...string) error {
 	if len(servicesToActivate) == 0 {
 		logger.Warn("no services specified, loading all supported services")
 		for k := range supportedServices {
@@ -142,39 +143,39 @@ func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, services
 		logger.Debug(fmt.Sprintf("Registering tool and resources for service: %s", svc))
 		switch svc {
 		case "apps":
-			if err := registerAppTools(s, c); err != nil {
+			if err := registerAppTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register app tools: %w", err)
 			}
 		case "networking":
-			if err := registerNetworkingTools(s, c); err != nil {
+			if err := registerNetworkingTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register networking tools: %w", err)
 			}
 		case "droplets":
-			if err := registerDropletTools(s, c); err != nil {
+			if err := registerDropletTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register droplets tool: %w", err)
 			}
 		case "accounts":
-			if err := registerAccountTools(s, c); err != nil {
+			if err := registerAccountTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register account tools: %w", err)
 			}
 		case "spaces":
-			if err := registerSpacesTools(s, c); err != nil {
+			if err := registerSpacesTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register spaces tools: %w", err)
 			}
 		case "databases":
-			if err := registerDatabasesTools(s, c); err != nil {
+			if err := registerDatabasesTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register databases tools: %w", err)
 			}
 		case "marketplace":
-			if err := registerMarketplaceTools(s, c); err != nil {
+			if err := registerMarketplaceTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register marketplace tools: %w", err)
 			}
 		case "insights":
-			if err := registerInsightsTools(s, c); err != nil {
+			if err := registerInsightsTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register insights tools: %w", err)
 			}
 		case "doks":
-			if err := registerDOKSTools(s, c); err != nil {
+			if err := registerDOKSTools(s, fn); err != nil {
 				return fmt.Errorf("failed to register DOKS tools: %w", err)
 			}
 		default:
@@ -183,7 +184,7 @@ func Register(logger *slog.Logger, s *server.MCPServer, c *godo.Client, services
 	}
 
 	// Common tools are always registered because they provide common functionality for all services such as region resources
-	if err := registerCommonTools(s, c); err != nil {
+	if err := registerCommonTools(s, fn); err != nil {
 		return fmt.Errorf("failed to register common tools: %w", err)
 	}
 

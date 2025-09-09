@@ -23,11 +23,11 @@ const (
 )
 
 type AppPlatformTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewAppPlatformTool creates a new AppsTool instance
-func NewAppPlatformTool(client *godo.Client) (*AppPlatformTool, error) {
+func NewAppPlatformTool(client func(ctx context.Context) *godo.Client) (*AppPlatformTool, error) {
 	return &AppPlatformTool{client: client}, nil
 }
 
@@ -46,7 +46,8 @@ func (a *AppPlatformTool) createAppFromAppSpec(ctx context.Context, req mcp.Call
 		return mcp.NewToolResultError("App spec is required"), nil
 	}
 
-	app, _, err := a.client.Apps.Create(ctx, &create)
+	godoClient := a.client(ctx)
+	app, _, err := godoClient.Apps.Create(ctx, &create)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -95,7 +96,7 @@ func (a *AppPlatformTool) listApps(ctx context.Context, req mcp.CallToolRequest)
 		perPage = defaultPageSize
 	}
 
-	apps, _, err := a.client.Apps.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
+	apps, _, err := a.client(ctx).Apps.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -122,7 +123,7 @@ func (a *AppPlatformTool) deleteApp(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError("App ID is required"), nil
 	}
 
-	_, err := a.client.Apps.Delete(ctx, appID)
+	_, err := a.client(ctx).Apps.Delete(ctx, appID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -143,7 +144,7 @@ func (a *AppPlatformTool) getDeploymentStatus(ctx context.Context, req mcp.CallT
 		return mcp.NewToolResultError("App ID is required"), nil
 	}
 
-	deployments, _, err := a.client.Apps.ListDeployments(ctx, appID, &godo.ListOptions{Page: 1, PerPage: defaultPageSize})
+	deployments, _, err := a.client(ctx).Apps.ListDeployments(ctx, appID, &godo.ListOptions{Page: 1, PerPage: defaultPageSize})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -153,7 +154,7 @@ func (a *AppPlatformTool) getDeploymentStatus(ctx context.Context, req mcp.CallT
 	}
 
 	// Get the health status of the deployment
-	health, _, err := a.client.Apps.GetAppHealth(ctx, appID)
+	health, _, err := a.client(ctx).Apps.GetAppHealth(ctx, appID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get health status for app %s: %w", appID, err)
 	}
@@ -179,7 +180,7 @@ func (a *AppPlatformTool) getAppInfo(ctx context.Context, req mcp.CallToolReques
 		return mcp.NewToolResultError("App ID is required"), nil
 	}
 
-	app, _, err := a.client.Apps.Get(ctx, appID)
+	app, _, err := a.client(ctx).Apps.Get(ctx, appID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -217,7 +218,7 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 	}
 
 	if update.Update.Request == nil {
-		deployment, _, err := a.client.Apps.CreateDeployment(ctx, update.Update.AppID, &godo.DeploymentCreateRequest{
+		deployment, _, err := a.client(ctx).Apps.CreateDeployment(ctx, update.Update.AppID, &godo.DeploymentCreateRequest{
 			ForceBuild: true,
 		})
 		if err != nil {
@@ -232,7 +233,7 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultText(string(deploymentJSON)), nil
 	}
 
-	app, _, err := a.client.Apps.Update(ctx, update.Update.AppID, update.Update.Request)
+	app, _, err := a.client(ctx).Apps.Update(ctx, update.Update.AppID, update.Update.Request)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

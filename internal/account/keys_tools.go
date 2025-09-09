@@ -17,11 +17,11 @@ const (
 
 // KeysTool provides SSH key management tools
 type KeysTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewKeysTool creates a new KeysTool
-func NewKeysTool(client *godo.Client) *KeysTool {
+func NewKeysTool(client func(ctx context.Context) *godo.Client) *KeysTool {
 	return &KeysTool{
 		client: client,
 	}
@@ -32,7 +32,7 @@ func (k *KeysTool) createKey(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	name := args["Name"].(string)
 	publicKey := args["PublicKey"].(string)
 
-	key, _, err := k.client.Keys.Create(ctx, &godo.KeyCreateRequest{
+	key, _, err := k.client(ctx).Keys.Create(ctx, &godo.KeyCreateRequest{
 		Name:      name,
 		PublicKey: publicKey,
 	})
@@ -51,7 +51,7 @@ func (k *KeysTool) createKey(ctx context.Context, req mcp.CallToolRequest) (*mcp
 func (k *KeysTool) deleteKey(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	keyID := int(req.GetArguments()["ID"].(float64))
 
-	_, err := k.client.Keys.DeleteByID(ctx, keyID)
+	_, err := k.client(ctx).Keys.DeleteByID(ctx, keyID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -65,7 +65,7 @@ func (k *KeysTool) getKey(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	if !ok {
 		return mcp.NewToolResultError("Key ID is required"), nil
 	}
-	key, _, err := k.client.Keys.GetByID(ctx, int(id))
+	key, _, err := k.client(ctx).Keys.GetByID(ctx, int(id))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -86,7 +86,7 @@ func (k *KeysTool) listKeys(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if !ok {
 		perPage = defaultKeysPageSize
 	}
-	keys, _, err := k.client.Keys.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
+	keys, _, err := k.client(ctx).Keys.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

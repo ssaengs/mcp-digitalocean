@@ -11,10 +11,10 @@ import (
 )
 
 type PostgreSQLTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewPostgreSQLTool(client *godo.Client) *PostgreSQLTool {
+func NewPostgreSQLTool(client func(ctx context.Context) *godo.Client) *PostgreSQLTool {
 	return &PostgreSQLTool{
 		client: client,
 	}
@@ -26,7 +26,7 @@ func (s *PostgreSQLTool) getPostgreSQLConfig(ctx context.Context, req mcp.CallTo
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cfg, _, err := s.client.Databases.GetPostgreSQLConfig(ctx, id)
+	cfg, _, err := s.client(ctx).Databases.GetPostgreSQLConfig(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -59,7 +59,7 @@ func (s *PostgreSQLTool) updatePostgreSQLConfig(ctx context.Context, req mcp.Cal
 		return mcp.NewToolResultError("Invalid config object: " + err.Error()), nil
 	}
 
-	_, err = s.client.Databases.UpdatePostgreSQLConfig(ctx, id, &config)
+	_, err = s.client(ctx).Databases.UpdatePostgreSQLConfig(ctx, id, &config)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

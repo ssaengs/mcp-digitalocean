@@ -61,14 +61,6 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	token := *tokenFlag
-	if token == "" {
-		token = os.Getenv("DIGITALOCEAN_API_TOKEN")
-		if token == "" {
-			logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
-			os.Exit(1)
-		}
-	}
 
 	endpoint := *endpointFlag
 	if endpoint != "" {
@@ -83,35 +75,6 @@ func main() {
 		services = strings.Split(*serviceFlag, ",")
 	}
 
-	// The godo-client should be created on a per-request basis, but for the sake of this MCP server.
-	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, endpoint)
-	if err != nil {
-		logger.Error("Failed to create DigitalOcean client: " + err.Error())
-		os.Exit(1)
-	}
-
-	svr := newMcpServer(logger, client, services)
-	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
-	if *transport == "http" {
-		httpServer := server.NewStreamableHTTPServer(svr, server.WithHTTPContextFunc(authFromRequest))
-		// listen on port 8080
-		logger.Debug("Http server start listening: " + *bindAddr)
-		err = httpServer.Start(*bindAddr)
-		if err != nil {
-			logger.Error("Failed to serve MCP server over HTTP: " + err.Error())
-			os.Exit(1)
-		}
-	} else {
-		logger.Debug("starting stdio server")
-		err = server.ServeStdio(svr)
-		if err != nil {
-			logger.Error("Failed to serve MCP server over stdio: " + err.Error())
-			os.Exit(1)
-		}
-	}
-}
-
-func newMcpServer(logger *slog.Logger, client *godo.Client, services []string) *server.MCPServer {
 	s := server.NewMCPServer(
 		mcpName,
 		mcpVersion,
@@ -120,13 +83,74 @@ func newMcpServer(logger *slog.Logger, client *godo.Client, services []string) *
 		server.WithLogging(),
 	)
 
-	err := registry.Register(logger, s, client, services...)
+	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
+	if *transport == "http" {
+		runHTTPServer(s, logger, *bindAddr, services)
+	} else {
+		runStdioServer(logger, s, tokenFlag, services)
+	}
+}
+
+func clientFromApiToken(ctx context.Context) (*godo.Client, error) {
+	auth, ok := ctx.Value(authKey{}).(string)
+	if !ok || auth == "" {
+		return nil, fmt.Errorf("no auth token provided")
+	}
+
+	parts := strings.SplitN(auth, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return nil, fmt.Errorf("invalid auth token format")
+	}
+	token := parts[1]
+
+	endpoint := os.Getenv("DIGITALOCEAN_API_ENDPOINT")
+	if endpoint == "" {
+		endpoint = defaultEndpoint
+	}
+
+	return newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+}
+
+func runHTTPServer(s *server.MCPServer, logger *slog.Logger, bindAddr string, services []string) {
+	err := registry.Register(logger, s, clientFromApiToken, services...)
 	if err != nil {
 		logger.Error("Failed to register tools: " + err.Error())
 		os.Exit(1)
 	}
 
-	return s
+	httpServer := server.NewStreamableHTTPServer(s, server.WithHTTPContextFunc(authFromRequest))
+	// listen on port 8080
+	logger.Debug("Http server start listening: " + bindAddr)
+	err = httpServer.Start(bindAddr)
+	if err != nil {
+		logger.Error("Failed to serve MCP server over HTTP: " + err.Error())
+		os.Exit(1)
+	}
+}
+
+func runStdioServer(logger *slog.Logger, s *server.MCPServer, tokenFlag *string, services []string) {
+	err := registry.Register(logger, s, clientFromApiToken, services...)
+	if err != nil {
+		logger.Error("Failed to register tools: " + err.Error())
+		os.Exit(1)
+	}
+
+	// if using stdio, we check for the existence of the env var
+	token := *tokenFlag
+	if token == "" {
+		token = os.Getenv("DIGITALOCEAN_API_TOKEN")
+		if token == "" {
+			logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
+			os.Exit(1)
+		}
+	}
+
+	logger.Debug("starting stdio server")
+	err = server.ServeStdio(s)
+	if err != nil {
+		logger.Error("Failed to serve MCP server over stdio: " + err.Error())
+		os.Exit(1)
+	}
 }
 
 // newGodoClientWithTokenAndEndpoint initializes a new godo client with a custom user agent and endpoint.

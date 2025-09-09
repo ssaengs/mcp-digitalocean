@@ -12,11 +12,11 @@ import (
 
 // DropletTool provides droplet management tools
 type DropletTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewDropletTool creates a new droplet tool
-func NewDropletTool(client *godo.Client) *DropletTool {
+func NewDropletTool(client func(ctx context.Context) *godo.Client) *DropletTool {
 	return &DropletTool{
 		client: client,
 	}
@@ -40,7 +40,7 @@ func (d *DropletTool) createDroplet(ctx context.Context, req mcp.CallToolRequest
 		Backups:    backup,
 		Monitoring: monitoring,
 	}
-	droplet, _, err := d.client.Droplets.Create(ctx, dropletCreateRequest)
+	droplet, _, err := d.client(ctx).Droplets.Create(ctx, dropletCreateRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("droplet create", err), nil
 	}
@@ -54,7 +54,7 @@ func (d *DropletTool) createDroplet(ctx context.Context, req mcp.CallToolRequest
 // deleteDroplet deletes a droplet
 func (d *DropletTool) deleteDroplet(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	_, err := d.client.Droplets.Delete(ctx, int(dropletID))
+	_, err := d.client(ctx).Droplets.Delete(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -64,7 +64,7 @@ func (d *DropletTool) deleteDroplet(ctx context.Context, req mcp.CallToolRequest
 // getDropletNeighbors gets a droplet's neighbors
 func (d *DropletTool) getDropletNeighbors(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	neighbors, _, err := d.client.Droplets.Neighbors(ctx, int(dropletID))
+	neighbors, _, err := d.client(ctx).Droplets.Neighbors(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -80,7 +80,7 @@ func (d *DropletTool) getDropletNeighbors(ctx context.Context, req mcp.CallToolR
 // enablePrivateNetworking enables private networking on a droplet
 func (d *DropletTool) enablePrivateNetworking(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID := req.GetArguments()["ID"].(float64)
-	action, _, err := d.client.DropletActions.EnablePrivateNetworking(ctx, int(dropletID))
+	action, _, err := d.client(ctx).DropletActions.EnablePrivateNetworking(ctx, int(dropletID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -103,7 +103,7 @@ func (d *DropletTool) getDropletKernels(ctx context.Context, req mcp.CallToolReq
 		PerPage: 100,
 	}
 
-	kernels, _, err := d.client.Droplets.Kernels(ctx, int(dropletID), opt)
+	kernels, _, err := d.client(ctx).Droplets.Kernels(ctx, int(dropletID), opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -122,7 +122,7 @@ func (d *DropletTool) getDropletByID(ctx context.Context, req mcp.CallToolReques
 	if !ok {
 		return mcp.NewToolResultError("Droplet ID is required"), nil
 	}
-	droplet, _, err := d.client.Droplets.Get(ctx, int(id))
+	droplet, _, err := d.client(ctx).Droplets.Get(ctx, int(id))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -142,7 +142,7 @@ func (d *DropletTool) getDropletActionByID(ctx context.Context, req mcp.CallTool
 	if !ok {
 		return mcp.NewToolResultError("ActionID is required"), nil
 	}
-	action, _, err := d.client.DropletActions.Get(ctx, int(dropletID), int(actionID))
+	action, _, err := d.client(ctx).DropletActions.Get(ctx, int(dropletID), int(actionID))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -168,7 +168,7 @@ func (d *DropletTool) getDroplets(ctx context.Context, req mcp.CallToolRequest) 
 		Page:    int(page),
 		PerPage: int(perPage),
 	}
-	droplets, _, err := d.client.Droplets.List(ctx, opt)
+	droplets, _, err := d.client(ctx).Droplets.List(ctx, opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
