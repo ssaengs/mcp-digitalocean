@@ -12,8 +12,11 @@ import (
 )
 
 func setupAlertPolicyToolWithMock(mockMonitoring *MockMonitoringService) *AlertPolicyTool {
-	client := &godo.Client{}
-	client.Monitoring = mockMonitoring
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Monitoring: mockMonitoring,
+		}
+	}
 	return NewAlertPolicyTool(client)
 }
 

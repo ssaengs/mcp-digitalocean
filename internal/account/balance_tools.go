@@ -12,17 +12,17 @@ import (
 
 // BalanceTools provides tool-based handlers for DigitalOcean account balance.
 type BalanceTools struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewBalanceTools creates a new BalanceTools instance.
-func NewBalanceTools(client *godo.Client) *BalanceTools {
+func NewBalanceTools(client func(ctx context.Context) *godo.Client) *BalanceTools {
 	return &BalanceTools{client: client}
 }
 
 // getBalance retrieves the balance information for the user account.
 func (b *BalanceTools) getBalance(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	balance, _, err := b.client.Balance.Get(ctx)
+	balance, _, err := b.client(ctx).Balance.Get(ctx)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

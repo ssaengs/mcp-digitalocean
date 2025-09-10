@@ -123,7 +123,9 @@ func TestUpdateApp(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client, appService := setupMock(t)
-			tool := &AppPlatformTool{client: client}
+			tool := &AppPlatformTool{client: func(ctx context.Context) *godo.Client {
+				return client
+			}}
 			if tc.mock != nil {
 				tc.mock(appService)
 			}
@@ -190,7 +192,9 @@ func TestListApps(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client, appService := setupMock(t)
-			tool := &AppPlatformTool{client: client}
+			tool := &AppPlatformTool{client: func(ctx context.Context) *godo.Client {
+				return client
+			}}
 			if tc.mock != nil {
 				tc.mock(appService, tc.expectedApps)
 			}
@@ -294,7 +298,9 @@ func TestCreateAppFromAppSpec(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client, appService := setupMock(t)
-			tool := &AppPlatformTool{client: client}
+			tool := &AppPlatformTool{client: func(ctx context.Context) *godo.Client {
+				return client
+			}}
 			if tc.mock != nil {
 				tc.mock(appService)
 			}
@@ -357,7 +363,9 @@ func TestDeleteApp(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client, appService := setupMock(t)
-			tool := &AppPlatformTool{client: client}
+			tool := &AppPlatformTool{client: func(ctx context.Context) *godo.Client {
+				return client
+			}}
 			if tc.mock != nil {
 				tc.mock(appService)
 			}
@@ -496,7 +504,9 @@ func TestGetDeploymentStatus(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			client, appService := setupMock(t)
-			tool := &AppPlatformTool{client: client}
+			tool := &AppPlatformTool{client: func(ctx context.Context) *godo.Client {
+				return client
+			}}
 
 			if tc.mock != nil {
 				tc.mock(appService, tc.expectedDeployments)

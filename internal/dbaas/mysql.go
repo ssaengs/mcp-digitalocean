@@ -12,10 +12,10 @@ import (
 )
 
 type MysqlTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewMysqlTool(client *godo.Client) *MysqlTool {
+func NewMysqlTool(client func(ctx context.Context) *godo.Client) *MysqlTool {
 	return &MysqlTool{
 		client: client,
 	}
@@ -27,7 +27,7 @@ func (s *MysqlTool) getMySQLConfig(ctx context.Context, req mcp.CallToolRequest)
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	cfg, _, err := s.client.Databases.GetMySQLConfig(ctx, id)
+	cfg, _, err := s.client(ctx).Databases.GetMySQLConfig(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -60,7 +60,7 @@ func (s *MysqlTool) updateMySQLConfig(ctx context.Context, req mcp.CallToolReque
 		return mcp.NewToolResultError("Invalid config object: " + err.Error()), nil
 	}
 
-	_, err = s.client.Databases.UpdateMySQLConfig(ctx, id, &config)
+	_, err = s.client(ctx).Databases.UpdateMySQLConfig(ctx, id, &config)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -72,7 +72,7 @@ func (s *MysqlTool) getSQLMode(ctx context.Context, req mcp.CallToolRequest) (*m
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Cluster id is required"), nil
 	}
-	mode, _, err := s.client.Databases.GetSQLMode(ctx, id)
+	mode, _, err := s.client(ctx).Databases.GetSQLMode(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -96,7 +96,7 @@ func (s *MysqlTool) setSQLMode(ctx context.Context, req mcp.CallToolRequest) (*m
 			modes = append(modes, m)
 		}
 	}
-	_, err := s.client.Databases.SetSQLMode(ctx, id, modes...)
+	_, err := s.client(ctx).Databases.SetSQLMode(ctx, id, modes...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

@@ -13,8 +13,11 @@ import (
 )
 
 func setupSizesToolWithMock(sizes *MockSizesService) *SizesTool {
-	client := &godo.Client{}
-	client.Sizes = sizes
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Sizes: sizes,
+		}
+	}
 	return NewSizesTool(client)
 }
 

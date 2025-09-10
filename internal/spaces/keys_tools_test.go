@@ -13,8 +13,11 @@ import (
 )
 
 func setupSpacesKeysToolWithMock(spacesKeys *MockSpacesKeysService) *KeysTool {
-	client := &godo.Client{}
-	client.SpacesKeys = spacesKeys
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			SpacesKeys: spacesKeys,
+		}
+	}
 	return NewSpacesKeysTool(client)
 }
 

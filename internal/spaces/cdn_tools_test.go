@@ -13,8 +13,12 @@ import (
 )
 
 func setupCDNToolWithMock(cdn *MockCDNService) *CDNTool {
-	client := &godo.Client{}
-	client.CDNs = cdn
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			CDNs: cdn,
+		}
+	}
+
 	return NewCDNTool(client)
 }
 

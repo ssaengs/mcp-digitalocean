@@ -12,8 +12,11 @@ import (
 )
 
 func setupInvoiceToolsWithMock(mockInvoices *MockInvoicesService) *InvoiceTools {
-	client := &godo.Client{}
-	client.Invoices = mockInvoices
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Invoices: mockInvoices,
+		}
+	}
 	return NewInvoiceTools(client)
 }
 

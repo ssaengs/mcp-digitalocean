@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
@@ -23,13 +23,32 @@ const (
 	defaultEndpoint = "https://api.digitalocean.com"
 )
 
-func main() {
-	logLevelFlag := flag.String("log-level", "info", "Log level: debug, info, warn, error")
-	serviceFlag := flag.String("services", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
-	tokenFlag := flag.String("digitalocean-api-token", "", "DigitalOcean API token")
+type authKey struct{}
 
-	// optional
-	endpointFlag := flag.String("digitalocean-api-endpoint", "", "DigitalOcean API endpoint")
+// authFromRequest extracts the auth token from the request headers.
+func authFromRequest(ctx context.Context, r *http.Request) context.Context {
+	return withAuthKey(ctx, r.Header.Get("Authorization"))
+}
+
+// withAuthKey adds an auth key to the context.
+func withAuthKey(ctx context.Context, auth string) context.Context {
+	return context.WithValue(ctx, authKey{}, auth)
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func main() {
+	logLevelFlag := flag.String("log-level", getEnv("LOG_LEVEL", "info"), "Log level: debug, info, warn, error")
+	serviceFlag := flag.String("services", getEnv("SERVICES", ""), "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
+	tokenFlag := flag.String("digitalocean-api-token", getEnv("DIGITALOCEAN_API_TOKEN", ""), "DigitalOcean API token. If not provided, will use DIGITALOCEAN_API_TOKEN environment variable. This is only used for stdio transport.")
+	transport := flag.String("transport", getEnv("TRANSPORT", "stdio"), "Transport protocol (http or stdio)")
+	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "0.0.0.0:8080"), "Bind address to bind to. Only used for http transport.")
+	endpointFlag := flag.String("digitalocean-api-endpoint", getEnv("DIGITALOCEAN_API_ENDPOINT", defaultEndpoint), "DigitalOcean API endpoint")
 	flag.Parse()
 
 	var level slog.Level
@@ -47,52 +66,99 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	token := *tokenFlag
-	if token == "" {
-		token = os.Getenv("DIGITALOCEAN_API_TOKEN")
-		if token == "" {
-			logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
-			os.Exit(1)
-		}
-	}
-
-	endpoint := *endpointFlag
-	if endpoint != "" {
-		endpoint = os.Getenv("DIGITALOCEAN_API_ENDPOINT")
-		if endpoint == "" {
-			endpoint = defaultEndpoint
-		}
-	}
 
 	var services []string
 	if *serviceFlag != "" {
 		services = strings.Split(*serviceFlag, ",")
 	}
 
-	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, endpoint)
+	s := server.NewMCPServer(
+		mcpName,
+		mcpVersion,
+		server.WithToolCapabilities(true),
+		server.WithPromptCapabilities(true),
+		server.WithLogging(),
+	)
+
+	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
+	if *transport == "http" {
+		runHTTPServer(s, logger, *bindAddr, endpointFlag, services)
+	} else {
+		runStdioServer(s, logger, tokenFlag, endpointFlag, services)
+	}
+}
+
+// clientFromContext creates a godo client from authentication info in the context.
+func clientFromContext(ctx context.Context, endpoint string) *godo.Client {
+	auth, ok := ctx.Value(authKey{}).(string)
+	if !ok || strings.TrimSpace(auth) == "" {
+		return nil
+	}
+	token := strings.TrimPrefix(auth, "Bearer ")
+	if token == "" {
+		return nil
+	}
+	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
 	if err != nil {
-		logger.Error("Failed to create DigitalOcean client: " + err.Error())
-		os.Exit(1)
+		return nil
 	}
 
-	s := server.NewMCPServer(mcpName, mcpVersion)
-	err = registry.Register(logger, s, client, services...)
+	return client
+}
+
+// clientFromApiToken creates a godo client from a static API token provided via flag or environment variable.
+func clientFromApiToken(ctx context.Context, token, endpoint string) *godo.Client {
+	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+	if err != nil {
+		return nil
+	}
+	return client
+}
+
+func runHTTPServer(s *server.MCPServer, logger *slog.Logger, bindAddr string, endpointFlag *string, services []string) {
+	err := registry.Register(
+		logger,
+		s,
+		func(ctx context.Context) *godo.Client {
+			return clientFromContext(ctx, *endpointFlag)
+		},
+		services...,
+	)
+
 	if err != nil {
 		logger.Error("Failed to register tools: " + err.Error())
 		os.Exit(1)
 	}
 
-	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
+	httpServer := server.NewStreamableHTTPServer(s, server.WithHTTPContextFunc(authFromRequest))
+	logger.Debug("Http server start listening: " + bindAddr)
+	err = httpServer.Start(bindAddr)
+	if err != nil {
+		logger.Error("Failed to serve MCP server over HTTP: " + err.Error())
+		os.Exit(1)
+	}
+}
+
+func runStdioServer(s *server.MCPServer, logger *slog.Logger, tokenFlag *string, endpointFlag *string, services []string) {
+	err := registry.Register(
+		logger,
+		s,
+		func(ctx context.Context) *godo.Client {
+			return clientFromApiToken(ctx, *tokenFlag, *endpointFlag)
+		},
+		services...,
+	)
+
+	if err != nil {
+		logger.Error("Failed to register tools: " + err.Error())
+		os.Exit(1)
+	}
+
+	logger.Debug("starting stdio server")
 	err = server.ServeStdio(s)
 	if err != nil {
-		// if context cancelled or sigterm then shutdown gracefully
-		if errors.Is(err, context.Canceled) {
-			logger.Info("Server shutdown gracefully")
-			os.Exit(0)
-		} else {
-			logger.Error("Failed to serve MCP server: " + err.Error())
-			os.Exit(1)
-		}
+		logger.Error("Failed to serve MCP server over stdio: " + err.Error())
+		os.Exit(1)
 	}
 }
 

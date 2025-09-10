@@ -12,10 +12,10 @@ import (
 )
 
 type UserTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewUserTool(client *godo.Client) *UserTool {
+func NewUserTool(client func(ctx context.Context) *godo.Client) *UserTool {
 	return &UserTool{
 		client: client,
 	}
@@ -32,7 +32,7 @@ func (s *UserTool) getUser(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError("User name is required"), nil
 	}
 
-	dbUser, _, err := s.client.Databases.GetUser(ctx, id, user)
+	dbUser, _, err := s.client(ctx).Databases.GetUser(ctx, id, user)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -68,7 +68,7 @@ func (s *UserTool) listUsers(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		opts = &godo.ListOptions{Page: page, PerPage: perPage}
 	}
 
-	users, _, err := s.client.Databases.ListUsers(ctx, id, opts)
+	users, _, err := s.client(ctx).Databases.ListUsers(ctx, id, opts)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -111,12 +111,12 @@ func (s *UserTool) createUser(ctx context.Context, req mcp.CallToolRequest) (*mc
 		createReq.Settings = &settings
 	}
 
-	// Nil check for s.client.Databases after argument validation
-	if s.client == nil || s.client.Databases == nil {
+	// Nil check for s.client(ctx).Databases after argument validation
+	if s.client == nil || s.client(ctx).Databases == nil {
 		return mcp.NewToolResultError("internal error: database client is not configured"), nil
 	}
 
-	dbUser, _, err := s.client.Databases.CreateUser(ctx, id, createReq)
+	dbUser, _, err := s.client(ctx).Databases.CreateUser(ctx, id, createReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -155,12 +155,12 @@ func (s *UserTool) updateUser(ctx context.Context, req mcp.CallToolRequest) (*mc
 		updateReq.Settings = &settings
 	}
 
-	// Nil check for s.client.Databases after argument validation and settings validation
-	if s.client == nil || s.client.Databases == nil {
+	// Nil check for s.client(ctx).Databases after argument validation and settings validation
+	if s.client == nil || s.client(ctx).Databases == nil {
 		return mcp.NewToolResultError("internal error: database client is not configured"), nil
 	}
 
-	dbUser, _, err := s.client.Databases.UpdateUser(ctx, id, user, updateReq)
+	dbUser, _, err := s.client(ctx).Databases.UpdateUser(ctx, id, user, updateReq)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -184,7 +184,7 @@ func (s *UserTool) deleteUser(ctx context.Context, req mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("User name is required"), nil
 	}
 
-	_, err := s.client.Databases.DeleteUser(ctx, id, user)
+	_, err := s.client(ctx).Databases.DeleteUser(ctx, id, user)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

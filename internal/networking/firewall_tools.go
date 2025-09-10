@@ -12,11 +12,11 @@ import (
 
 // FirewallTool provides firewall management tools
 type FirewallTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewFirewallTool creates a new firewall tool
-func NewFirewallTool(client *godo.Client) *FirewallTool {
+func NewFirewallTool(client func(ctx context.Context) *godo.Client) *FirewallTool {
 	return &FirewallTool{
 		client: client,
 	}
@@ -28,7 +28,7 @@ func (f *FirewallTool) getFirewall(ctx context.Context, req mcp.CallToolRequest)
 	if !ok || id == "" {
 		return mcp.NewToolResultError("Firewall ID is required"), nil
 	}
-	firewall, _, err := f.client.Firewalls.Get(ctx, id)
+	firewall, _, err := f.client(ctx).Firewalls.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -49,7 +49,7 @@ func (f *FirewallTool) listFirewalls(ctx context.Context, req mcp.CallToolReques
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	firewalls, _, err := f.client.Firewalls.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	firewalls, _, err := f.client(ctx).Firewalls.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -113,7 +113,7 @@ func (f *FirewallTool) createFirewall(ctx context.Context, req mcp.CallToolReque
 		Tags:          tagsStr,
 	}
 
-	firewall, _, err := f.client.Firewalls.Create(ctx, firewallRequest)
+	firewall, _, err := f.client(ctx).Firewalls.Create(ctx, firewallRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -129,7 +129,7 @@ func (f *FirewallTool) createFirewall(ctx context.Context, req mcp.CallToolReque
 // deleteFirewall deletes a firewall
 func (f *FirewallTool) deleteFirewall(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	firewallID := req.GetArguments()["ID"].(string)
-	_, err := f.client.Firewalls.Delete(ctx, firewallID)
+	_, err := f.client(ctx).Firewalls.Delete(ctx, firewallID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -146,7 +146,7 @@ func (f *FirewallTool) addDroplets(ctx context.Context, req mcp.CallToolRequest)
 			dIDs[i] = int(did)
 		}
 	}
-	_, err := f.client.Firewalls.AddDroplets(ctx, firewallID, dIDs...)
+	_, err := f.client(ctx).Firewalls.AddDroplets(ctx, firewallID, dIDs...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -162,7 +162,7 @@ func (f *FirewallTool) removeDroplets(ctx context.Context, req mcp.CallToolReque
 			dIDs[i] = int(did)
 		}
 	}
-	_, err := f.client.Firewalls.RemoveDroplets(ctx, firewallID, dIDs...)
+	_, err := f.client(ctx).Firewalls.RemoveDroplets(ctx, firewallID, dIDs...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -179,7 +179,7 @@ func (f *FirewallTool) addTags(ctx context.Context, req mcp.CallToolRequest) (*m
 			tagNamesStr[i] = tag
 		}
 	}
-	_, err := f.client.Firewalls.AddTags(ctx, firewallID, tagNamesStr...)
+	_, err := f.client(ctx).Firewalls.AddTags(ctx, firewallID, tagNamesStr...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -196,7 +196,7 @@ func (f *FirewallTool) removeTags(ctx context.Context, req mcp.CallToolRequest) 
 			tagNamesStr[i] = tag
 		}
 	}
-	_, err := f.client.Firewalls.RemoveTags(ctx, firewallID, tagNamesStr...)
+	_, err := f.client(ctx).Firewalls.RemoveTags(ctx, firewallID, tagNamesStr...)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -267,7 +267,7 @@ func (f *FirewallTool) addRules(ctx context.Context, req mcp.CallToolRequest) (*
 		OutboundRules: outboundRules,
 	}
 
-	_, err := f.client.Firewalls.AddRules(ctx, firewallID, rulesRequest)
+	_, err := f.client(ctx).Firewalls.AddRules(ctx, firewallID, rulesRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -339,7 +339,7 @@ func (f *FirewallTool) removeRules(ctx context.Context, req mcp.CallToolRequest)
 		OutboundRules: outboundRules,
 	}
 
-	_, err := f.client.Firewalls.RemoveRules(ctx, firewallID, rulesRequest)
+	_, err := f.client(ctx).Firewalls.RemoveRules(ctx, firewallID, rulesRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

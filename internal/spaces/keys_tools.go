@@ -11,10 +11,10 @@ import (
 )
 
 type KeysTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewSpacesKeysTool(client *godo.Client) *KeysTool {
+func NewSpacesKeysTool(client func(ctx context.Context) *godo.Client) *KeysTool {
 	return &KeysTool{
 		client: client,
 	}
@@ -46,9 +46,9 @@ func (s *KeysTool) createSpacesKey(ctx context.Context, req mcp.CallToolRequest)
 		},
 	}
 
-	key, _, err := s.client.SpacesKeys.Create(ctx, createRequest)
+	key, _, err := s.client(ctx).SpacesKeys.Create(ctx, createRequest)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
 
 	jsonKey, err := json.MarshalIndent(key, "", "  ")
@@ -94,7 +94,7 @@ func (s *KeysTool) updateSpacesKey(ctx context.Context, req mcp.CallToolRequest)
 		Name: name,
 	}
 
-	key, _, err := s.client.SpacesKeys.Update(ctx, accessKey, updateRequest)
+	key, _, err := s.client(ctx).SpacesKeys.Update(ctx, accessKey, updateRequest)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -124,7 +124,7 @@ func (s *KeysTool) deleteSpacesKey(ctx context.Context, req mcp.CallToolRequest)
 		return mcp.NewToolResultError("AccessKey cannot be empty"), nil
 	}
 
-	_, err := s.client.SpacesKeys.Delete(ctx, accessKey)
+	_, err := s.client(ctx).SpacesKeys.Delete(ctx, accessKey)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -159,7 +159,7 @@ func (s *KeysTool) listSpacesKeys(ctx context.Context, req mcp.CallToolRequest) 
 		}
 	}
 
-	keys, resp, err := s.client.SpacesKeys.List(ctx, listOpts)
+	keys, resp, err := s.client(ctx).SpacesKeys.List(ctx, listOpts)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -198,7 +198,7 @@ func (s *KeysTool) getSpacesKey(ctx context.Context, req mcp.CallToolRequest) (*
 		return mcp.NewToolResultError("AccessKey cannot be empty"), nil
 	}
 
-	key, _, err := s.client.SpacesKeys.Get(ctx, accessKey)
+	key, _, err := s.client(ctx).SpacesKeys.Get(ctx, accessKey)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

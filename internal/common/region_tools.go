@@ -17,11 +17,11 @@ const (
 
 // RegionTools provides tool-based handlers for DigitalOcean regions.
 type RegionTools struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewRegionTools creates a new RegionTools instance.
-func NewRegionTools(client *godo.Client) *RegionTools {
+func NewRegionTools(client func(ctx context.Context) *godo.Client) *RegionTools {
 	return &RegionTools{client: client}
 }
 
@@ -41,7 +41,7 @@ func (r *RegionTools) listRegions(ctx context.Context, req mcp.CallToolRequest) 
 		PerPage: int(perPage),
 	}
 
-	regions, _, err := r.client.Regions.List(ctx, opt)
+	regions, _, err := r.client(ctx).Regions.List(ctx, opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

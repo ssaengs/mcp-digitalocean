@@ -17,11 +17,11 @@ const (
 
 // InvoiceTools provides tool-based handlers for DigitalOcean Invoices.
 type InvoiceTools struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewInvoiceTools creates a new InvoiceTools instance.
-func NewInvoiceTools(client *godo.Client) *InvoiceTools {
+func NewInvoiceTools(client func(ctx context.Context) *godo.Client) *InvoiceTools {
 	return &InvoiceTools{client: client}
 }
 
@@ -35,14 +35,16 @@ func (i *InvoiceTools) listInvoices(ctx context.Context, req mcp.CallToolRequest
 	if !ok {
 		perPage = defaultInvoicesPageSize
 	}
-	invoices, _, err := i.client.Invoices.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
+	invoices, _, err := i.client(ctx).Invoices.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
+
 	jsonData, err := json.MarshalIndent(invoices, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
+
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
@@ -63,7 +65,7 @@ func (i *InvoiceTools) getInvoice(ctx context.Context, req mcp.CallToolRequest) 
 		return mcp.NewToolResultError("missing InvoiceUUID"), nil
 	}
 
-	invoice, _, err := i.client.Invoices.Get(ctx, invoiceUUID, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
+	invoice, _, err := i.client(ctx).Invoices.Get(ctx, invoiceUUID, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

@@ -20,7 +20,14 @@ import (
 func newUserToolWithMock(t *testing.T) (*UserTool, *mocks.MockDatabasesService, *gomock.Controller) {
 	ctrl := gomock.NewController(t)
 	mockSvc := mocks.NewMockDatabasesService(ctrl)
-	return &UserTool{client: &godo.Client{Databases: mockSvc}}, mockSvc, ctrl
+
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockSvc,
+		}
+	}
+
+	return &UserTool{client: client}, mockSvc, ctrl
 }
 
 func getTextContent(res *mcp.CallToolResult) string {
@@ -184,7 +191,13 @@ func TestUserTool_createUser(t *testing.T) {
 	})
 
 	t.Run("missing cluster ID", func(t *testing.T) {
-		tool := &UserTool{client: &godo.Client{Databases: nil}}
+		client := func(ctx context.Context) *godo.Client {
+			return &godo.Client{
+				Databases: nil,
+			}
+		}
+
+		tool := &UserTool{client: client}
 		res, err := tool.createUser(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{Arguments: map[string]any{
 				"name": "newuser",
@@ -195,7 +208,13 @@ func TestUserTool_createUser(t *testing.T) {
 	})
 
 	t.Run("missing name", func(t *testing.T) {
-		tool := &UserTool{client: &godo.Client{Databases: nil}}
+		client := func(ctx context.Context) *godo.Client {
+			return &godo.Client{
+				Databases: nil,
+			}
+		}
+
+		tool := &UserTool{client: client}
 		res, err := tool.createUser(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{Arguments: map[string]any{
 				"id": "cid",

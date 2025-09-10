@@ -17,11 +17,11 @@ const (
 
 // ActionTools provides tool-based handlers for DigitalOcean Actions.
 type ActionTools struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewActionTools creates a new ActionTools instance.
-func NewActionTools(client *godo.Client) *ActionTools {
+func NewActionTools(client func(ctx context.Context) *godo.Client) *ActionTools {
 	return &ActionTools{client: client}
 }
 
@@ -31,7 +31,7 @@ func (a *ActionTools) getAction(ctx context.Context, req mcp.CallToolRequest) (*
 	if !ok {
 		return mcp.NewToolResultError("Action ID is required"), nil
 	}
-	action, _, err := a.client.Actions.Get(ctx, int(id))
+	action, _, err := a.client(ctx).Actions.Get(ctx, int(id))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -52,7 +52,7 @@ func (a *ActionTools) listActions(ctx context.Context, req mcp.CallToolRequest) 
 	if !ok {
 		perPage = defaultActionsPageSize
 	}
-	actions, _, err := a.client.Actions.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
+	actions, _, err := a.client(ctx).Actions.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

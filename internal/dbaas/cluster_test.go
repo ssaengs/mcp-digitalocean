@@ -2,7 +2,6 @@ package dbaas
 
 import (
 	"context"
-	"mcp-digitalocean/internal/dbaas/mocks"
 	"testing"
 	"time"
 
@@ -10,6 +9,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"mcp-digitalocean/internal/dbaas/mocks"
 )
 
 func getText(res *mcp.CallToolResult) string {
@@ -27,8 +28,11 @@ func TestClusterTool_listCluster(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().List(gomock.Any(), (*godo.ListOptions)(nil)).Return([]godo.Database{{Name: "test-db"}}, nil, nil)
 
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]interface{}{}}}
@@ -44,8 +48,11 @@ func TestClusterTool_getCluster(t *testing.T) {
 	cluster := &godo.Database{Name: "my-cluster"}
 	mockDB.EXPECT().Get(gomock.Any(), "abc").Return(cluster, nil, nil)
 
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]interface{}{"id": "abc"}}}
@@ -67,8 +74,11 @@ func TestClusterTool_createCluster(t *testing.T) {
 	created := &godo.Database{Name: "new-cluster"}
 	mockDB.EXPECT().Create(gomock.Any(), gomock.Any()).Return(created, nil, nil)
 
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 
 	args := map[string]interface{}{
@@ -89,8 +99,11 @@ func TestClusterTool_createCluster(t *testing.T) {
 	defer ctrl2.Finish()
 	mockDB2 := mocks.NewMockDatabasesService(ctrl2)
 	mockDB2.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, nil, assert.AnError)
-	client2 := &godo.Client{}
-	client2.Databases = mockDB2
+	client2 := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB2,
+		}
+	}
 	ct2 := &ClusterTool{client: client2}
 	res, err = ct2.createCluster(context.Background(), req)
 	assert.NoError(t, err)
@@ -103,8 +116,11 @@ func TestClusterTool_deleteCluster(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().Delete(gomock.Any(), "abc").Return(nil, nil)
 
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]interface{}{"id": "abc"}}}
@@ -124,8 +140,11 @@ func TestClusterTool_resizeCluster(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().Resize(gomock.Any(), "abc", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 	args := map[string]interface{}{"id": "abc", "size": "db-s-2vcpu-4gb", "num_nodes": float64(3)}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -145,8 +164,11 @@ func TestClusterTool_getCA(t *testing.T) {
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	ca := &godo.DatabaseCA{Certificate: []byte("cert-data")}
 	mockDB.EXPECT().GetCA(gomock.Any(), "abc").Return(ca, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]interface{}{"id": "abc"}}}
 	res, err := ct.getCA(context.Background(), req)
@@ -164,8 +186,11 @@ func TestClusterTool_listBackups(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().ListBackups(gomock.Any(), "abc", gomock.Any()).Return([]godo.DatabaseBackup{{CreatedAt: time.Now()}}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]interface{}{"id": "abc"}}}
 	res, err := ct.listBackups(context.Background(), req)
@@ -183,8 +208,11 @@ func TestClusterTool_listOptions(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().ListOptions(gomock.Any()).Return(&godo.DatabaseOptions{}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]interface{}{}}}
 	res, err := ct.listOptions(context.Background(), req)
@@ -197,8 +225,11 @@ func TestClusterTool_upgradeMajorVersion(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().UpgradeMajorVersion(gomock.Any(), "abc", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ct := &ClusterTool{client: client}
 	args := map[string]interface{}{"id": "abc", "version": "15"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}

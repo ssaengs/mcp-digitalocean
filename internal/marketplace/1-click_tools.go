@@ -11,10 +11,10 @@ import (
 )
 
 type OneClickTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-func NewOneClickTool(client *godo.Client) *OneClickTool {
+func NewOneClickTool(client func(ctx context.Context) *godo.Client) *OneClickTool {
 	return &OneClickTool{
 		client: client,
 	}
@@ -31,7 +31,7 @@ func (o *OneClickTool) listOneClickApps(ctx context.Context, req mcp.CallToolReq
 		}
 	}
 
-	apps, _, err := o.client.OneClick.List(ctx, oneClickType)
+	apps, _, err := o.client(ctx).OneClick.List(ctx, oneClickType)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to list 1-click apps: %v", err)), nil
 	}
@@ -41,7 +41,7 @@ func (o *OneClickTool) listOneClickApps(ctx context.Context, req mcp.CallToolReq
 		"type": oneClickType,
 	})
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal response: %v", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal result: %v", err)), nil
 	}
 
 	return mcp.NewToolResultText(string(result)), nil
@@ -94,7 +94,7 @@ func (o *OneClickTool) installKubernetesApps(ctx context.Context, req mcp.CallTo
 		ClusterUUID: clusterUUID,
 	}
 
-	response, _, err := o.client.OneClick.InstallKubernetes(ctx, installRequest)
+	response, _, err := o.client(ctx).OneClick.InstallKubernetes(ctx, installRequest)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to install Kubernetes apps: %v", err)), nil
 	}

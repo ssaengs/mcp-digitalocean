@@ -13,8 +13,12 @@ import (
 )
 
 func setupVPCPeeringToolWithMock(vpcs *MockVPCsService) *VPCPeeringTool {
-	client := &godo.Client{}
-	client.VPCs = vpcs
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			VPCs: vpcs,
+		}
+	}
+
 	return NewVPCPeeringTool(client)
 }
 

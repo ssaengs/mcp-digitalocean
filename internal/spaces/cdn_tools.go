@@ -12,11 +12,11 @@ import (
 
 // CDNTool provides CDN management tools
 type CDNTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewCDNTool creates a new CDN tool
-func NewCDNTool(client *godo.Client) *CDNTool {
+func NewCDNTool(client func(ctx context.Context) *godo.Client) *CDNTool {
 	return &CDNTool{
 		client: client,
 	}
@@ -29,7 +29,7 @@ func (c *CDNTool) getCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		return mcp.NewToolResultError("CDN ID is required"), nil
 	}
 
-	cdn, _, err := c.client.CDNs.Get(ctx, id)
+	cdn, _, err := c.client(ctx).CDNs.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -52,7 +52,7 @@ func (c *CDNTool) listCDNs(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	cdns, _, err := c.client.CDNs.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	cdns, _, err := c.client(ctx).CDNs.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -73,7 +73,7 @@ func (c *CDNTool) createCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		TTL:    ttl,
 	}
 
-	cdn, _, err := c.client.CDNs.Create(ctx, createRequest)
+	cdn, _, err := c.client(ctx).CDNs.Create(ctx, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -89,7 +89,7 @@ func (c *CDNTool) createCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 // deleteCDN deletes a CDN
 func (c *CDNTool) deleteCDN(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	cdnID := req.GetArguments()["ID"].(string)
-	_, err := c.client.CDNs.Delete(ctx, cdnID)
+	_, err := c.client(ctx).CDNs.Delete(ctx, cdnID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -113,7 +113,7 @@ func (c *CDNTool) flushCDNCache(ctx context.Context, req mcp.CallToolRequest) (*
 		Files: filesStr,
 	}
 
-	_, err := c.client.CDNs.FlushCache(ctx, cdnID, flushRequest)
+	_, err := c.client(ctx).CDNs.FlushCache(ctx, cdnID, flushRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

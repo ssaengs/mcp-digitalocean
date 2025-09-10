@@ -17,8 +17,11 @@ func TestFirewallTool_getFirewallRules(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().GetFirewallRules(gomock.Any(), "cid").Return([]godo.DatabaseFirewallRule{{UUID: "rule1"}}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ft := &FirewallTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -37,8 +40,11 @@ func TestFirewallTool_updateFirewallRules(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().UpdateFirewallRules(gomock.Any(), "cid", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	ft := &FirewallTool{client: client}
 	rules := []any{
 		map[string]any{"uuid": "rule2"},

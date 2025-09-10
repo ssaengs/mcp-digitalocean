@@ -17,11 +17,11 @@ const (
 
 // UptimeCheckAlertTool provides UptimeCheck and Alert management tools
 type UptimeCheckAlertTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
-// NewUptimeTool creates a new UptimeCheck tool
-func NewUptimeCheckAlertTool(client *godo.Client) *UptimeCheckAlertTool {
+// NewUptimeCheckAlertTool creates a new UptimeCheck tool
+func NewUptimeCheckAlertTool(client func(ctx context.Context) *godo.Client) *UptimeCheckAlertTool {
 	return &UptimeCheckAlertTool{
 		client: client,
 	}
@@ -39,7 +39,7 @@ func (c *UptimeCheckAlertTool) getUptimeCheckAlert(ctx context.Context, req mcp.
 		return mcp.NewToolResultError("UptimeCheck AlertID is required"), nil
 	}
 
-	uptimeCheckAlert, _, err := c.client.UptimeChecks.GetAlert(ctx, checkId, alertId)
+	uptimeCheckAlert, _, err := c.client(ctx).UptimeChecks.GetAlert(ctx, checkId, alertId)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -68,7 +68,7 @@ func (c *UptimeCheckAlertTool) listUptimeCheckAlerts(ctx context.Context, req mc
 		perPage = int(v)
 	}
 
-	uptimeCheckAlerts, _, err := c.client.UptimeChecks.ListAlerts(ctx, id, &godo.ListOptions{Page: page, PerPage: perPage})
+	uptimeCheckAlerts, _, err := c.client(ctx).UptimeChecks.ListAlerts(ctx, id, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -126,7 +126,7 @@ func (c *UptimeCheckAlertTool) createUptimeCheckAlert(ctx context.Context, req m
 		},
 	}
 
-	uptimeCheckAlert, _, err := c.client.UptimeChecks.CreateAlert(ctx, checkID, createRequest)
+	uptimeCheckAlert, _, err := c.client(ctx).UptimeChecks.CreateAlert(ctx, checkID, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -192,7 +192,7 @@ func (c *UptimeCheckAlertTool) updateUptimeCheckAlert(ctx context.Context, req m
 		},
 	}
 
-	uptimeCheck, _, err := c.client.UptimeChecks.UpdateAlert(ctx, checkID, alertId, updateRequest)
+	uptimeCheck, _, err := c.client(ctx).UptimeChecks.UpdateAlert(ctx, checkID, alertId, updateRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -217,7 +217,7 @@ func (c *UptimeCheckAlertTool) deleteUptimeCheckAlert(ctx context.Context, req m
 		return mcp.NewToolResultError("UptimeCheck AlertID is required"), nil
 	}
 
-	_, err := c.client.UptimeChecks.DeleteAlert(ctx, uptimeCheckID, alertId)
+	_, err := c.client(ctx).UptimeChecks.DeleteAlert(ctx, uptimeCheckID, alertId)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

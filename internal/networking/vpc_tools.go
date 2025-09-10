@@ -12,11 +12,11 @@ import (
 
 // VPCTool provides VPC management tools
 type VPCTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewVPCTool creates a new VPC tool
-func NewVPCTool(client *godo.Client) *VPCTool {
+func NewVPCTool(client func(ctx context.Context) *godo.Client) *VPCTool {
 	return &VPCTool{
 		client: client,
 	}
@@ -28,7 +28,7 @@ func (v *VPCTool) getVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 	if !ok || id == "" {
 		return mcp.NewToolResultError("VPC ID is required"), nil
 	}
-	vpc, _, err := v.client.VPCs.Get(ctx, id)
+	vpc, _, err := v.client(ctx).VPCs.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -49,7 +49,7 @@ func (v *VPCTool) listVPCs(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if vArg, ok := req.GetArguments()["PerPage"].(float64); ok && int(vArg) > 0 {
 		perPage = int(vArg)
 	}
-	vpcs, _, err := v.client.VPCs.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	vpcs, _, err := v.client(ctx).VPCs.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -80,7 +80,7 @@ func (v *VPCTool) createVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		createRequest.Description = description
 	}
 
-	vpc, _, err := v.client.VPCs.Create(ctx, createRequest)
+	vpc, _, err := v.client(ctx).VPCs.Create(ctx, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -97,7 +97,7 @@ func (v *VPCTool) createVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 func (v *VPCTool) listVPCMembers(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	vpcID := req.GetArguments()["ID"].(string)
 
-	members, _, err := v.client.VPCs.ListMembers(ctx, vpcID, nil, nil)
+	members, _, err := v.client(ctx).VPCs.ListMembers(ctx, vpcID, nil, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -114,7 +114,7 @@ func (v *VPCTool) listVPCMembers(ctx context.Context, req mcp.CallToolRequest) (
 func (v *VPCTool) deleteVPC(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	vpcID := req.GetArguments()["ID"].(string)
 
-	_, err := v.client.VPCs.Delete(ctx, vpcID)
+	_, err := v.client(ctx).VPCs.Delete(ctx, vpcID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

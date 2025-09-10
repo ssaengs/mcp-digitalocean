@@ -12,11 +12,11 @@ import (
 
 // CertificateTool provides tools for managing certificates
 type CertificateTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewCertificateTool creates a new certificate tool
-func NewCertificateTool(client *godo.Client) *CertificateTool {
+func NewCertificateTool(client func(ctx context.Context) *godo.Client) *CertificateTool {
 	return &CertificateTool{
 		client: client,
 	}
@@ -37,7 +37,7 @@ func (c *CertificateTool) createCustomCertificate(ctx context.Context, req mcp.C
 		Type:             "custom",
 	}
 
-	certificate, _, err := c.client.Certificates.Create(ctx, certRequest)
+	certificate, _, err := c.client(ctx).Certificates.Create(ctx, certRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -65,7 +65,7 @@ func (c *CertificateTool) createLetsEncryptCertificate(ctx context.Context, req 
 		Type:     "lets_encrypt",
 	}
 
-	certificate, _, err := c.client.Certificates.Create(ctx, certRequest)
+	certificate, _, err := c.client(ctx).Certificates.Create(ctx, certRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -81,7 +81,7 @@ func (c *CertificateTool) createLetsEncryptCertificate(ctx context.Context, req 
 // deleteCertificate deletes a certificate
 func (c *CertificateTool) deleteCertificate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	certID := req.GetArguments()["ID"].(string)
-	_, err := c.client.Certificates.Delete(ctx, certID)
+	_, err := c.client(ctx).Certificates.Delete(ctx, certID)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -96,7 +96,7 @@ func (c *CertificateTool) getCertificate(ctx context.Context, req mcp.CallToolRe
 		return mcp.NewToolResultError("Certificate ID is required"), nil
 	}
 
-	certificate, _, err := c.client.Certificates.Get(ctx, id)
+	certificate, _, err := c.client(ctx).Certificates.Get(ctx, id)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -119,7 +119,7 @@ func (c *CertificateTool) listCertificates(ctx context.Context, req mcp.CallTool
 	if v, ok := req.GetArguments()["PerPage"].(float64); ok && int(v) > 0 {
 		perPage = int(v)
 	}
-	certs, _, err := c.client.Certificates.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	certs, _, err := c.client(ctx).Certificates.List(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

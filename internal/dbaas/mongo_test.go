@@ -17,8 +17,11 @@ func TestMongoTool_getMongoDBConfig(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().GetMongoDBConfig(gomock.Any(), "cid").Return(&godo.MongoDBConfig{Verbosity: new(int)}, nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	mt := &MongoTool{client: client}
 	args := map[string]interface{}{"id": "cid"}
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
@@ -37,8 +40,11 @@ func TestMongoTool_updateMongoDBConfig(t *testing.T) {
 	defer ctrl.Finish()
 	mockDB := mocks.NewMockDatabasesService(ctrl)
 	mockDB.EXPECT().UpdateMongoDBConfig(gomock.Any(), "cid", gomock.Any()).Return(nil, nil)
-	client := &godo.Client{}
-	client.Databases = mockDB
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Databases: mockDB,
+		}
+	}
 	mt := &MongoTool{client: client}
 	cfg := map[string]any{}
 	args := map[string]interface{}{"id": "cid", "config": cfg}

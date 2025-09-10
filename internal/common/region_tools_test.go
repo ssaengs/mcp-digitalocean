@@ -13,8 +13,10 @@ import (
 )
 
 func setupRegionToolsWithMock(mockRegions *MockRegionsService) *RegionTools {
-	client := &godo.Client{}
-	client.Regions = mockRegions
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{Regions: mockRegions}
+	}
+
 	return NewRegionTools(client)
 }
 

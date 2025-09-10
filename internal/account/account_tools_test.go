@@ -12,8 +12,11 @@ import (
 )
 
 func setupAccountToolsWithMock(mockAccount *MockAccountService) *AccountTools {
-	client := &godo.Client{}
-	client.Account = mockAccount
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			Account: mockAccount,
+		}
+	}
 	return NewAccountTools(client)
 }
 

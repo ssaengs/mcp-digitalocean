@@ -13,8 +13,11 @@ import (
 )
 
 func setupDropletActionsToolWithMocks(actions *MockDropletActionsService) *DropletActionsTool {
-	client := &godo.Client{}
-	client.DropletActions = actions
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			DropletActions: actions,
+		}
+	}
 	return NewDropletActionsTool(client)
 }
 

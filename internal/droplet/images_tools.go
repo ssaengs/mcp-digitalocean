@@ -17,11 +17,11 @@ const (
 
 // ImagesTool provides tool-based handlers for DigitalOcean images.
 type ImagesTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewImagesTool creates a new ImagesTool instance.
-func NewImagesTool(client *godo.Client) *ImagesTool {
+func NewImagesTool(client func(ctx context.Context) *godo.Client) *ImagesTool {
 	return &ImagesTool{client: client}
 }
 
@@ -41,7 +41,7 @@ func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*
 		PerPage: int(perPage),
 	}
 
-	images, _, err := i.client.Images.ListDistribution(ctx, opt)
+	images, _, err := i.client(ctx).Images.ListDistribution(ctx, opt)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -71,7 +71,7 @@ func (i *ImagesTool) getImageByID(ctx context.Context, req mcp.CallToolRequest) 
 		return mcp.NewToolResultError("Image ID is required"), nil
 	}
 
-	image, _, err := i.client.Images.GetByID(ctx, int(id))
+	image, _, err := i.client(ctx).Images.GetByID(ctx, int(id))
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}

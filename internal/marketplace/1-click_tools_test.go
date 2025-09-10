@@ -13,15 +13,22 @@ import (
 )
 
 func TestNewOneClickTool(t *testing.T) {
-	client := &godo.Client{}
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{}
+	}
+
 	tool := NewOneClickTool(client)
 
+	ctx := context.Background()
+
 	assert.NotNil(t, tool)
-	assert.Equal(t, client, tool.client)
+	assert.Equal(t, client(ctx), tool.client(ctx))
 }
 
 func TestOneClickTool_Tools(t *testing.T) {
-	client := &godo.Client{}
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{}
+	}
 	tool := NewOneClickTool(client)
 
 	tools := tool.Tools()
@@ -38,8 +45,11 @@ func TestOneClickTool_Tools(t *testing.T) {
 }
 
 func setupOneClickToolWithMock(mockOneClick *MockOneClickService) *OneClickTool {
-	client := &godo.Client{}
-	client.OneClick = mockOneClick
+	client := func(ctx context.Context) *godo.Client {
+		return &godo.Client{
+			OneClick: mockOneClick,
+		}
+	}
 	return NewOneClickTool(client)
 }
 

@@ -17,11 +17,11 @@ const (
 
 // AlertPolicyTool provides alert policy management tools
 type AlertPolicyTool struct {
-	client *godo.Client
+	client func(ctx context.Context) *godo.Client
 }
 
 // NewAlertPolicyTool creates a new alert policy tool
-func NewAlertPolicyTool(client *godo.Client) *AlertPolicyTool {
+func NewAlertPolicyTool(client func(ctx context.Context) *godo.Client) *AlertPolicyTool {
 	return &AlertPolicyTool{
 		client: client,
 	}
@@ -34,7 +34,7 @@ func (c *AlertPolicyTool) getAlertPolicy(ctx context.Context, req mcp.CallToolRe
 		return mcp.NewToolResultError("Alert Policy UUID is required"), nil
 	}
 
-	alertPolicy, _, err := c.client.Monitoring.GetAlertPolicy(ctx, uuid)
+	alertPolicy, _, err := c.client(ctx).Monitoring.GetAlertPolicy(ctx, uuid)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -58,7 +58,7 @@ func (c *AlertPolicyTool) listAlertPolicies(ctx context.Context, req mcp.CallToo
 		perPage = int(v)
 	}
 
-	alertPolicies, _, err := c.client.Monitoring.ListAlertPolicies(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
+	alertPolicies, _, err := c.client(ctx).Monitoring.ListAlertPolicies(ctx, &godo.ListOptions{Page: page, PerPage: perPage})
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -145,7 +145,7 @@ func (c *AlertPolicyTool) createAlertPolicy(ctx context.Context, req mcp.CallToo
 		Enabled:     &enabled,
 	}
 
-	alertPolicy, _, err := c.client.Monitoring.CreateAlertPolicy(ctx, createRequest)
+	alertPolicy, _, err := c.client(ctx).Monitoring.CreateAlertPolicy(ctx, createRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -237,7 +237,7 @@ func (c *AlertPolicyTool) updateAlertPolicy(ctx context.Context, req mcp.CallToo
 		Enabled:     &enabled,
 	}
 
-	alertPolicy, _, err := c.client.Monitoring.UpdateAlertPolicy(ctx, uuid, updateRequest)
+	alertPolicy, _, err := c.client(ctx).Monitoring.UpdateAlertPolicy(ctx, uuid, updateRequest)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
@@ -257,7 +257,7 @@ func (c *AlertPolicyTool) deleteAlertPolicy(ctx context.Context, req mcp.CallToo
 		return mcp.NewToolResultError("Alert Policy UUID is required"), nil
 	}
 
-	_, err := c.client.Monitoring.DeleteAlertPolicy(ctx, uuid)
+	_, err := c.client(ctx).Monitoring.DeleteAlertPolicy(ctx, uuid)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
