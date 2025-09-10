@@ -38,11 +38,9 @@ func withAuthKey(ctx context.Context, auth string) context.Context {
 func main() {
 	logLevelFlag := flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	serviceFlag := flag.String("services", "", "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
-	tokenFlag := flag.String("digitalocean-api-token", "", "DigitalOcean API token")
+	tokenFlag := flag.String("digitalocean-api-token", "", "DigitalOcean API token. If not provided, will use DIGITALOCEAN_API_TOKEN environment variable. This is only used for stdio transport.")
 	transport := flag.String("transport", "stdio", "Transport protocol (http or stdio)")
 	bindAddr := flag.String("bind-addr", "0.0.0.0:8080", "Bind address to bind to")
-
-	// optional
 	endpointFlag := flag.String("digitalocean-api-endpoint", "", "DigitalOcean API endpoint")
 	flag.Parse()
 
@@ -115,14 +113,17 @@ func clientFromContext(ctx context.Context) *godo.Client {
 
 // clientFromApiToken creates a godo client from a static API token provided via flag or environment variable.
 func clientFromApiToken(ctx context.Context) *godo.Client {
+	// This is required.
 	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
 	if token == "" {
 		return nil
 	}
+
 	endpoint := os.Getenv("DIGITALOCEAN_API_ENDPOINT")
 	if endpoint == "" {
 		endpoint = defaultEndpoint
 	}
+
 	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
 	if err != nil {
 		return nil
@@ -148,13 +149,8 @@ func runHTTPServer(s *server.MCPServer, logger *slog.Logger, bindAddr string, se
 }
 
 func runStdioServer(logger *slog.Logger, s *server.MCPServer, tokenFlag *string, services []string) {
-	err := registry.Register(logger, s, clientFromApiToken, services...)
-	if err != nil {
-		logger.Error("Failed to register tools: " + err.Error())
-		os.Exit(1)
-	}
-
 	// if using stdio, we check for the existence of the env var
+	// make an explicit check.
 	token := *tokenFlag
 	if token == "" {
 		token = os.Getenv("DIGITALOCEAN_API_TOKEN")
@@ -162,6 +158,12 @@ func runStdioServer(logger *slog.Logger, s *server.MCPServer, tokenFlag *string,
 			logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
 			os.Exit(1)
 		}
+	}
+
+	err := registry.Register(logger, s, clientFromApiToken, services...)
+	if err != nil {
+		logger.Error("Failed to register tools: " + err.Error())
+		os.Exit(1)
 	}
 
 	logger.Debug("starting stdio server")
