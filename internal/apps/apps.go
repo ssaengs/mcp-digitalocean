@@ -18,7 +18,7 @@ import (
 var eFS embed.FS
 
 const (
-	defaultPageSize = 30 // Default page size for listing apps
+	defaultPageSize = 20 // Default page size for listing apps
 	defaultPage     = 1
 )
 
