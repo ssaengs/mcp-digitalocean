@@ -34,12 +34,12 @@ func NewAppPlatformTool(client *godo.Client) (*AppPlatformTool, error) {
 func (a *AppPlatformTool) createAppFromAppSpec(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	jsonBytes, err := json.Marshal(req.GetArguments())
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to marshal request arguments for app creation: %w", err)
 	}
 
 	var create godo.AppCreateRequest
 	if err := json.Unmarshal(jsonBytes, &create); err != nil {
-		return mcp.NewToolResultErrorFromErr("parse app spec", err), nil
+		return mcp.NewToolResultErrorFromErr("failed to parse app creation request", err), nil
 	}
 
 	if create.Spec == nil {
@@ -48,12 +48,12 @@ func (a *AppPlatformTool) createAppFromAppSpec(ctx context.Context, req mcp.Call
 
 	app, _, err := a.client.Apps.Create(ctx, &create)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+		return mcp.NewToolResultErrorFromErr("failed to create app", err), nil
 	}
 
 	appJSON, err := json.MarshalIndent(app, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to format created app response: %w", err)
 	}
 
 	return mcp.NewToolResultText(string(appJSON)), nil
@@ -97,7 +97,7 @@ func (a *AppPlatformTool) listApps(ctx context.Context, req mcp.CallToolRequest)
 
 	apps, _, err := a.client.Apps.List(ctx, &godo.ListOptions{Page: int(page), PerPage: int(perPage)})
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+		return mcp.NewToolResultErrorFromErr("failed to retrieve apps list", err), nil
 	}
 
 	// create a slice of app summaries
@@ -109,7 +109,7 @@ func (a *AppPlatformTool) listApps(ctx context.Context, req mcp.CallToolRequest)
 
 	appsJSON, err := json.MarshalIndent(summaries, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to format apps list response: %w", err)
 	}
 
 	return mcp.NewToolResultText(string(appsJSON)), nil
@@ -124,7 +124,7 @@ func (a *AppPlatformTool) deleteApp(ctx context.Context, req mcp.CallToolRequest
 
 	_, err := a.client.Apps.Delete(ctx, appID)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+		return mcp.NewToolResultErrorFromErr(fmt.Sprintf("failed to delete app %s", appID), err), nil
 	}
 
 	return mcp.NewToolResultText("App deleted successfully"), nil
@@ -145,11 +145,11 @@ func (a *AppPlatformTool) getDeploymentStatus(ctx context.Context, req mcp.CallT
 
 	deployments, _, err := a.client.Apps.ListDeployments(ctx, appID, &godo.ListOptions{Page: 1, PerPage: defaultPageSize})
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+		return mcp.NewToolResultErrorFromErr(fmt.Sprintf("failed to list deployments for app %s", appID), err), nil
 	}
 
 	if len(deployments) == 0 {
-		return mcp.NewToolResultText(fmt.Sprintf("there are no deployments found for AppID %s", appID)), nil
+		return mcp.NewToolResultText(fmt.Sprintf("no deployments found for app %s", appID)), nil
 	}
 
 	// Get the health status of the deployment
@@ -166,7 +166,7 @@ func (a *AppPlatformTool) getDeploymentStatus(ctx context.Context, req mcp.CallT
 
 	activeDeploymentJSON, err := json.MarshalIndent(deploymentStatus, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to marshal deployment status: %w", err)
 	}
 
 	return mcp.NewToolResultText(string(activeDeploymentJSON)), nil
@@ -181,12 +181,12 @@ func (a *AppPlatformTool) getAppInfo(ctx context.Context, req mcp.CallToolReques
 
 	app, _, err := a.client.Apps.Get(ctx, appID)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+		return mcp.NewToolResultErrorFromErr(fmt.Sprintf("failed to get app %s", appID), err), nil
 	}
 
 	appJSON, err := json.MarshalIndent(app.Spec, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to marshal app spec: %w", err)
 	}
 
 	return mcp.NewToolResultText(string(appJSON)), nil
@@ -208,12 +208,12 @@ type AppUpdateRequest struct {
 func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	jsonBytes, err := json.Marshal(req.GetArguments())
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to marshal update request: %w", err)
 	}
 
 	var update AppUpdate
 	if err := json.Unmarshal(jsonBytes, &update); err != nil {
-		return mcp.NewToolResultErrorFromErr("parse app spec", err), nil
+		return mcp.NewToolResultErrorFromErr("failed to parse app update request", err), nil
 	}
 
 	if update.Update.Request == nil {
@@ -221,12 +221,12 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 			ForceBuild: true,
 		})
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("api error", err), nil
+			return mcp.NewToolResultErrorFromErr(fmt.Sprintf("failed to create deployment for app %s", update.Update.AppID), err), nil
 		}
 
 		deploymentJSON, err := json.MarshalIndent(deployment, "", "  ")
 		if err != nil {
-			return nil, fmt.Errorf("marshal error: %w", err)
+			return nil, fmt.Errorf("failed to marshal deployment: %w", err)
 		}
 
 		return mcp.NewToolResultText(string(deploymentJSON)), nil
@@ -234,12 +234,12 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 
 	app, _, err := a.client.Apps.Update(ctx, update.Update.AppID, update.Update.Request)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+		return mcp.NewToolResultErrorFromErr(fmt.Sprintf("failed to update app %s", update.Update.AppID), err), nil
 	}
 
 	appJSON, err := json.MarshalIndent(app, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+		return nil, fmt.Errorf("failed to marshal updated app: %w", err)
 	}
 
 	return mcp.NewToolResultText(string(appJSON)), nil
@@ -249,12 +249,12 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 
 	appCreateSchema, err := loadSchema("app-create-schema.json")
 	if err != nil {
-		panic(fmt.Errorf("failed to generate app create schema: %w", err))
+		panic(fmt.Errorf("failed to load app create schema: %w", err))
 	}
 
 	appUpdateSchema, err := loadSchema("app-update-schema.json")
 	if err != nil {
-		panic(fmt.Errorf("failed to generate app create schema: %w", err))
+		panic(fmt.Errorf("failed to load app update schema: %w", err))
 	}
 
 	tools := []server.ServerTool{
