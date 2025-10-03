@@ -18,7 +18,7 @@ import (
 
 const (
 	mcpName    = "mcp-digitalocean"
-	mcpVersion = "1.0.10"
+	mcpVersion = "1.0.11"
 
 	defaultEndpoint = "https://api.digitalocean.com"
 )
