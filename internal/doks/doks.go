@@ -2,9 +2,9 @@ package doks
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,10 +12,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-//go:embed spec/cluster-create-schema.json
-//go:embed spec/node-pool-create-schema.json
-var eFS embed.FS
 
 type DoksTool struct {
 	client *godo.Client
@@ -839,8 +835,13 @@ func (d *DoksTool) Tools() []server.ServerTool {
 
 // loadSchema attempts to load the JSON schema from the specified file.
 func loadSchema(file string) ([]byte, error) {
-	doksSchemaPath := "spec"
-	schema, err := eFS.ReadFile(filepath.Join(doksSchemaPath, file))
+	executablePath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	executableDir := filepath.Dir(executablePath)
+	schema, err := os.ReadFile(filepath.Join(executableDir, file))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read schema file %s: %w", file, err)
 	}
