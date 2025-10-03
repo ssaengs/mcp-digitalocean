@@ -461,7 +461,7 @@ func TestGetDeploymentStatus(t *testing.T) {
 				Content: []mcp.Content{
 					mcp.TextContent{
 						Type: "text",
-						Text: fmt.Sprintf("there are no deployments found for AppID %s", testAppId),
+						Text: fmt.Sprintf("no deployments found for app %s", testAppId),
 					},
 				},
 			},
