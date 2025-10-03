@@ -9,6 +9,7 @@ dist:
 	mkdir -p ./scripts/npm/dist
 	cp ./README.md ./scripts/npm/README.md
 	cp ./dist/*/mcp-digitalocean* ./scripts/npm/dist/
+	cp ./internal/apps/spec/*.json ./scripts/npm/dist/
 	npm install --prefix ./scripts/npm/
 
 lint:

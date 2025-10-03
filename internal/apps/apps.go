@@ -2,9 +2,9 @@ package apps
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -12,10 +12,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-//go:embed spec/app-create-schema.json
-//go:embed spec/app-update-schema.json
-var eFS embed.FS
 
 const (
 	defaultPageSize = 30 // Default page size for listing apps
@@ -310,8 +306,13 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 
 // loadSchema attempts to load the JSON schema from the specified file.
 func loadSchema(file string) ([]byte, error) {
-	appsSchemaPath := "spec"
-	schema, err := eFS.ReadFile(filepath.Join(appsSchemaPath, file))
+	executablePath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	executableDir := filepath.Dir(executablePath)
+	schema, err := os.ReadFile(filepath.Join(executableDir, file))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read schema file %s: %w", file, err)
 	}

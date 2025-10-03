@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -525,4 +526,16 @@ func TestGetDeploymentStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnotherLongRunningOperation(t *testing.T) {
+	t.Parallel()
+	time.Sleep(30 * time.Second)
+	require.True(t, true)
+}
+
+func TestLongRunningOperation(t *testing.T) {
+	t.Parallel()
+	time.Sleep(30 * time.Second)
+	require.True(t, true)
 }
