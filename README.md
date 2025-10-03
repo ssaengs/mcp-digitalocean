@@ -113,7 +113,7 @@ Add the following to your Cursor settings file located at `~/.cursor/config.json
   "mcpServers": {
     "digitalocean": {
       "command": "npx",
-      "args": ["@digitalocean/mcp", "--services apps"],
+      "args": ["@digitalocean/mcp", "--services", "apps"],
       "env": {
         "DIGITALOCEAN_API_TOKEN": "YOUR_API_TOKEN"
       }
