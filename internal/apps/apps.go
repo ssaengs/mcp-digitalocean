@@ -241,6 +241,21 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 	return mcp.NewToolResultText(string(appJSON)), nil
 }
 
+// getMigrationSteps provides steps to migrate an existing app to the latest API version.
+// This tool should return the contents of the migration tutorial to the llms.
+func (a *AppPlatformTool) getMigrationSteps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	// make a call to the migration url.
+	// read the contents and return the markdown or just the text content if possible.
+
+	// an even better approach be a prompt based workflow where we ask user basic parameters:
+	// - repository url.
+	// - app name in App Platform
+	// - provider (heroku, netlify, etc)
+	// - Any other argument that might be relevant.
+
+	return nil, nil
+}
+
 func (a *AppPlatformTool) Tools() []server.ServerTool {
 
 	appCreateSchema, err := loadSchema("app-create-schema.json")
@@ -297,6 +312,14 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 				"apps-update",
 				"Updates an existing application on DigitalOcean App Platform. The app ID and the AppSpec must be provided in the request.",
 				appUpdateSchema,
+			),
+		},
+		{
+			Handler: a.getMigrationSteps,
+			Tool: mcp.NewTool(
+				"apps-get-migration-steps",
+				mcp.WithDescription("Get the steps required to migrate an existing application to the latest version of the DigitalOcean App Platform API."),
+				mcp.WithString("Provider", mcp.Required(), mcp.Description("The provider of the app (e.g., 'heroku', 'netlify')")),
 			),
 		},
 	}
