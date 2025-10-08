@@ -20,7 +20,7 @@ ARG DATE=unknown
 # Build the binary with version info
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X 'main.version=${VERSION}' -X 'main.commit=${COMMIT}' -X 'main.date=${DATE}'" -o /app/mcp-digitalocean ./cmd/mcp-digitalocean
 
-FROM gcr.io/distroless/base-debian12
+FROM debian:12-slim
 
 WORKDIR /app
 
