@@ -2,7 +2,7 @@ all: lint test build-dist
 build-dist: build-bin dist
 
 build-bin:
-	goreleaser build --auto-snapshot --clean --skip validate
+	goreleaser build --snapshot --clean --skip validate
 
 .PHONY: dist
 dist:
