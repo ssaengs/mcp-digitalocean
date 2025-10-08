@@ -31,4 +31,3 @@ EXPOSE 8080
 
 # Entrypoint allows passing all supported flags
 ENTRYPOINT ["/app/mcp-digitalocean"]
-CMD ["--help"]
