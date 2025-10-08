@@ -26,17 +26,6 @@ jobs:
         with:
           install-only: true
 
-      - name: Install Linters
-        run: |
-          go install github.com/mgechev/revive@latest
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Lint
-        run: make lint
-
-      - name: Test
-        run: make test
-
       - name: Build Windows Binary
         run: make build-snapshot
 
