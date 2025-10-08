@@ -1,5 +1,5 @@
 ---
-name: CI
+name: CI Platform Test (Windows)
 
 on:
   push:
@@ -9,10 +9,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - name: Checkout Project
         uses: actions/checkout@v5
@@ -37,21 +34,25 @@ jobs:
       - name: Lint
         run: make lint
 
-      - name: Check Code Formatting
-        run: make format-check
-
       - name: Test
         run: make test
 
-      - name: Build Dist
-        run: make build-local
+      - name: Build Windows Binary
+        run: make build-snapshot
 
-      - name: Run Platform Tests
-        shell: bash
+      - name: Run MCP Binary and Check Output
+        shell: pwsh
         env:
           DIGITALOCEAN_API_TOKEN: test-key
         run: |
-          set -e
-          OUTPUT=$(npx ./scripts/npm --log-level debug test-key 2>&1 || true)
-          echo "$OUTPUT"
-          echo "$OUTPUT" | grep -q "starting MCP server"
+          $binary = Get-ChildItem -Path dist -Filter "mcp-digitalocean*.exe" -Recurse | Select-Object -First 1
+          if (-not $binary) {
+            Write-Error "Binary not found in dist directory."
+            exit 1
+          }
+          $output = & $binary.FullName --log-level debug --digitalocean-api test-key 2>&1
+          Write-Host $output
+          if ($output -notmatch 'starting MCP server') {
+            Write-Error 'Did not find "starting MCP server" in output.'
+            exit 1
+          }
