@@ -5,7 +5,7 @@ build-local:
 	goreleaser build --auto-snapshot --clean --skip validate
 
 build-bin:
-	goreleaser build --snapshot --clean --skip validate
+	goreleaser build --auto-snapshot --clean --skip validate
 
 .PHONY: dist
 dist:
