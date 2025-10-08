@@ -29,5 +29,4 @@ COPY --from=builder /app/mcp-digitalocean ./mcp-digitalocean
 # Expose default port
 EXPOSE 8080
 
-# Entrypoint allows passing all supported flags
 ENTRYPOINT ["/app/mcp-digitalocean"]
