@@ -36,13 +36,12 @@ jobs:
         run: make format-check
 
       - name: Test
-        run: make test
+        run: make all
 
       - name: Run Platform Tests
         shell: bash
         run: |
           set -e
-          make dist
           OUTPUT=$(npx ./scripts/npm --log-level debug --digitalocean-api test-key 2>&1 || true)
           echo "$OUTPUT"
           echo "$OUTPUT" | grep -q "starting MCP server"
