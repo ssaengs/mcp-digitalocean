@@ -44,7 +44,7 @@ jobs:
         run: make test
 
       - name: Build Dist
-        run: make build-local
+        run: make build-dist
 
       - name: Run Platform Tests
         shell: bash
