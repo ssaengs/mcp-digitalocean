@@ -1,5 +1,9 @@
 all: lint test build-dist
 build-dist: build-bin dist
+build-dist-snapshot: build-bin-snapshot dist
+
+build-bin-snapshot:
+	goreleaser build --snapshot --clean --skip validate
 
 build-bin:
 	goreleaser build --auto-snapshot --clean --skip validate
