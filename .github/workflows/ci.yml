@@ -9,7 +9,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Project
         uses: actions/checkout@v5
@@ -26,6 +29,11 @@ jobs:
           go install github.com/mgechev/revive@latest
           go install honnef.co/go/tools/cmd/staticcheck@latest
 
+      - name: Set up Goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          install-only: true
+
       - name: Lint
         run: make lint
 
@@ -34,3 +42,18 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Build Dist
+        run: make build-dist-snapshot
+
+      - name: Run Platform Tests
+        shell: bash
+        env:
+          DIGITALOCEAN_API_TOKEN: test-key
+          SERVICES: apps
+          LOG_LEVEL: debug
+        run: |
+          set -e
+          OUTPUT=$(npx ./scripts/npm --log-level debug test-key 2>&1 || true)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "starting MCP server"
