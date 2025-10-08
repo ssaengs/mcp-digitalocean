@@ -4,14 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+
+	_ "embed"
 )
+
+//go:embed spec/app-create-schema.json
+var appCreateSchemaJSON []byte
+
+//go:embed spec/app-update-schema.json
+var appUpdateSchemaJSON []byte
 
 const (
 	defaultPageSize = 20 // Default page size for listing apps
@@ -242,17 +248,6 @@ func (a *AppPlatformTool) updateApp(ctx context.Context, req mcp.CallToolRequest
 }
 
 func (a *AppPlatformTool) Tools() []server.ServerTool {
-
-	appCreateSchema, err := loadSchema("app-create-schema.json")
-	if err != nil {
-		panic(fmt.Errorf("failed to load app create schema: %w", err))
-	}
-
-	appUpdateSchema, err := loadSchema("app-update-schema.json")
-	if err != nil {
-		panic(fmt.Errorf("failed to load app update schema: %w", err))
-	}
-
 	tools := []server.ServerTool{
 		{
 			Handler: a.getDeploymentStatus,
@@ -288,7 +283,7 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 			Tool: mcp.NewToolWithRawSchema(
 				"apps-create-app-from-spec",
 				"Creates an application from a given app spec. Within the app spec, a source has to be provided. The source can be a Git repository, a Dockerfile, or a container image.",
-				appCreateSchema,
+				appCreateSchemaJSON,
 			),
 		},
 		{
@@ -296,25 +291,10 @@ func (a *AppPlatformTool) Tools() []server.ServerTool {
 			Tool: mcp.NewToolWithRawSchema(
 				"apps-update",
 				"Updates an existing application on DigitalOcean App Platform. The app ID and the AppSpec must be provided in the request.",
-				appUpdateSchema,
+				appUpdateSchemaJSON,
 			),
 		},
 	}
 
 	return tools
-}
-
-// loadSchema attempts to load the JSON schema from the specified file.
-func loadSchema(file string) ([]byte, error) {
-	executablePath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
-	}
-
-	executableDir := filepath.Dir(executablePath)
-	schema, err := os.ReadFile(filepath.Join(executableDir, file))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read schema file %s: %w", file, err)
-	}
-	return schema, nil
 }
