@@ -44,13 +44,15 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Test
+      - name: Build Dist
         run: make build-dist
 
       - name: Run Platform Tests
         shell: bash
+        env:
+          DIGITALOCEAN_API_TOKEN: test-key
         run: |
           set -e
-          OUTPUT=$(npx ./scripts/npm --log-level debug --digitalocean-api test-key 2>&1 || true)
+          OUTPUT=$(npx ./scripts/npm --log-level debug test-key 2>&1 || true)
           echo "$OUTPUT"
           echo "$OUTPUT" | grep -q "starting MCP server"
