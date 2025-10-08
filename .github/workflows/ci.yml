@@ -24,6 +24,11 @@ jobs:
         with:
           go-version: "1.24.1"
 
+      - name: Set up Goreleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          install-only: true
+
       - name: Install Linters
         run: |
           go install github.com/mgechev/revive@latest
@@ -36,7 +41,10 @@ jobs:
         run: make format-check
 
       - name: Test
-        run: make all
+        run: make test
+
+      - name: Test
+        run: make build-dist
 
       - name: Run Platform Tests
         shell: bash
