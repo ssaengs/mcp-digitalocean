@@ -56,4 +56,4 @@ jobs:
           set -e
           OUTPUT=$(npx ./scripts/npm --log-level debug test-key 2>&1 || true)
           echo "$OUTPUT"
-          echo "$OUTPUT" | grep -q "starting MCP server"
+          echo "$OUTPUT" | grep -q "THE TEST SHOULD FAIL"
