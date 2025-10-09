@@ -793,8 +793,8 @@ type ComponentHealth struct {
 	CPUUsagePercent    float64               `json:"cpu_usage_percent,omitempty"`
 	MemoryUsagePercent float64               `json:"memory_usage_percent,omitempty"`
 	ReplicasDesired    int64                 `json:"replicas_desired,omitempty"`
-	ReplicasReady      int64                 `json:"replicas_ready,omitempty"`
-	State              ComponentHealthStatus `json:"state,omitempty"`
+	ReplicasReady int64                 `json:"replicas_ready,omitempty"`
+	State         ComponentHealthStatus `json:"state,omitempty"`
 }
 
 // ComponentHealthStatus the model 'ComponentHealthStatus'
@@ -1299,9 +1299,9 @@ const (
 // AppInstanceSize struct for AppInstanceSize
 type AppInstanceSize struct {
 	Name         string                 `json:"name,omitempty"`
-	Slug         string                 `json:"slug,omitempty"`
-	CPUType      AppInstanceSizeCPUType `json:"cpu_type,omitempty"`
-	CPUs         string                 `json:"cpus,omitempty"`
+	Slug    string                 `json:"slug,omitempty"`
+	CPUType AppInstanceSizeCPUType `json:"cpu_type,omitempty"`
+	CPUs    string                 `json:"cpus,omitempty"`
 	MemoryBytes  string                 `json:"memory_bytes,omitempty"`
 	USDPerMonth  string                 `json:"usd_per_month,omitempty"`
 	USDPerSecond string                 `json:"usd_per_second,omitempty"`

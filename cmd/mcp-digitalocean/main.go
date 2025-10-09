@@ -9,7 +9,8 @@ import (
 	"os"
 	"strings"
 
-	registry "mcp-digitalocean/internal"
+	middleware "mcp-digitalocean/internal"
+	"mcp-digitalocean/internal/registry"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
@@ -19,15 +20,24 @@ import (
 const (
 	mcpName    = "mcp-digitalocean"
 	mcpVersion = "1.0.11"
-
-	defaultEndpoint = "https://api.digitalocean.com"
 )
 
+// getEnv retrieves the value of the environment variable named by the key.
+// If the variable is empty or not present, it returns the fallback value.
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
-	logLevelFlag := flag.String("log-level", os.Getenv("LOG_LEVEL"), "Log level: debug, info, warn, error")
-	serviceFlag := flag.String("services", os.Getenv("SERVICES"), "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
-	tokenFlag := flag.String("digitalocean-api-token", os.Getenv("DIGITALOCEAN_API_TOKEN"), "DigitalOcean API token")
-	endpointFlag := flag.String("digitalocean-api-endpoint", os.Getenv("DIGITALOCEAN_API_ENDPOINT"), "DigitalOcean API endpoint")
+	logLevelFlag := flag.String("log-level", getEnv("LOG_LEVEL", "info"), "Log level: debug, info, warn, error")
+	serviceFlag := flag.String("services", getEnv("SERVICES", ""), "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
+	tokenFlag := flag.String("digitalocean-api-token", getEnv("DIGITALOCEAN_API_TOKEN", ""), "DigitalOcean API token")
+	endpointFlag := flag.String("digitalocean-api-endpoint", getEnv("DIGITALOCEAN_API_ENDPOINT", "https://api.digitalocean.com"), "DigitalOcean API endpoint")
+	transport := flag.String("transport", getEnv("TRANSPORT", "stdio"), "The transport protocol to use (http or stdio). Default is stdio.")
+	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "0.0.0.0:8080"), "Bind address to bind to. Only used for http transport.")
 	flag.Parse()
 
 	var level slog.Level
@@ -51,17 +61,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	endpoint := *endpointFlag
-	if endpoint == "" {
-		endpoint = defaultEndpoint
-	}
-
 	var services []string
 	if *serviceFlag != "" {
 		services = strings.Split(*serviceFlag, ",")
 	}
 
-	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, endpoint)
+	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, *endpointFlag)
 	if err != nil {
 		logger.Error("Failed to create DigitalOcean client: " + err.Error())
 		os.Exit(1)
@@ -74,8 +79,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
-	err = server.ServeStdio(s)
+	err = runServer(s, logger, *bindAddr, transport)
 	if err != nil {
 		// if context cancelled or sigterm then shutdown gracefully
 		if errors.Is(err, context.Canceled) {
@@ -104,4 +108,31 @@ func newGodoClientWithTokenAndEndpoint(ctx context.Context, token string, endpoi
 		godo.WithRetryAndBackoffs(retry),
 		godo.SetBaseURL(endpoint),
 		godo.SetUserAgent(fmt.Sprintf("%s/%s", mcpName, mcpVersion)))
+}
+
+func runServer(s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string) error {
+	var err error
+
+	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion, "transport", *transport, "bind_addr", bindAddr)
+	switch *transport {
+	case "http":
+		httpServer := server.NewStreamableHTTPServer(
+			s,
+			server.WithHTTPContextFunc(middleware.AuthFromRequest),
+		)
+
+		err = httpServer.Start(bindAddr)
+		if err != nil {
+			return fmt.Errorf("failed to start HTTP server: %w", err)
+		}
+
+	// stdio is the default transport
+	default:
+		err = server.ServeStdio(s)
+		if err != nil {
+			return fmt.Errorf("failed to start STDIO server: %w", err)
+		}
+	}
+
+	return err
 }

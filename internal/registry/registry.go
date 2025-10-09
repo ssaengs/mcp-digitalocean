@@ -1,23 +1,23 @@
-package internal
+package registry
 
 import (
 	"fmt"
 	"log/slog"
 	"strings"
 
+	"mcp-digitalocean/internal/registry/account"
+	"mcp-digitalocean/internal/registry/apps"
+	"mcp-digitalocean/internal/registry/common"
+	"mcp-digitalocean/internal/registry/dbaas"
+	"mcp-digitalocean/internal/registry/doks"
+	"mcp-digitalocean/internal/registry/droplet"
+	"mcp-digitalocean/internal/registry/insights"
+	"mcp-digitalocean/internal/registry/marketplace"
+	"mcp-digitalocean/internal/registry/networking"
+	"mcp-digitalocean/internal/registry/spaces"
+
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
-
-	"mcp-digitalocean/internal/account"
-	"mcp-digitalocean/internal/apps"
-	"mcp-digitalocean/internal/common"
-	"mcp-digitalocean/internal/dbaas"
-	"mcp-digitalocean/internal/doks"
-	"mcp-digitalocean/internal/droplet"
-	"mcp-digitalocean/internal/insights"
-	"mcp-digitalocean/internal/marketplace"
-	"mcp-digitalocean/internal/networking"
-	"mcp-digitalocean/internal/spaces"
 )
 
 // supportedServices is a set of services that we support in this MCP server.

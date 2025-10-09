@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mcp-digitalocean/internal/registry/apps"
 	"os"
-
-	"mcp-digitalocean/internal/apps"
 
 	"github.com/digitalocean/godo"
 	"github.com/invopop/jsonschema"

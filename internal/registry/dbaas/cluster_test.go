@@ -2,7 +2,7 @@ package dbaas
 
 import (
 	"context"
-	"mcp-digitalocean/internal/dbaas/mocks"
+	"mcp-digitalocean/internal/registry/dbaas/mocks"
 	"testing"
 	"time"
 
