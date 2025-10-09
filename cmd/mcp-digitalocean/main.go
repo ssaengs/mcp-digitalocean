@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	middleware "mcp-digitalocean/internal"
-	"mcp-digitalocean/internal/registry"
+	"mcp-digitalocean/pkg/registry"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
@@ -37,7 +40,7 @@ func main() {
 	tokenFlag := flag.String("digitalocean-api-token", getEnv("DIGITALOCEAN_API_TOKEN", ""), "DigitalOcean API token")
 	endpointFlag := flag.String("digitalocean-api-endpoint", getEnv("DIGITALOCEAN_API_ENDPOINT", "https://api.digitalocean.com"), "DigitalOcean API endpoint")
 	transport := flag.String("transport", getEnv("TRANSPORT", "stdio"), "The transport protocol to use (http or stdio). Default is stdio.")
-	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "0.0.0.0:8080"), "Bind address to bind to. Only used for http transport.")
+	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "127.0.0.1:8080"), "Bind address to bind to. Only used for http transport.")
 	flag.Parse()
 
 	var level slog.Level
@@ -66,30 +69,55 @@ func main() {
 		services = strings.Split(*serviceFlag, ",")
 	}
 
-	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, *endpointFlag)
-	if err != nil {
-		logger.Error("Failed to create DigitalOcean client: " + err.Error())
-		os.Exit(1)
+	svr := server.NewMCPServer(mcpName, mcpVersion)
+
+	// TODO, when using STDIO, we cannot assume that the token will be passed through the headers per request.
+	// So, this needs to be dynamically checked based on the transport type.
+	getClientFn := func(ctx context.Context) (*godo.Client, error) {
+		return clientFromContext(ctx, *endpointFlag)
 	}
 
-	s := server.NewMCPServer(mcpName, mcpVersion)
-	err = registry.Register(logger, s, client, services...)
+	err := registry.Register(
+		logger,
+		svr,
+		getClientFn,
+		services...,
+	)
 	if err != nil {
 		logger.Error("Failed to register tools: " + err.Error())
 		os.Exit(1)
 	}
 
-	err = runServer(s, logger, *bindAddr, transport)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	err = runServer(ctx, svr, logger, *bindAddr, transport)
 	if err != nil {
-		// if context cancelled or sigterm then shutdown gracefully
-		if errors.Is(err, context.Canceled) {
-			logger.Info("Server shutdown gracefully")
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Info("shutting down mcp server")
 			os.Exit(0)
 		} else {
 			logger.Error("Failed to serve MCP server: " + err.Error())
 			os.Exit(1)
 		}
 	}
+}
+
+func clientFromContext(ctx context.Context, endpoint string) (*godo.Client, error) {
+	auth, ok := ctx.Value(middleware.AuthKey{}).(string)
+	if !ok || strings.TrimSpace(auth) == "" {
+		return nil, errors.New("no auth header found")
+	}
+	token := strings.TrimPrefix(auth, "Bearer ")
+	if token == "" {
+		return nil, errors.New("no bearer token found")
+	}
+	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create godo client: %w", err)
+	}
+
+	return client, nil
 }
 
 // newGodoClientWithTokenAndEndpoint initializes a new godo client with a custom user agent and endpoint.
@@ -110,29 +138,52 @@ func newGodoClientWithTokenAndEndpoint(ctx context.Context, token string, endpoi
 		godo.SetUserAgent(fmt.Sprintf("%s/%s", mcpName, mcpVersion)))
 }
 
-func runServer(s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string) error {
-	var err error
-
-	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion, "transport", *transport, "bind_addr", bindAddr)
+func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string) error {
+	logger.Info("starting MCP server", "name", mcpName, "version", mcpVersion, "transport", *transport)
 	switch *transport {
 	case "http":
-		httpServer := server.NewStreamableHTTPServer(
-			s,
-			server.WithHTTPContextFunc(middleware.AuthFromRequest),
-		)
 
-		err = httpServer.Start(bindAddr)
-		if err != nil {
-			return fmt.Errorf("failed to start HTTP server: %w", err)
+		errC := make(chan error, 1)
+		logger.Info("http server started", "bind_addr", bindAddr)
+		httpServer := server.NewStreamableHTTPServer(s)
+		go func() {
+			errC <- httpServer.Start(bindAddr)
+		}()
+
+		select {
+		case <-ctx.Done():
+
+			// allow 15 seconds for graceful shutdown
+			timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancelFunc()
+
+			logger.Info("received shutdown signal")
+			err := httpServer.Shutdown(timeoutCtx)
+			if err != nil {
+				// this happens if the clients still hold connections after the timeout.
+				if errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("timeout waiting for server to shutdown: %w", err)
+				}
+
+				return fmt.Errorf("failed to gracefully shutdown http server: %w", err)
+			}
+
+			return nil
+		case err := <-errC:
+			if err != nil {
+				logger.Error("http server error", "error", err)
+				return fmt.Errorf("http server error: %w", err)
+			}
 		}
 
 	// stdio is the default transport
 	default:
-		err = server.ServeStdio(s)
+		logger.Info("stdio server started")
+		err := server.ServeStdio(s)
 		if err != nil {
-			return fmt.Errorf("failed to start STDIO server: %w", err)
+			return fmt.Errorf("failed to start http server: %w", err)
 		}
 	}
 
-	return err
+	return nil
 }
