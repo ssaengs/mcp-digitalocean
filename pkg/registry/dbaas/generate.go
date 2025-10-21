@@ -1,5 +1,3 @@
 package dbaas
 
-// mockgen -destination=internal/dbaas/mocks/databases_service_mock.go \
-// -package=mocks \
-// github.com/digitalocean/godo DatabasesService
+//go:generate mockgen -destination=./mocks/databases_service_mock.go -package=mocks github.com/digitalocean/godo DatabasesService
