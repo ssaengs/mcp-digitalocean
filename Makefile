@@ -1,4 +1,4 @@
-all: lint test build-dist
+all: clean lint test build-dist
 build-dist: build-bin dist
 build-dist-snapshot: build-bin-snapshot dist
 
@@ -13,9 +13,12 @@ dist:
 	mkdir -p ./scripts/npm/dist
 	cp ./README.md ./scripts/npm/README.md
 	cp ./dist/*/mcp-digitalocean* ./scripts/npm/dist/
-	cp ./internal/apps/spec/*.json ./scripts/npm/dist/
-	cp ./internal/doks/spec/*.json ./scripts/npm/dist/
+	cp ./pkg/registry/apps/spec/*.json ./scripts/npm/dist/
+	cp ./pkg/registry/doks/spec/*.json ./scripts/npm/dist/
 	npm install --prefix ./scripts/npm/
+
+clean:
+	rm -rf ./dist ./scripts/npm/dist
 
 lint:
 	revive -config revive.toml ./...

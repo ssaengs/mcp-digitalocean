@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
-	registry "mcp-digitalocean/internal"
+	middleware "mcp-digitalocean/internal"
+	"mcp-digitalocean/pkg/registry"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
@@ -19,15 +23,24 @@ import (
 const (
 	mcpName    = "mcp-digitalocean"
 	mcpVersion = "1.0.12"
-
-	defaultEndpoint = "https://api.digitalocean.com"
 )
 
+// getEnv retrieves the value of the environment variable named by the key.
+// If the variable is empty or not present, it returns the fallback value.
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
-	logLevelFlag := flag.String("log-level", os.Getenv("LOG_LEVEL"), "Log level: debug, info, warn, error")
-	serviceFlag := flag.String("services", os.Getenv("SERVICES"), "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
-	tokenFlag := flag.String("digitalocean-api-token", os.Getenv("DIGITALOCEAN_API_TOKEN"), "DigitalOcean API token")
-	endpointFlag := flag.String("digitalocean-api-endpoint", os.Getenv("DIGITALOCEAN_API_ENDPOINT"), "DigitalOcean API endpoint")
+	logLevelFlag := flag.String("log-level", getEnv("LOG_LEVEL", "info"), "Log level: debug, info, warn, error")
+	serviceFlag := flag.String("services", getEnv("SERVICES", ""), "Comma-separated list of services to activate (e.g., apps,networking,droplets)")
+	tokenFlag := flag.String("digitalocean-api-token", getEnv("DIGITALOCEAN_API_TOKEN", ""), "DigitalOcean API token")
+	endpointFlag := flag.String("digitalocean-api-endpoint", getEnv("DIGITALOCEAN_API_ENDPOINT", "https://api.digitalocean.com"), "DigitalOcean API endpoint")
+	transport := flag.String("transport", getEnv("TRANSPORT", "stdio"), "The transport protocol to use (http or stdio). Default is stdio.")
+	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "127.0.0.1:8080"), "Bind address to bind to. Only used for http transport.")
 	flag.Parse()
 
 	var level slog.Level
@@ -51,41 +64,69 @@ func main() {
 		os.Exit(1)
 	}
 
-	endpoint := *endpointFlag
-	if endpoint == "" {
-		endpoint = defaultEndpoint
-	}
-
 	var services []string
 	if *serviceFlag != "" {
 		services = strings.Split(*serviceFlag, ",")
 	}
 
-	client, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, endpoint)
-	if err != nil {
-		logger.Error("Failed to create DigitalOcean client: " + err.Error())
-		os.Exit(1)
+	svr := server.NewMCPServer(mcpName, mcpVersion)
+
+	// by default, we create a new client per request.
+	getClientFn := func(ctx context.Context) (*godo.Client, error) {
+		return clientFromContext(ctx, *endpointFlag)
 	}
 
-	s := server.NewMCPServer(mcpName, mcpVersion)
-	err = registry.Register(logger, s, client, services...)
-	if err != nil {
-		logger.Error("Failed to register tools: " + err.Error())
-		os.Exit(1)
+	// if using stdio, we can re-use the client.
+	if *transport == "stdio" {
+		godoClient, err := newGodoClientWithTokenAndEndpoint(context.Background(), token, *endpointFlag)
+		if err != nil {
+			logger.Error("Failed to create DigitalOcean client: " + err.Error())
+			os.Exit(1)
+		}
+		getClientFn = func(ctx context.Context) (*godo.Client, error) {
+			return godoClient, nil
+		}
 	}
 
-	logger.Debug("starting MCP server", "name", mcpName, "version", mcpVersion)
-	err = server.ServeStdio(s)
+	// register the tools.
+	err := registry.Register(
+		logger,
+		svr,
+		getClientFn,
+		services...,
+	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	// start our server.
+	err = runServer(ctx, svr, logger, *bindAddr, transport)
 	if err != nil {
-		// if context cancelled or sigterm then shutdown gracefully
-		if errors.Is(err, context.Canceled) {
-			logger.Info("Server shutdown gracefully")
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			logger.Info("shutting down mcp server")
 			os.Exit(0)
 		} else {
 			logger.Error("Failed to serve MCP server: " + err.Error())
 			os.Exit(1)
 		}
 	}
+}
+
+func clientFromContext(ctx context.Context, endpoint string) (*godo.Client, error) {
+	auth, ok := ctx.Value(middleware.AuthKey{}).(string)
+	if !ok || strings.TrimSpace(auth) == "" {
+		return nil, errors.New("no auth header found")
+	}
+	token := strings.TrimPrefix(auth, "Bearer ")
+	if token == "" {
+		return nil, errors.New("no bearer token found")
+	}
+	client, err := newGodoClientWithTokenAndEndpoint(ctx, token, endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create godo client: %w", err)
+	}
+
+	return client, nil
 }
 
 // newGodoClientWithTokenAndEndpoint initializes a new godo client with a custom user agent and endpoint.
@@ -104,4 +145,52 @@ func newGodoClientWithTokenAndEndpoint(ctx context.Context, token string, endpoi
 		godo.WithRetryAndBackoffs(retry),
 		godo.SetBaseURL(endpoint),
 		godo.SetUserAgent(fmt.Sprintf("%s/%s", mcpName, mcpVersion)))
+}
+
+func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string) error {
+	logger.Info("starting MCP server", "name", mcpName, "version", mcpVersion, "transport", *transport)
+	switch *transport {
+	case "stdio":
+		logger.Info("stdio server started")
+		err := server.ServeStdio(s)
+		if err != nil {
+			return fmt.Errorf("failed to start http server: %w", err)
+		}
+	// fallback to http
+	default:
+		errC := make(chan error, 1)
+		logger.Info("http server started", "bind_addr", bindAddr)
+		httpServer := server.NewStreamableHTTPServer(s, server.WithHTTPContextFunc(middleware.AuthFromRequest))
+		go func() {
+			errC <- httpServer.Start(bindAddr)
+		}()
+
+		select {
+		case <-ctx.Done():
+
+			// allow 15 seconds for graceful shutdown
+			timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), time.Second*15)
+			defer cancelFunc()
+
+			logger.Info("received shutdown signal")
+			err := httpServer.Shutdown(timeoutCtx)
+			if err != nil {
+				// this happens if the clients still hold connections after the timeout.
+				if errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("timeout waiting for server to shutdown: %w", err)
+				}
+
+				return fmt.Errorf("failed to gracefully shutdown http server: %w", err)
+			}
+
+			return nil
+		case err := <-errC:
+			if err != nil {
+				logger.Error("http server error", "error", err)
+				return fmt.Errorf("http server error: %w", err)
+			}
+		}
+	}
+
+	return nil
 }
