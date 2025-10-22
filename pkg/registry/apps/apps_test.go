@@ -534,3 +534,115 @@ func TestGetDeploymentStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAppLogs(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         map[string]any
+		mock         func(app *MockAppsService)
+		expectedLogs *godo.AppLogs
+		expectError  bool
+		expectMcp    string
+		handlerError bool
+	}{
+		{
+			name: "Successful get logs",
+			args: map[string]any{"AppID": "app-123", "DeploymentID": "deployment-123", "Component": "web", "LogType": "BUILD"},
+			mock: func(app *MockAppsService) {
+				app.EXPECT().GetLogs(gomock.Any(), "app-123", "deployment-123", "web", godo.AppLogTypeBuild, false, 100).Return(&godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}}, nil, nil).Times(1)
+			},
+		},
+		{
+			name: "Error getting logs",
+			args: map[string]any{"AppID": "app-123", "DeploymentID": "deployment-123", "Component": "web", "LogType": "BUILD", "Follow": false, "TailLines": 100},
+			mock: func(app *MockAppsService) {
+				app.EXPECT().GetLogs(gomock.Any(), "app-123", "deployment-123", "web", godo.AppLogTypeBuild, false, 100).Return(nil, nil, fmt.Errorf("api error")).Times(1)
+			},
+			expectError: true,
+		},
+		{
+			name:      "Missing AppID",
+			args:      map[string]any{"DeploymentID": "deployment-123", "Component": "web", "LogType": "BUILD", "Follow": false, "TailLines": 100},
+			expectMcp: "App ID is required and must be a string",
+		},
+		{
+			name:      "Wrong type for AppID",
+			args:      map[string]any{"AppID": 123, "Component": "web", "LogType": "BUILD", "Follow": false, "TailLines": 100},
+			expectMcp: "App ID is required and must be a string",
+		},
+		{
+			name: "Invalid LogType",
+			args: map[string]any{"AppID": "app-123", "DeploymentID": "deployment-123", "Component": "web", "LogType": "INVALID_LOG_TYPE"},
+			mock: func(app *MockAppsService) {
+				app.EXPECT().GetLogs(gomock.Any(), "app-123", "deployment-123", "web", godo.AppLogType("INVALID_LOG_TYPE"), false, 100).
+					Return(nil, nil, fmt.Errorf("invalid log_type: INVALID_LOG_TYPE")).Times(1)
+			},
+			expectError: true,
+		},
+		{
+			name: "With optional parameters - Follow true, custom TailLines",
+			args: map[string]any{"AppID": "app-123", "DeploymentID": "deployment-123", "Component": "web", "LogType": "RUN", "Follow": true, "TailLines": 50},
+			mock: func(app *MockAppsService) {
+				app.EXPECT().GetLogs(gomock.Any(), "app-123", "deployment-123", "web", godo.AppLogTypeRun, true, 50).Return(&godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}}, nil, nil).Times(1)
+			},
+			expectedLogs: &godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}},
+		},
+		{
+			name: "Wrong type for Follow parameter",
+			args: map[string]any{"AppID": "app-123", "DeploymentID": "deployment-123", "Component": "web", "LogType": "RUN", "Follow": "true", "TailLines": 100},
+			mock: func(app *MockAppsService) {
+				app.EXPECT().GetLogs(gomock.Any(), "app-123", "deployment-123", "web", godo.AppLogTypeRun, false, 100).Return(&godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}}, nil, nil).Times(1)
+			},
+			expectedLogs: &godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}},
+		},
+		{
+			name: "Wrong type for TailLines parameter",
+			args: map[string]any{"AppID": "app-123", "DeploymentID": "deployment-123", "Component": "web", "LogType": "RUN", "Follow": false, "TailLines": "100"},
+			mock: func(app *MockAppsService) {
+				app.EXPECT().GetLogs(gomock.Any(), "app-123", "deployment-123", "web", godo.AppLogTypeRun, false, 100).Return(&godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}}, nil, nil).Times(1)
+			},
+			expectedLogs: &godo.AppLogs{LiveURL: "live-url", HistoricURLs: []string{"historic-url"}},
+		},
+		{
+			name:      "Empty arguments map",
+			args:      map[string]any{},
+			expectMcp: "App ID is required and must be a string",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client, appService := setupMock(t)
+			tool := &AppPlatformTool{client: client}
+			if tc.mock != nil {
+				tc.mock(appService)
+			}
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+			resp, err := tool.getAppLogs(context.Background(), req)
+			if tc.expectError {
+				if tc.handlerError {
+					require.Error(t, err)
+					require.Nil(t, resp)
+				} else {
+					require.NoError(t, err)
+					require.NotNil(t, resp)
+					require.True(t, resp.IsError)
+				}
+				return
+			}
+			if tc.expectMcp != "" {
+				require.True(t, resp.IsError)
+				require.Equal(t, tc.expectMcp, resp.Content[0].(mcp.TextContent).Text)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			if tc.expectedLogs != nil {
+				equalsToolResult(t, tc.expectedLogs, resp)
+			}
+
+		})
+	}
+
+}
