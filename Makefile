@@ -11,14 +11,16 @@ build-bin:
 .PHONY: dist
 dist:
 	mkdir -p ./scripts/npm/dist
+	mkdir -p ./scripts/npm/apps/docs
 	cp ./README.md ./scripts/npm/README.md
 	cp ./dist/*/mcp-digitalocean* ./scripts/npm/dist/
 	cp ./pkg/registry/apps/spec/*.json ./scripts/npm/dist/
 	cp ./pkg/registry/doks/spec/*.json ./scripts/npm/dist/
+	cp -r ./pkg/registry/apps/docs/* ./scripts/npm/apps/docs/
 	npm install --prefix ./scripts/npm/
 
 clean:
-	rm -rf ./dist ./scripts/npm/dist
+	rm -rf ./dist ./scripts/npm/dist ./scripts/npm/apps
 
 lint:
 	revive -config revive.toml ./...

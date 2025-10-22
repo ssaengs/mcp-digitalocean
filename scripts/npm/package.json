@@ -11,6 +11,12 @@
     "model-context-protocol"
   ],
   "bin": "./index.js",
+  "files": [
+    "index.js",
+    "dist/",
+    "apps/",
+    "README.md"
+  ],
   "scripts": {
     "mcp-golang": "node ./index.js"
   },
