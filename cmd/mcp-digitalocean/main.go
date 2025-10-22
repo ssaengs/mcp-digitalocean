@@ -22,7 +22,7 @@ import (
 
 const (
 	mcpName    = "mcp-digitalocean"
-	mcpVersion = "1.0.13"
+	mcpVersion = "1.0.14"
 )
 
 // getEnv retrieves the value of the environment variable named by the key.
@@ -59,7 +59,7 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	token := *tokenFlag
-	if token == "" {
+	if token == "" && *transport == "stdio" {
 		logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
 		os.Exit(1)
 	}
