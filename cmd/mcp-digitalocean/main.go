@@ -22,7 +22,7 @@ import (
 
 const (
 	mcpName    = "mcp-digitalocean"
-	mcpVersion = "1.0.13"
+	mcpVersion = "1.0.14"
 )
 
 // getEnv retrieves the value of the environment variable named by the key.
