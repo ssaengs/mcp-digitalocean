@@ -20,27 +20,33 @@ import (
 )
 
 var (
-	mcpPort  string
-	apiToken string
+	mcpPort      string
+	apiToken     string
+	mcpServerURL string
 )
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	apiToken = os.Getenv("DIGITALOCEAN_API_TOKEN")
-	container, err := startMcpServer(ctx)
-	if err != nil {
-		fmt.Printf("Could not start MCP server container: %s\n", err)
+	mcpServerURL = os.Getenv("MCP_SERVER_URL")
+
+	// If the user doesn't provide an MCP Server URL, start a new mcp server from a container.
+	if mcpServerURL == "" {
+		container, err := startMcpServer(ctx)
+		if err != nil {
+			fmt.Printf("Could not start MCP server container: %s\n", err)
+		}
+		defer container.Terminate(ctx)
+		port, err := container.MappedPort(ctx, "8080/tcp")
+		if err != nil {
+			log.Fatalf("Could not get mapped port: %v", err)
+		}
+		mcpPort = port.Port()
+		mcpServerURL = fmt.Sprintf("http://localhost:%s/mcp", mcpPort)
+	} else {
+		fmt.Println("Using existing MCP server at:", mcpServerURL)
 	}
 
-	// Get the dynamically mapped host port
-	defer container.Terminate(ctx)
-	port, err := container.MappedPort(ctx, "8080/tcp")
-	if err != nil {
-		log.Fatalf("Could not get mapped port: %v", err)
-	}
-
-	// Run tests
-	mcpPort = port.Port()
 	code := m.Run()
 	os.Exit(code)
 }
@@ -83,7 +89,7 @@ func TestListTools(t *testing.T) {
 // initializeClient initializes and returns a new MCP client for testing.
 func initializeClient(ctx context.Context, t *testing.T) *client.Client {
 	c, err := newClient(
-		fmt.Sprintf("http://localhost:%s/mcp", mcpPort),
+		mcpServerURL,
 		transport.WithContinuousListening(),
 		transport.WithHTTPHeaders(map[string]string{"Authorization": fmt.Sprintf("Bearer %s", apiToken)}),
 	)
