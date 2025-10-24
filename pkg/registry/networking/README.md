@@ -1,6 +1,6 @@
 # Networking MCP Tools
 
-This directory contains tools and resources for managing DigitalOcean networking features via the MCP Server. These tools enable you to create, modify, and query networking resources such as domains, certificates, firewalls, reserved IPs, VPCs, and CDNs.
+This directory contains tools and resources for managing DigitalOcean networking features via the MCP Server. These tools enable you to create, modify, and query networking resources such as domains, certificates, firewalls, load balancers, reserved IPs, VPCs, and CDNs.
 
 ---
 
@@ -162,6 +162,99 @@ This directory contains tools and resources for managing DigitalOcean networking
 
 ---
 
+### Load Balancers
+
+- **load-balancer-create**
+  Create a load balancer.
+  - `Name` (string, required): Name of the load balancer.
+  - `Region` (string, required for regional load balancer types): Region slug (e.g., nyc3)
+  - `DropletIDs` (array of strings, optional): IDs of the Droplets assigned to the load balancer
+  - `Tag` (string, optional): Droplet tag corresponding to Droplets assigned to the load balancer
+  - `ForwardingRules` (array of objects, required for regional load balancer types): Forwarding rules to add
+    - `EntryProtocol` (string, required): The protocol used for traffic to the load balancer. The possible values are: http, https, http2, http3, tcp, or udp.
+    - `EntryPort` (number, required): The port on which the load balancer instance will listen. (e.g., 80, 443)
+    - `TargetProtocol` (string, required): The protocol used for traffic from the load balancer to the backend Droplets. The possible values are: http, https, http2, tcp, or udp
+    - `TargetPort` (number, required): The port on the backend Droplets to which the load balancer will send traffic.
+    - `TlsPassthrough` (bool, optional): A boolean value indicating whether SSL encrypted traffic will be passed through to the backend Droplets.
+  - `Type` (string, optional): Type of the load balancer (REGIONAL, REGIONAL_NETWORK, GLOBAL). Default is REGIONAL.
+  - `Network` (string, optional): Network type of the load balancer (EXTERNAL, INTERNAL). Default is EXTERNAL.
+  - `SizeUnit` (number, optional): Size of the load balancer in units appropriate to its type.
+  -  `NetworkStack` (string, optional): Network stack of the load balancer (IPV4, DUALSTACK)
+  - `ProjectID` (string, optional): Project ID to which the load balancer will be assigned
+  - `TargetLoadBalancerIDs` (array of strings, optional): IDs of the target regional load balancers for a global load balancer
+  - `GLBSettings` (object, required for GLOBAL load balancer type): Forwarding configurations for a Global load balancer.
+
+- **load-balancer-delete**
+  Delete a load balancer by ID.
+  - `LoadBalancerID` (string, required): ID of the load balancer.
+
+- **load-balancer-delete-cache**
+  Delete the CDN cache of a global load balancer by ID.
+  - `LoadBalancerID` (string, required): ID of the load balancer.
+
+- **load-balancer-get**
+  Get a load balancer by ID.
+  - `LoadBalancerID` (string, required): ID of the load balancer.
+
+- **load-balancer-list**  
+  List load balancers with pagination.  
+  - `Page` (number, default: 1): Page number  
+  - `PerPage` (number, default: 20): Items per page
+
+- **load-balancer-add-droplets**
+  Add droplets to a load balancer.
+  - `LoadBalancerID` (string, required): ID of the load balancer
+  - `DropletIDs` (array of numbers, required): Droplet IDs to assign to the load balancer
+
+- **load-balancer-remove-droplets**
+  Remove droplets from a load balancer.
+  - `LoadBalancerID` (string, required): ID of the load balancer
+  - `DropletIDs` (array of numbers, required): Droplet IDs to remove
+
+- **load-balancer-update**
+  Update a load balancer.
+  - `LoadBalancerID` (string, required): ID of the load balancer.
+  - - `Name` (string, required): Name of the load balancer.
+  - `Region` (string, required for regional load balancer types): Region slug (e.g., nyc3)
+  - `DropletIDs` (array of strings, optional): IDs of the Droplets assigned to the load balancer
+  - `Tag` (string, optional): Droplet tag corresponding to Droplets assigned to the load balancer
+  - `ForwardingRules` (array of objects, optional): Forwarding rules to add
+    - `EntryProtocol` (string, required): The protocol used for traffic to the load balancer. The possible values are: http, https, http2, http3, tcp, or udp.
+    - `EntryPort` (number, required): The port on which the load balancer instance will listen. (e.g., 80, 443)
+    - `TargetProtocol` (string, required): The protocol used for traffic from the load balancer to the backend Droplets. The possible values are: http, https, http2, tcp, or udp
+    - `TargetPort` (number, required): The port on the backend Droplets to which the load balancer will send traffic.
+    - `TlsPassthrough` (bool, optional): A boolean value indicating whether SSL encrypted traffic will be passed through to the backend Droplets.
+  - `Type` (string, optional): Type of the load balancer (REGIONAL, REGIONAL_NETWORK, GLOBAL). Default is REGIONAL.
+  - `Network` (string, optional): Network type of the load balancer (EXTERNAL, INTERNAL). Default is EXTERNAL.
+  - `SizeUnit` (number, optional): Size of the load balancer in units appropriate to its type.
+  -  `NetworkStack` (string, optional): Network stack of the load balancer (IPV4, DUALSTACK)
+  - `ProjectID` (string, optional): Project ID to which the load balancer will be assigned
+  - `TargetLoadBalancerIDs` (array of strings, optional): IDs of the target regional load balancers for a global load balancer
+  - `GLBSettings` (object, required for GLOBAL load balancer type): Forwarding configurations for a Global load balancer.
+
+
+- **load-balancer-add-forwarding-rules**
+  Add forwarding rules to a load balancer.
+  - `LoadBalancerID` (string, required): ID of the load balancer
+  - `ForwardingRules` (array of objects, required): Forwarding rules to add
+    - `EntryProtocol` (string, required): The protocol used for traffic to the load balancer. The possible values are: http, https, http2, http3, tcp, or udp.
+    - `EntryPort` (number, required): The port on which the load balancer instance will listen. (e.g., 80, 443)
+    - `TargetProtocol` (string, required): The protocol used for traffic from the load balancer to the backend Droplets. The possible values are: http, https, http2, tcp, or udp
+    - `TargetPort` (number, required): The port on the backend Droplets to which the load balancer will send traffic.
+    - `TlsPassthrough` (bool, optional): A boolean value indicating whether SSL encrypted traffic will be passed through to the backend Droplets.
+
+- **load-balancer-remove-forwarding-rules**
+  Remove forwarding rules from a load balancer.
+  - `LoadBalancerID` (string, required): ID of the load balancer
+  - `ForwardingRules` (array of objects, required): Forwarding rules to add
+    - `EntryProtocol` (string, required): The protocol used for traffic to the load balancer. The possible values are: http, https, http2, http3, tcp, or udp.
+    - `EntryPort` (number, required): The port on which the load balancer instance will listen. (e.g., 80, 443)
+    - `TargetProtocol` (string, required): The protocol used for traffic from the load balancer to the backend Droplets. The possible values are: http, https, http2, tcp, or udp
+    - `TargetPort` (number, required): The port on the backend Droplets to which the load balancer will send traffic.
+    - `TlsPassthrough` (bool, optional): A boolean value indicating whether SSL encrypted traffic will be passed through to the backend Droplets.
+
+---
+
 
 ### Reserved IPs
 
@@ -273,6 +366,6 @@ This directory contains tools and resources for managing DigitalOcean networking
 - All resource identifiers (IDs, names, IPs) must be replaced with actual values in your queries.
 - All responses are returned in JSON format for easy parsing and integration.
 - For endpoints that require an ID, name, or IP, replace the placeholder with the appropriate value.
-- Use the tools to automate and manage all aspects of networking from domains and DNS to VPCs, firewalls, and advanced partner connectivity.
+- Use the tools to automate and manage all aspects of networking from domains and DNS to VPCs, firewalls, load balancers, and advanced partner connectivity.
 
 ---

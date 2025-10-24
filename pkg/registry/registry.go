@@ -69,6 +69,7 @@ func registerNetworkingTools(s *server.MCPServer, getClient getClientFn) error {
 	s.AddTools(networking.NewCertificateTool(getClient).Tools()...)
 	s.AddTools(networking.NewDomainsTool(getClient).Tools()...)
 	s.AddTools(networking.NewFirewallTool(getClient).Tools()...)
+	s.AddTools(networking.NewLoadBalancersTool(getClient).Tools()...)
 	s.AddTools(networking.NewReservedIPTool(getClient).Tools()...)
 	s.AddTools(networking.NewBYOIPPrefixTool(getClient).Tools()...)
 	// Partner attachments doesn't have much users so this has been disabled
