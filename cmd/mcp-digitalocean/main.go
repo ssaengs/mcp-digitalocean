@@ -160,7 +160,10 @@ func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bi
 	default:
 		errC := make(chan error, 1)
 		logger.Info("http server started", "bind_addr", bindAddr)
-		httpServer := server.NewStreamableHTTPServer(s, server.WithHTTPContextFunc(middleware.AuthFromRequest))
+		httpServer := server.NewStreamableHTTPServer(s,
+			server.WithHTTPContextFunc(middleware.AuthFromRequest),
+			server.WithStateLess(true),
+		)
 		go func() {
 			errC <- httpServer.Start(bindAddr)
 		}()
