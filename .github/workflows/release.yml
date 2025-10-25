@@ -42,7 +42,9 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install doctl
-        uses: actions/action-doctl@v2
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Build and Push Docker Image
         run: |
