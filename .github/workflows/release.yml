@@ -40,3 +40,14 @@ jobs:
           npm publish --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+
+      - name: Build and Push Docker Image
+        run: |
+          doctl registry login -t ${{ secrets.DIGITALOCEAN_TOKEN }}
+          docker build -t ${{ secrets.DOCR_REGISTRY }}/mcp-digitalocean:${{ github.ref_name }} .
+          docker push ${{ secrets.DOCR_REGISTRY }}/mcp-digitalocean:${{ github.ref_name }}
