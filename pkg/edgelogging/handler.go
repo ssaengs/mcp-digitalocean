@@ -28,7 +28,7 @@ const (
 // By default, it logs to the provided io.Writer (typically stderr).
 // When configured with a WebSocket URL, it sends logs to the WebSocket endpoint instead.
 type Handler struct {
-	// Fallback handler for local logging (stderr)
+	// fallback handler for local logging (stderr)
 	fallbackHandler slog.Handler
 
 	// WebSocket configuration
@@ -41,11 +41,11 @@ type Handler struct {
 	wsReconnectDelay time.Duration
 	wsMaxReconnects  int
 
-	// Handler state for WithAttrs/WithGroup
+	// handler state for WithAttrs/WithGroup
 	attrs  []slog.Attr
 	groups []string
 
-	// Lifecycle management
+	// lifecycle management
 	closeOnce *sync.Once
 	closed    bool
 }
@@ -181,10 +181,10 @@ func (h *Handler) ConfigureWebSocket(url, token string) error {
 	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, defaultBufferSize)
 
-	// Start log writer goroutine
+	// start log writer goroutine
 	go h.logWriter()
 
-	// Start connection manager goroutine
+	// start connection manager goroutine
 	go h.connectionManager()
 
 	return nil
@@ -244,7 +244,7 @@ func (h *Handler) buildLogEntry(r slog.Record) map[string]interface{} {
 func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, groups []string) {
 	attr.Value = attr.Value.Resolve()
 
-	// Ignore empty attributes
+	// ignore empty attributes
 	if attr.Equal(slog.Attr{}) {
 		return
 	}
@@ -277,7 +277,7 @@ func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, gro
 				}
 			}
 		} else {
-			// Inline group
+			// inline group
 			for _, ga := range groupAttrs {
 				h.addAttrToMap(current, ga, nil)
 			}
@@ -295,19 +295,19 @@ func (h *Handler) logWriter() {
 			return
 		}
 
-		// Lock once, write once
+		// lock once, write once
 		h.wsMu.Lock()
 		defer h.wsMu.Unlock()
 
 		if h.wsConn != nil {
 			err := h.wsConn.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
-				// Connection error will be handled by connectionManager
+				// connection error will be handled by connectionManager
 				// which will set wsConn to nil
 				continue
 			}
 		}
-		// No connection available - message is dropped
+		// no connection available - message is dropped
 	}
 }
 
@@ -322,7 +322,7 @@ func (h *Handler) connectionManager() {
 			return
 		}
 
-		// Attempt to connect
+		// attempt to connect
 		conn, err := h.connect()
 		if err != nil {
 			reconnectAttempts++
@@ -331,46 +331,46 @@ func (h *Handler) connectionManager() {
 				return
 			}
 
-			// Wait before retrying
+			// wait before retrying
 			time.Sleep(h.wsReconnectDelay)
 			continue
 		}
 
-		// Connection successful - reset retry counter
+		// connection successful - reset retry counter
 		reconnectAttempts = 0
 
 		h.wsMu.Lock()
 		h.wsConn = conn
 		h.wsMu.Unlock()
 
-		// Monitor the connection by trying to read
+		// monitor the connection by trying to read
 		// WebSocket servers may send ping/pong frames
-		// This will block until the connection is lost
+		// this will block until the connection is lost
 		for {
 			if h.closed {
 				return
 			}
 
-			// Set read deadline to detect broken connections
+			// set read deadline to detect broken connections
 			_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
-			// Try to read a message (we don't expect any, but this detects disconnection)
+			// try to read a message (we don't expect any, but this detects disconnection)
 			_, _, err := conn.ReadMessage()
 			if err != nil {
-				// Connection lost
+				// connection lost
 				h.wsMu.Lock()
 				h.wsConn = nil
 				h.wsMu.Unlock()
 
-				// Close the old connection
+				// close the old connection
 				_ = conn.Close()
 
-				// Break out to reconnect
+				// break out to reconnect
 				break
 			}
 		}
 
-		// Wait a bit before attempting to reconnect
+		// wait a bit before attempting to reconnect
 		time.Sleep(h.wsReconnectDelay)
 	}
 }
