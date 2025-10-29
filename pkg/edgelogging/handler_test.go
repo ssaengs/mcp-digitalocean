@@ -253,7 +253,7 @@ func TestHandler_WebSocket_Basic(t *testing.T) {
 	// Wait for message to arrive
 	select {
 	case msg := <-messages:
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		if err := json.Unmarshal(msg, &logEntry); err != nil {
 			t.Fatalf("failed to unmarshal log entry: %v", err)
 		}

@@ -224,8 +224,8 @@ func (h *Handler) Close() error {
 }
 
 // buildLogEntry constructs a map representing the log entry for WebSocket transmission.
-func (h *Handler) buildLogEntry(r slog.Record) map[string]interface{} {
-	entry := make(map[string]interface{})
+func (h *Handler) buildLogEntry(r slog.Record) map[string]any {
+	entry := make(map[string]any)
 
 	if !r.Time.IsZero() {
 		entry["timestamp"] = r.Time.Format(time.RFC3339Nano)
@@ -249,7 +249,7 @@ func (h *Handler) buildLogEntry(r slog.Record) map[string]interface{} {
 }
 
 // addAttrToMap adds an attribute to the map, handling groups and nested attributes.
-func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, groups []string) {
+func (h *Handler) addAttrToMap(entry map[string]any, attr slog.Attr, groups []string) {
 	attr.Value = attr.Value.Resolve()
 
 	// ignore empty attributes
@@ -263,9 +263,9 @@ func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, gro
 	current := entry
 	for _, group := range groups {
 		if _, exists := current[group]; !exists {
-			current[group] = make(map[string]interface{})
+			current[group] = make(map[string]any)
 		}
-		if nested, ok := current[group].(map[string]interface{}); ok {
+		if nested, ok := current[group].(map[string]any); ok {
 			current = nested
 		}
 	}
@@ -278,8 +278,8 @@ func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, gro
 			return
 		}
 		if attr.Key != "" {
-			current[key] = make(map[string]interface{})
-			if nested, ok := current[key].(map[string]interface{}); ok {
+			current[key] = make(map[string]any)
+			if nested, ok := current[key].(map[string]any); ok {
 				for _, ga := range groupAttrs {
 					h.addAttrToMap(nested, ga, nil)
 				}

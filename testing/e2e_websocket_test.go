@@ -26,10 +26,10 @@ import (
 
 // LogEntry represents a structured log entry from the MCP server
 type LogEntry struct {
-	Timestamp string                 `json:"timestamp"`
-	Level     string                 `json:"level"`
-	Message   string                 `json:"message"`
-	Extra     map[string]interface{} `json:"-"` // All other fields
+	Timestamp string         `json:"timestamp"`
+	Level     string         `json:"level"`
+	Message   string         `json:"message"`
+	Extra     map[string]any `json:"-"` // All other fields
 }
 
 // UnmarshalJSON custom unmarshaler to capture all fields
@@ -47,7 +47,7 @@ func (l *LogEntry) UnmarshalJSON(data []byte) error {
 	}
 
 	// Then unmarshal into a map to capture extra fields
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
 		return err
 	}
