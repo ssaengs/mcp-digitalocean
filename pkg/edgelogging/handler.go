@@ -16,6 +16,15 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const (
+	// defaultReconnectDelay is the delay between reconnection attempts
+	defaultReconnectDelay = 5 * time.Second
+	// defaultMaxReconnects is the maximum number of reconnection attempts before giving up
+	defaultMaxReconnects = 5
+	// defaultBufferSize is the size of the log buffer channel
+	defaultBufferSize = 1000
+)
+
 // Handler implements slog.Handler interface with optional WebSocket logging support.
 // By default, it logs to the provided io.Writer (typically stderr).
 // When configured with a WebSocket URL, it sends logs to the WebSocket endpoint instead.
@@ -62,8 +71,8 @@ func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 	h := &Handler{
 		fallbackHandler:  slog.NewJSONHandler(out, opts),
 		wsMu:             &sync.Mutex{},
-		wsReconnectDelay: 5 * time.Second,
-		wsMaxReconnects:  -1, // unlimited
+		wsReconnectDelay: defaultReconnectDelay,
+		wsMaxReconnects:  defaultMaxReconnects,
 		hostname:         hostname,
 		processID:        os.Getpid(),
 		closeOnce:        &sync.Once{},
@@ -188,7 +197,7 @@ func (h *Handler) ConfigureWebSocket(url, token string) error {
 	h.wsURL = url
 	h.wsToken = token
 	h.wsEnabled = true
-	h.wsBuffer = make(chan []byte, 1000) // Buffer for 1000 messages
+	h.wsBuffer = make(chan []byte, defaultBufferSize)
 
 	// Start log writer goroutine
 	h.startLogWriter()
@@ -350,8 +359,8 @@ func (h *Handler) startConnectionManager() {
 				// Connection failed
 				reconnectAttempts++
 
-				// Check if we've exceeded max reconnects (-1 means unlimited)
-				if h.wsMaxReconnects >= 0 && reconnectAttempts > h.wsMaxReconnects {
+				// Check if we've exceeded max reconnects
+				if reconnectAttempts > h.wsMaxReconnects {
 					// Give up on reconnecting
 					return
 				}
