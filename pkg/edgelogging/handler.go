@@ -181,11 +181,11 @@ func (h *Handler) ConfigureWebSocket(url, token string) error {
 	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, defaultBufferSize)
 
-	// start log writer goroutine
-	h.startLogWriter()
+	// Start log writer goroutine
+	go h.logWriter()
 
-	// start connection manager goroutine
-	h.startConnectionManager()
+	// Start connection manager goroutine
+	go h.connectionManager()
 
 	return nil
 }
@@ -287,94 +287,92 @@ func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, gro
 	}
 }
 
-// startLogWriter starts a background goroutine that reads from the buffer and writes to WebSocket.
-func (h *Handler) startLogWriter() {
-	go func() {
-		for data := range h.wsBuffer {
-			if h.closed {
+// logWriter reads from the buffer and writes to WebSocket.
+// This should be called as a goroutine.
+func (h *Handler) logWriter() {
+	for data := range h.wsBuffer {
+		if h.closed {
+			return
+		}
+
+		// Lock once, write once
+		h.wsMu.Lock()
+		defer h.wsMu.Unlock()
+
+		if h.wsConn != nil {
+			err := h.wsConn.WriteMessage(websocket.TextMessage, data)
+			if err != nil {
+				// Connection error will be handled by connectionManager
+				// which will set wsConn to nil
+				continue
+			}
+		}
+		// No connection available - message is dropped
+	}
+}
+
+// connectionManager manages the WebSocket connection.
+// It handles initial connection, reconnection on failure, and monitors connection health.
+// This should be called as a goroutine.
+func (h *Handler) connectionManager() {
+	var reconnectAttempts int
+
+	for {
+		if h.closed {
+			return
+		}
+
+		// Attempt to connect
+		conn, err := h.connect()
+		if err != nil {
+			reconnectAttempts++
+
+			if reconnectAttempts > h.wsMaxReconnects {
 				return
 			}
 
-			// Lock once, write once
-			h.wsMu.Lock()
-			defer h.wsMu.Unlock()
-
-			if h.wsConn != nil {
-				err := h.wsConn.WriteMessage(websocket.TextMessage, data)
-				if err != nil {
-					// connection error will be handled by connectionManager
-					// which will set wsConn to nil
-					continue
-				}
-			}
-			// no connection available - message is dropped
+			// Wait before retrying
+			time.Sleep(h.wsReconnectDelay)
+			continue
 		}
-	}()
-}
 
-// startConnectionManager starts a background goroutine that manages the WebSocket connection.
-// It handles initial connection, reconnection on failure, and monitors connection health.
-func (h *Handler) startConnectionManager() {
-	go func() {
-		var reconnectAttempts int
+		// Connection successful - reset retry counter
+		reconnectAttempts = 0
 
+		h.wsMu.Lock()
+		h.wsConn = conn
+		h.wsMu.Unlock()
+
+		// Monitor the connection by trying to read
+		// WebSocket servers may send ping/pong frames
+		// This will block until the connection is lost
 		for {
 			if h.closed {
 				return
 			}
 
-			// attempt to connect
-			conn, err := h.connect()
+			// Set read deadline to detect broken connections
+			_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+			// Try to read a message (we don't expect any, but this detects disconnection)
+			_, _, err := conn.ReadMessage()
 			if err != nil {
-				reconnectAttempts++
+				// Connection lost
+				h.wsMu.Lock()
+				h.wsConn = nil
+				h.wsMu.Unlock()
 
-				if reconnectAttempts > h.wsMaxReconnects {
-					return
-				}
+				// Close the old connection
+				_ = conn.Close()
 
-				// wait before retrying
-				time.Sleep(h.wsReconnectDelay)
-				continue
+				// Break out to reconnect
+				break
 			}
-
-			// connection successful - reset retry counter
-			reconnectAttempts = 0
-
-			h.wsMu.Lock()
-			h.wsConn = conn
-			h.wsMu.Unlock()
-
-			// monitor the connection by trying to read
-			// websocket servers may send ping/pong frames
-			// this will block until the connection is lost
-			for {
-				if h.closed {
-					return
-				}
-
-				// set read deadline to detect broken connections
-				_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
-				// try to read a message (we don't expect any, but this detects disconnection)
-				_, _, err := conn.ReadMessage()
-				if err != nil {
-					// connection lost
-					h.wsMu.Lock()
-					h.wsConn = nil
-					h.wsMu.Unlock()
-
-					// close the old connection
-					_ = conn.Close()
-
-					// break out to reconnect
-					break
-				}
-			}
-
-			// wait a bit before attempting to reconnect
-			time.Sleep(h.wsReconnectDelay)
 		}
-	}()
+
+		// Wait a bit before attempting to reconnect
+		time.Sleep(h.wsReconnectDelay)
+	}
 }
 
 // connect establishes a new WebSocket connection with authentication.
