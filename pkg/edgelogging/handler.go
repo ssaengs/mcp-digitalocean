@@ -16,12 +16,18 @@ import (
 )
 
 const (
-	// defaultReconnectDelay is the delay between reconnection attempts
-	defaultReconnectDelay = 5 * time.Second
-	// defaultMaxReconnects is the maximum number of reconnection attempts before giving up
-	defaultMaxReconnects = 5
-	// defaultBufferSize is the size of the log buffer channel
-	defaultBufferSize = 1000
+	// reconnectDelay is the delay between reconnection attempts
+	reconnectDelay = 5 * time.Second
+	// maxReconnects is the maximum number of reconnection attempts before giving up
+	maxReconnects = 5
+	// bufferSize is the size of the log buffer channel
+	bufferSize = 1000
+	// handshakeTimeout is the timeout for WebSocket handshake
+	handshakeTimeout = 10 * time.Second
+	// readBufferSize is the WebSocket read buffer size in bytes
+	readBufferSize = 4096
+	// writeBufferSize is the WebSocket write buffer size in bytes
+	writeBufferSize = 4096
 )
 
 // Handler implements slog.Handler interface with optional WebSocket logging support.
@@ -61,8 +67,8 @@ func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 	h := &Handler{
 		fallbackHandler:  slog.NewJSONHandler(out, opts),
 		wsMu:             &sync.Mutex{},
-		wsReconnectDelay: defaultReconnectDelay,
-		wsMaxReconnects:  defaultMaxReconnects,
+		wsReconnectDelay: reconnectDelay,
+		wsMaxReconnects:  maxReconnects,
 		closeOnce:        &sync.Once{},
 	}
 
@@ -179,7 +185,7 @@ func (h *Handler) ConfigureWebSocket(url, token string) error {
 	h.wsURL = url
 	h.wsToken = token
 	h.wsEnabled = true
-	h.wsBuffer = make(chan []byte, defaultBufferSize)
+	h.wsBuffer = make(chan []byte, bufferSize)
 
 	// start log writer goroutine
 	go h.logWriter()
@@ -380,9 +386,9 @@ func (h *Handler) connectionManager() {
 // connect establishes a new WebSocket connection with authentication.
 func (h *Handler) connect() (*websocket.Conn, error) {
 	dialer := &websocket.Dialer{
-		HandshakeTimeout: 10 * time.Second,
-		ReadBufferSize:   4096,
-		WriteBufferSize:  4096,
+		HandshakeTimeout: handshakeTimeout,
+		ReadBufferSize:   readBufferSize,
+		WriteBufferSize:  writeBufferSize,
 	}
 
 	headers := make(map[string][]string)
