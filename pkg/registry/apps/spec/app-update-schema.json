@@ -1185,6 +1185,17 @@
                       "kind": {
                         "type": "string"
                       },
+                      "schedule": {
+                        "properties": {
+                          "cron": {
+                            "type": "string"
+                          },
+                          "time_zone": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "alerts": {
                         "items": {
                           "properties": {
@@ -1318,6 +1329,9 @@
                           }
                         },
                         "type": "object"
+                      },
+                      "timeout": {
+                        "type": "string"
                       }
                     },
                     "type": "object",
