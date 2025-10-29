@@ -29,8 +29,6 @@ type LogEntry struct {
 	Timestamp string                 `json:"timestamp"`
 	Level     string                 `json:"level"`
 	Message   string                 `json:"message"`
-	Hostname  string                 `json:"hostname"`
-	ProcessID int                    `json:"process_id"`
 	Extra     map[string]interface{} `json:"-"` // All other fields
 }
 
@@ -58,8 +56,6 @@ func (l *LogEntry) UnmarshalJSON(data []byte) error {
 	delete(m, "timestamp")
 	delete(m, "level")
 	delete(m, "message")
-	delete(m, "hostname")
-	delete(m, "process_id")
 
 	l.Extra = m
 	return nil
@@ -267,8 +263,6 @@ func TestEdgeLogging_E2E(t *testing.T) {
 		require.NotEmpty(t, log.Timestamp, "Log missing timestamp")
 		require.NotEmpty(t, log.Level, "Log missing level")
 		require.NotEmpty(t, log.Message, "Log missing message")
-		require.NotEmpty(t, log.Hostname, "Log missing hostname")
-		require.NotZero(t, log.ProcessID, "Log missing process_id")
 	}
 
 	t.Logf("Received %d log entries", len(logs))

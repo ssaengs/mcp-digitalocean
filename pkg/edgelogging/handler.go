@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -46,10 +45,6 @@ type Handler struct {
 	attrs  []slog.Attr
 	groups []string
 
-	// Context fields (added to WebSocket logs)
-	hostname  string
-	processID int
-
 	// Lifecycle management
 	closeOnce *sync.Once
 	closed    bool
@@ -63,18 +58,11 @@ func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 		opts = &slog.HandlerOptions{}
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-	}
-
 	h := &Handler{
 		fallbackHandler:  slog.NewJSONHandler(out, opts),
 		wsMu:             &sync.Mutex{},
 		wsReconnectDelay: defaultReconnectDelay,
 		wsMaxReconnects:  defaultMaxReconnects,
-		hostname:         hostname,
-		processID:        os.Getpid(),
 		closeOnce:        &sync.Once{},
 	}
 
@@ -142,8 +130,6 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		wsMaxReconnects:  h.wsMaxReconnects,
 		attrs:            newAttrs,
 		groups:           h.groups,
-		hostname:         h.hostname,
-		processID:        h.processID,
 		closeOnce:        h.closeOnce, // Share the closeOnce
 		closed:           h.closed,
 	}
@@ -174,8 +160,6 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 		wsMaxReconnects:  h.wsMaxReconnects,
 		attrs:            h.attrs,
 		groups:           newGroups,
-		hostname:         h.hostname,
-		processID:        h.processID,
 		closeOnce:        h.closeOnce, // Share the closeOnce
 		closed:           h.closed,
 	}
@@ -249,10 +233,6 @@ func (h *Handler) buildLogEntry(r slog.Record) map[string]interface{} {
 
 	// Add message
 	entry["message"] = r.Message
-
-	// Add standard context fields
-	entry["hostname"] = h.hostname
-	entry["process_id"] = h.processID
 
 	// Add attributes from WithAttrs
 	for _, attr := range h.attrs {

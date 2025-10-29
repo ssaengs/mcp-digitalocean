@@ -29,14 +29,6 @@ func TestNewHandler(t *testing.T) {
 		t.Error("fallbackHandler is nil")
 	}
 
-	if handler.hostname == "" {
-		t.Error("hostname not set")
-	}
-
-	if handler.processID == 0 {
-		t.Error("processID not set")
-	}
-
 	if handler.wsEnabled {
 		t.Error("wsEnabled should be false by default")
 	}
@@ -283,14 +275,6 @@ func TestHandler_WebSocket_Basic(t *testing.T) {
 			t.Error("missing timestamp field")
 		}
 
-		if _, ok := logEntry["hostname"]; !ok {
-			t.Error("missing hostname field")
-		}
-
-		if _, ok := logEntry["process_id"]; !ok {
-			t.Error("missing process_id field")
-		}
-
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for WebSocket message")
 	}
@@ -403,13 +387,5 @@ func TestBuildLogEntry(t *testing.T) {
 
 	if v, ok := entry["key2"].(int64); !ok || v != 123 {
 		t.Errorf("key2 = %v (type %T), want 123", entry["key2"], entry["key2"])
-	}
-
-	if entry["hostname"] != handler.hostname {
-		t.Errorf("hostname = %v, want %v", entry["hostname"], handler.hostname)
-	}
-
-	if v, ok := entry["process_id"].(int); !ok || v != handler.processID {
-		t.Errorf("process_id = %v, want %v", entry["process_id"], handler.processID)
 	}
 }
