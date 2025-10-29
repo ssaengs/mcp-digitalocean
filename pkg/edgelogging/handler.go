@@ -303,20 +303,19 @@ func (h *Handler) startLogWriter() {
 				return
 			}
 
-			// Try to write to WebSocket
+			// Lock once, write once
 			h.wsMu.Lock()
-			conn := h.wsConn
-			h.wsMu.Unlock()
+			defer h.wsMu.Unlock()
 
-			if conn != nil {
-				err := conn.WriteMessage(websocket.TextMessage, data)
+			if h.wsConn != nil {
+				err := h.wsConn.WriteMessage(websocket.TextMessage, data)
 				if err != nil {
-					// Connection error, will be handled by connectionManager
-					// Silently continue to avoid log loops
+					// Connection error will be handled by connectionManager
+					// which will set wsConn to nil
 					continue
 				}
 			}
-			// If no connection, message is dropped silently
+			// No connection available - message is dropped
 		}
 	}()
 }
