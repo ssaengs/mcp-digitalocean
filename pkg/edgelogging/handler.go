@@ -228,10 +228,12 @@ func (h *Handler) buildLogEntry(r slog.Record) map[string]interface{} {
 	entry["level"] = r.Level.String()
 	entry["message"] = r.Message
 
+	// add handler-level persistent attributes (from WithAttrs)
 	for _, attr := range h.attrs {
 		h.addAttrToMap(entry, attr, h.groups)
 	}
 
+	// add record-specific attributes (from this log call)
 	r.Attrs(func(attr slog.Attr) bool {
 		h.addAttrToMap(entry, attr, h.groups)
 		return true
