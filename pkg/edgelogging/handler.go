@@ -1,4 +1,4 @@
-// Package edgelogging provides a slog.Handler that can optionally send logs to a WebSocket endpoint.
+// edgelogging provides a slog.Handler that can optionally send logs to a WebSocket endpoint.
 // It is a drop-in replacement for slog.JSONHandler that maintains stderr logging by default,
 // but can be configured to send logs to a WebSocket server for centralized log aggregation.
 package edgelogging
@@ -83,26 +83,24 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		return nil
 	}
 
-	// If WebSocket is not enabled, use fallback handler (stderr)
+	// if WebSocket is not enabled, use fallback handler (stderr)
 	if !h.wsEnabled {
 		return h.fallbackHandler.Handle(ctx, r)
 	}
 
-	// Build log entry as JSON for WebSocket
 	entry := h.buildLogEntry(r)
 
-	// Marshal to JSON
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return fmt.Errorf("failed to marshal log entry: %w", err)
 	}
 
-	// Try to send to buffer (non-blocking)
+	// try to send to buffer (non-blocking)
 	select {
 	case h.wsBuffer <- data:
 		return nil
 	default:
-		// Buffer is full, drop the message
+		// buffer is full, drop the message
 		return fmt.Errorf("log buffer full, message dropped")
 	}
 }
@@ -125,12 +123,12 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		wsToken:          h.wsToken,
 		wsConn:           h.wsConn,
 		wsBuffer:         h.wsBuffer,
-		wsMu:             h.wsMu, // Share the mutex
+		wsMu:             h.wsMu, // share the mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
 		attrs:            newAttrs,
 		groups:           h.groups,
-		closeOnce:        h.closeOnce, // Share the closeOnce
+		closeOnce:        h.closeOnce, // share the closeOnce
 		closed:           h.closed,
 	}
 
@@ -155,12 +153,12 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 		wsToken:          h.wsToken,
 		wsConn:           h.wsConn,
 		wsBuffer:         h.wsBuffer,
-		wsMu:             h.wsMu, // Share the mutex
+		wsMu:             h.wsMu, // share the mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
 		attrs:            h.attrs,
 		groups:           newGroups,
-		closeOnce:        h.closeOnce, // Share the closeOnce
+		closeOnce:        h.closeOnce, // share the closeOnce
 		closed:           h.closed,
 	}
 
@@ -183,10 +181,10 @@ func (h *Handler) ConfigureWebSocket(url, token string) error {
 	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, defaultBufferSize)
 
-	// Start log writer goroutine
+	// start log writer goroutine
 	h.startLogWriter()
 
-	// Start connection manager goroutine
+	// start connection manager goroutine
 	h.startConnectionManager()
 
 	return nil
@@ -200,17 +198,17 @@ func (h *Handler) Close() error {
 	h.closeOnce.Do(func() {
 		h.closed = true
 
-		// Close the buffer channel if it exists
+		// close the buffer channel if it exists
 		if h.wsBuffer != nil {
 			close(h.wsBuffer)
 		}
 
-		// Close WebSocket connection if open
+		// close WebSocket connection if open
 		h.wsMu.Lock()
 		defer h.wsMu.Unlock()
 
 		if h.wsConn != nil {
-			// Send close message
+			// send close message
 			_ = h.wsConn.WriteMessage(websocket.CloseMessage, []byte{})
 			err = h.wsConn.Close()
 			h.wsConn = nil
@@ -223,23 +221,17 @@ func (h *Handler) Close() error {
 func (h *Handler) buildLogEntry(r slog.Record) map[string]interface{} {
 	entry := make(map[string]interface{})
 
-	// Add timestamp
 	if !r.Time.IsZero() {
 		entry["timestamp"] = r.Time.Format(time.RFC3339Nano)
 	}
 
-	// Add level
 	entry["level"] = r.Level.String()
-
-	// Add message
 	entry["message"] = r.Message
 
-	// Add attributes from WithAttrs
 	for _, attr := range h.attrs {
 		h.addAttrToMap(entry, attr, h.groups)
 	}
 
-	// Add attributes from the record
 	r.Attrs(func(attr slog.Attr) bool {
 		h.addAttrToMap(entry, attr, h.groups)
 		return true
@@ -259,7 +251,7 @@ func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, gro
 
 	key := attr.Key
 
-	// Navigate to the correct nested map for groups
+	// navigate to the correct nested map for groups
 	current := entry
 	for _, group := range groups {
 		if _, exists := current[group]; !exists {
@@ -270,7 +262,7 @@ func (h *Handler) addAttrToMap(entry map[string]interface{}, attr slog.Attr, gro
 		}
 	}
 
-	// Handle different value kinds
+	// handle different value kinds
 	switch attr.Value.Kind() {
 	case slog.KindGroup:
 		groupAttrs := attr.Value.Group()
@@ -310,12 +302,12 @@ func (h *Handler) startLogWriter() {
 			if h.wsConn != nil {
 				err := h.wsConn.WriteMessage(websocket.TextMessage, data)
 				if err != nil {
-					// Connection error will be handled by connectionManager
+					// connection error will be handled by connectionManager
 					// which will set wsConn to nil
 					continue
 				}
 			}
-			// No connection available - message is dropped
+			// no connection available - message is dropped
 		}
 	}()
 }
@@ -327,64 +319,59 @@ func (h *Handler) startConnectionManager() {
 		var reconnectAttempts int
 
 		for {
-			// Check if handler is closed
 			if h.closed {
 				return
 			}
 
-			// Attempt to connect
+			// attempt to connect
 			conn, err := h.connect()
 			if err != nil {
-				// Connection failed
 				reconnectAttempts++
 
-				// Check if we've exceeded max reconnects
 				if reconnectAttempts > h.wsMaxReconnects {
-					// Give up on reconnecting
 					return
 				}
 
-				// Wait before retrying
+				// wait before retrying
 				time.Sleep(h.wsReconnectDelay)
 				continue
 			}
 
-			// Connection successful - reset retry counter
+			// connection successful - reset retry counter
 			reconnectAttempts = 0
 
-			// Store the connection
 			h.wsMu.Lock()
 			h.wsConn = conn
 			h.wsMu.Unlock()
 
-			// Monitor the connection by trying to read
-			// WebSocket servers may send ping/pong frames
-			// This will block until the connection is lost
+			// monitor the connection by trying to read
+			// websocket servers may send ping/pong frames
+			// this will block until the connection is lost
 			for {
 				if h.closed {
 					return
 				}
 
-				// Set read deadline to detect broken connections
+				// set read deadline to detect broken connections
 				_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
-				// Try to read a message (we don't expect any, but this detects disconnection)
+				// try to read a message (we don't expect any, but this detects disconnection)
 				_, _, err := conn.ReadMessage()
 				if err != nil {
-					// Connection lost
+					// connection lost
 					h.wsMu.Lock()
 					h.wsConn = nil
 					h.wsMu.Unlock()
 
-					// Close the old connection
+					// close the old connection
 					_ = conn.Close()
 
-					// Break out to reconnect
+					// break out to reconnect
 					break
 				}
 			}
 
-			// Wait a bit before attempting to reconnect
+			// wait a bit before attempting to reconnect
 			time.Sleep(h.wsReconnectDelay)
 		}
 	}()
@@ -398,13 +385,11 @@ func (h *Handler) connect() (*websocket.Conn, error) {
 		WriteBufferSize:  4096,
 	}
 
-	// Prepare authentication header
 	headers := make(map[string][]string)
 	if h.wsToken != "" {
 		headers["Authorization"] = []string{fmt.Sprintf("Bearer %s", h.wsToken)}
 	}
 
-	// Attempt connection
 	conn, resp, err := dialer.Dial(h.wsURL, headers)
 	if err != nil {
 		if resp != nil {
@@ -413,7 +398,6 @@ func (h *Handler) connect() (*websocket.Conn, error) {
 		return nil, fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
 
-	// Close response body
 	if resp != nil {
 		_ = resp.Body.Close()
 	}

@@ -60,10 +60,10 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	// Create edge logging handler (drop-in replacement for slog.NewJSONHandler)
+	// create edge logging handler (drop-in replacement for slog.NewJSONHandler)
 	handler := edgelogging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 
-	// Configure WebSocket logging if URL is provided
+	// configure WebSocket logging if URL is provided
 	if *edgeLoggingURL != "" {
 		if err := handler.ConfigureWebSocket(*edgeLoggingURL, *edgeLoggingToken); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to configure edge logging: %v\n", err)
