@@ -395,8 +395,8 @@ func startMcpServerWithEdgeLogging(ctx context.Context, wsURL, wsToken string) (
 			"DIGITALOCEAN_API_TOKEN": apiToken,
 			"LOG_LEVEL":              "debug",
 			"TRANSPORT":              "http",
-			"EDGE_LOGGING_URL":       wsURL,
-			"EDGE_LOGGING_TOKEN":     wsToken,
+			"WS_LOGGING_URL":         wsURL,
+			"WS_LOGGING_TOKEN":       wsToken,
 		},
 		WaitingFor: wait.ForListeningPort("8080/tcp").WithStartupTimeout(60 * time.Second),
 	}

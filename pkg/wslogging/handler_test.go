@@ -1,4 +1,4 @@
-package edgelogging
+package wslogging
 
 import (
 	"bytes"

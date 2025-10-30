@@ -13,7 +13,7 @@ import (
 	"time"
 
 	middleware "mcp-digitalocean/internal"
-	"mcp-digitalocean/pkg/edgelogging"
+	"mcp-digitalocean/pkg/wslogging"
 	"mcp-digitalocean/pkg/registry"
 
 	"github.com/digitalocean/godo"
@@ -42,8 +42,8 @@ func main() {
 	endpointFlag := flag.String("digitalocean-api-endpoint", getEnv("DIGITALOCEAN_API_ENDPOINT", "https://api.digitalocean.com"), "DigitalOcean API endpoint")
 	transport := flag.String("transport", getEnv("TRANSPORT", "stdio"), "The transport protocol to use (http or stdio). Default is stdio.")
 	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "127.0.0.1:8080"), "Bind address to bind to. Only used for http transport.")
-	edgeLoggingURL := flag.String("edge-logging-url", getEnv("EDGE_LOGGING_URL", ""), "WebSocket URL for edge logging (optional)")
-	edgeLoggingToken := flag.String("edge-logging-token", getEnv("EDGE_LOGGING_TOKEN", ""), "Authentication token for edge logging (optional)")
+	wsLoggingURL := flag.String("ws-logging-url", getEnv("WS_LOGGING_URL", ""), "WebSocket URL for WebSocket logging (optional)")
+	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
 	flag.Parse()
 
 	var level slog.Level
@@ -60,13 +60,13 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	// create edge logging handler (drop-in replacement for slog.NewJSONHandler)
-	handler := edgelogging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: level})
+	// create WebSocket logging handler (drop-in replacement for slog.NewJSONHandler)
+	handler := wslogging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 
 	// configure WebSocket logging if URL is provided
-	if *edgeLoggingURL != "" {
-		if err := handler.ConfigureWebSocket(*edgeLoggingURL, *edgeLoggingToken); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to configure edge logging: %v\n", err)
+	if *wsLoggingURL != "" {
+		if err := handler.ConfigureWebSocket(*wsLoggingURL, *wsLoggingToken); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to configure WebSocket logging: %v\n", err)
 			os.Exit(1)
 		}
 		defer handler.Close()

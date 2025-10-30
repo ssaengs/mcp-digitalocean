@@ -1,7 +1,7 @@
-// edgelogging provides a slog.Handler that can optionally send logs to a WebSocket endpoint.
+// wslogging provides a slog.Handler that can optionally send logs to a WebSocket endpoint.
 // It is a drop-in replacement for slog.JSONHandler that maintains stderr logging by default,
 // but can be configured to send logs to a WebSocket server for centralized log aggregation.
-package edgelogging
+package wslogging
 
 import (
 	"context"
@@ -64,7 +64,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new Handler that logs to the provided io.Writer.
-// If EDGE_LOGGING_URL environment variable is set, it will be configured to send logs
+// If WS_LOGGING_URL environment variable is set, it will be configured to send logs
 // to the WebSocket endpoint instead of the writer.
 func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 	if opts == nil {
@@ -200,7 +200,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 
 	// warn if no token provided
 	if token == "" {
-		fmt.Fprintf(os.Stderr, "[edgelogging] WARNING: no authentication token provided - this is a security risk\n")
+		fmt.Fprintf(os.Stderr, "[wslogging] WARNING: no authentication token provided - this is a security risk\n")
 	}
 
 	h.wsMu.Lock()
@@ -212,7 +212,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	h.wsBuffer = make(chan []byte, bufferSize)
 
 	// log startup diagnostic to stdout
-	fmt.Fprintf(os.Stdout, "[edgelogging] configuring WebSocket logging to %s\n", wsURL)
+	fmt.Fprintf(os.Stdout, "[wslogging] configuring WebSocket logging to %s\n", wsURL)
 
 	// start log writer goroutine
 	go h.logWriter()
@@ -365,11 +365,11 @@ func (h *Handler) connectionManager() {
 			reconnectAttempts++
 
 			// log connection error to stderr
-			fmt.Fprintf(os.Stderr, "[edgelogging] connection failed (attempt %d/%d): %v\n",
+			fmt.Fprintf(os.Stderr, "[wslogging] connection failed (attempt %d/%d): %v\n",
 				reconnectAttempts, h.wsMaxReconnects, err)
 
 			if reconnectAttempts > h.wsMaxReconnects {
-				fmt.Fprintf(os.Stderr, "[edgelogging] max reconnection attempts reached, giving up\n")
+				fmt.Fprintf(os.Stderr, "[wslogging] max reconnection attempts reached, giving up\n")
 				return
 			}
 
@@ -382,7 +382,7 @@ func (h *Handler) connectionManager() {
 		reconnectAttempts = 0
 
 		// log success to stdout
-		fmt.Fprintf(os.Stdout, "[edgelogging] WebSocket connection established to %s\n", h.wsURL)
+		fmt.Fprintf(os.Stdout, "[wslogging] WebSocket connection established to %s\n", h.wsURL)
 
 		h.wsMu.Lock()
 		h.wsConn = conn
@@ -412,13 +412,13 @@ func (h *Handler) connectionManager() {
 				err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
 				if err != nil {
 					// ping failed - connection is lost
-					fmt.Fprintf(os.Stderr, "[edgelogging] connection lost: %v\n", err)
+					fmt.Fprintf(os.Stderr, "[wslogging] connection lost: %v\n", err)
 					break monitorLoop
 				}
 
 			case <-readDone:
 				// read loop exited - connection is lost
-				fmt.Fprintf(os.Stderr, "[edgelogging] connection lost: read error\n")
+				fmt.Fprintf(os.Stderr, "[wslogging] connection lost: read error\n")
 				break monitorLoop
 			}
 		}
