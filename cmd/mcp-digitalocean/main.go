@@ -13,8 +13,8 @@ import (
 	"time"
 
 	middleware "mcp-digitalocean/internal"
-	"mcp-digitalocean/pkg/wslogging"
 	"mcp-digitalocean/pkg/registry"
+	"mcp-digitalocean/pkg/wslogging"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
