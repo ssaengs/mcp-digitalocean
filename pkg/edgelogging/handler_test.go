@@ -601,3 +601,117 @@ func TestConfigureWebSocket_URLValidation(t *testing.T) {
 		})
 	}
 }
+
+// TestHandler_WebSocket_PingPong tests that the handler sends pings and handles pongs
+func TestHandler_WebSocket_PingPong(t *testing.T) {
+	var mu sync.Mutex
+	pingCount := 0
+	pongCount := 0
+	messages := make(chan []byte, 10)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Logf("upgrade error: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		// set up ping handler to count pings and respond with pongs
+		conn.SetPingHandler(func(appData string) error {
+			mu.Lock()
+			pingCount++
+			mu.Unlock()
+
+			// automatically send pong back (gorilla/websocket does this by default)
+			err := conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			pongCount++
+			mu.Unlock()
+
+			return nil
+		})
+
+		// set read deadline to keep connection alive
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+		// read messages continuously (required to process ping frames)
+		for {
+			_, message, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+
+			// reset read deadline on each message
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+			// send message to channel
+			select {
+			case messages <- message:
+			default:
+				// channel full, skip
+			}
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	wsURL := httpToWebSocketURL(server.URL)
+
+	var buf bytes.Buffer
+	h := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
+
+	err := h.ConfigureWebSocket(wsURL, "test-token")
+	if err != nil {
+		t.Fatalf("ConfigureWebSocket() error: %v", err)
+	}
+	defer h.Close()
+
+	// wait a moment for connection to be fully established
+	time.Sleep(100 * time.Millisecond)
+
+	// send a log message to establish connection
+	logger := slog.New(h)
+	logger.Info("test message")
+
+	// wait for message
+	select {
+	case msg := <-messages:
+		t.Logf("received message: %s", string(msg))
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for message")
+	}
+
+	// wait for at least 1 ping (pingInterval is 30s, but we'll wait up to 35s)
+	waitForCondition(t, 35*time.Second, 100*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return pingCount >= 1
+	}, "timeout waiting for ping")
+
+	mu.Lock()
+	finalPingCount := pingCount
+	finalPongCount := pongCount
+	mu.Unlock()
+
+	if finalPingCount < 1 {
+		t.Errorf("expected at least 1 ping, got %d", finalPingCount)
+	}
+
+	if finalPongCount < 1 {
+		t.Errorf("expected at least 1 pong, got %d", finalPongCount)
+	}
+
+	if finalPingCount != finalPongCount {
+		t.Errorf("ping count (%d) should equal pong count (%d)", finalPingCount, finalPongCount)
+	}
+}

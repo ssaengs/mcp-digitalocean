@@ -31,6 +31,10 @@ const (
 	readBufferSize = 4096
 	// writeBufferSize is the WebSocket write buffer size in bytes
 	writeBufferSize = 4096
+	// pingInterval is the interval for sending WebSocket ping frames to keep connection alive
+	pingInterval = 30 * time.Second
+	// pongWait is the timeout for receiving pong responses
+	pongWait = 60 * time.Second
 )
 
 // Handler implements slog.Handler interface with optional WebSocket logging support.
@@ -384,37 +388,53 @@ func (h *Handler) connectionManager() {
 		h.wsConn = conn
 		h.wsMu.Unlock()
 
-		// monitor the connection by trying to read
-		// WebSocket servers may send ping/pong frames
-		// this will block until the connection is lost
+		// start read loop to handle pong responses (detects disconnection via read deadline)
+		readDone := make(chan struct{})
+		go func() {
+			h.readLoop(conn)
+			close(readDone)
+		}()
+
+		// send periodic pings to keep connection alive
+		pingTicker := time.NewTicker(pingInterval)
+		defer pingTicker.Stop()
+
+		// monitor connection health
+	monitorLoop:
 		for {
-			if h.closed {
-				return
-			}
+			select {
+			case <-pingTicker.C:
+				if h.closed {
+					break monitorLoop
+				}
 
-			// set read deadline to detect broken connections
-			_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+				// send ping
+				err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
+				if err != nil {
+					// ping failed - connection is lost
+					fmt.Fprintf(os.Stderr, "[edgelogging] connection lost: %v\n", err)
+					break monitorLoop
+				}
 
-			// try to read a message (we don't expect any, but this detects disconnection)
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				// connection lost
-				fmt.Fprintf(os.Stderr, "[edgelogging] connection lost: %v\n", err)
-
-				h.wsMu.Lock()
-				h.wsConn = nil
-				h.wsMu.Unlock()
-
-				// close the old connection
-				_ = conn.Close()
-
-				// break out to reconnect
-				break
+			case <-readDone:
+				// read loop exited - connection is lost
+				fmt.Fprintf(os.Stderr, "[edgelogging] connection lost: read error\n")
+				break monitorLoop
 			}
 		}
 
+		// clean up connection
+		h.wsMu.Lock()
+		if h.wsConn == conn {
+			h.wsConn = nil
+		}
+		h.wsMu.Unlock()
+		_ = conn.Close()
+
 		// wait a bit before attempting to reconnect
-		time.Sleep(h.wsReconnectDelay)
+		if !h.closed {
+			time.Sleep(h.wsReconnectDelay)
+		}
 	}
 }
 
@@ -444,4 +464,28 @@ func (h *Handler) connect() (*websocket.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+// readLoop reads from the WebSocket to handle control frames (pong) and detect disconnections.
+// This method blocks until the connection is closed or an error occurs.
+func (h *Handler) readLoop(conn *websocket.Conn) {
+	// set up pong handler - extends read deadline when pong is received
+	conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(appData string) error {
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
+	// read loop - we don't expect to receive messages, but we need to read to process pongs
+	for {
+		if h.closed {
+			return
+		}
+
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			// connection closed or error - the connectionManager will handle reconnection
+			return
+		}
+	}
 }
