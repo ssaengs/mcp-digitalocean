@@ -115,7 +115,7 @@ func TestHandler_WithAttrs(t *testing.T) {
 		Level: slog.LevelInfo,
 	})
 
-	// Add attributes
+	// add attributes
 	handler2 := handler.WithAttrs([]slog.Attr{
 		slog.String("request_id", "123"),
 		slog.Int("user_id", 456),
@@ -145,7 +145,7 @@ func TestHandler_WithGroup(t *testing.T) {
 		Level: slog.LevelInfo,
 	})
 
-	// Add a group
+	// add a group
 	handler2 := handler.WithGroup("request")
 	logger := slog.New(handler2)
 	logger.Info("test message", "method", "GET", "path", "/api")
@@ -167,19 +167,19 @@ func TestHandler_Close(t *testing.T) {
 		Level: slog.LevelInfo,
 	})
 
-	// Close should not error even without WebSocket
+	// close should not error even without WebSocket
 	err := handler.Close()
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
 	}
 
-	// Multiple closes should be safe
+	// multiple closes should be safe
 	err = handler.Close()
 	if err != nil {
 		t.Errorf("Second Close() returned error: %v", err)
 	}
 
-	// Handler should be marked as closed
+	// handler should be marked as closed
 	if !handler.closed {
 		t.Error("handler not marked as closed")
 	}
@@ -193,7 +193,7 @@ func mockWebSocketServer(t *testing.T, token string) (*httptest.Server, chan []b
 	upgrader := websocket.Upgrader{}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check authorization if token provided
+		// check authorization if token provided
 		if token != "" {
 			auth := r.Header.Get("Authorization")
 			expected := "Bearer " + token
@@ -210,7 +210,7 @@ func mockWebSocketServer(t *testing.T, token string) (*httptest.Server, chan []b
 		}
 		defer conn.Close()
 
-		// Read messages and send to channel
+		// read messages and send to channel
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
@@ -229,7 +229,7 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 	server, messages := mockWebSocketServer(t, "test-token")
 	defer server.Close()
 
-	// Convert http:// to ws://
+	// convert http:// to ws://
 	wsURL := httpToWebSocketURL(server.URL)
 
 	var buf bytes.Buffer
@@ -237,21 +237,21 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 		Level: slog.LevelInfo,
 	})
 
-	// Configure WebSocket
+	// configure WebSocket
 	err := handler.ConfigureWebSocket(wsURL, "test-token")
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
 	defer handler.Close()
 
-	// Wait for connection
+	// wait for connection
 	time.Sleep(100 * time.Millisecond)
 
-	// Send a log message
+	// send a log message
 	logger := slog.New(handler)
 	logger.Info("websocket test", "key", "value")
 
-	// Wait for message to arrive
+	// wait for message to arrive
 	select {
 	case msg := <-messages:
 		var logEntry map[string]any
@@ -271,7 +271,7 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 			t.Errorf("key = %v, want 'value'", logEntry["key"])
 		}
 
-		// Check for standard fields
+		// check for standard fields
 		if _, ok := logEntry["timestamp"]; !ok {
 			t.Error("missing timestamp field")
 		}
@@ -293,24 +293,24 @@ func TestHandler_WebSocket_WithAuth(t *testing.T) {
 		Level: slog.LevelInfo,
 	})
 
-	// Configure with correct token
+	// configure with correct token
 	err := handler.ConfigureWebSocket(wsURL, "secret-token")
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
 	defer handler.Close()
 
-	// Wait for connection
+	// wait for connection
 	time.Sleep(100 * time.Millisecond)
 
-	// Send a log message
+	// send a log message
 	logger := slog.New(handler)
 	logger.Info("auth test")
 
-	// Should receive message
+	// should receive message
 	select {
 	case <-messages:
-		// Success
+		// success
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for authenticated WebSocket message")
 	}
@@ -350,12 +350,12 @@ func waitForCondition(t *testing.T, timeout time.Duration, checkInterval time.Du
 
 // TestHandler_WebSocket_Reconnection tests reconnection logic
 func TestHandler_WebSocket_Reconnection(t *testing.T) {
-	// Create a channel to track connection attempts
+	// create a channel to track connection attempts
 	connectionCount := 0
 	var mu sync.Mutex
 	messages := make(chan []byte, 10)
 
-	// Create server handler
+	// create server handler
 	handler1 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		connectionCount++
@@ -368,7 +368,7 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 		}
 		defer conn.Close()
 
-		// Read messages
+		// read messages
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
@@ -384,40 +384,40 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 	var buf bytes.Buffer
 	h := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
 
-	// Configure WebSocket
+	// configure WebSocket
 	err := h.ConfigureWebSocket(wsURL, "test-token")
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
 	defer h.Close()
 
-	// Wait for initial connection (poll until connected)
+	// wait for initial connection (poll until connected)
 	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return connectionCount >= 1
 	}, "timeout waiting for initial connection")
 
-	// Send a log to verify connection works
+	// send a log to verify connection works
 	logger := slog.New(h)
 	logger.Info("before disconnect")
 
-	// Wait for message to arrive
+	// wait for message to arrive
 	select {
 	case <-messages:
-		// Good, message received
+		// good, message received
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for first message")
 	}
 
-	// Close the server to simulate disconnection
+	// close the server to simulate disconnection
 	server1.Close()
 
-	// Start a new server
+	// start a new server
 	server2 := httptest.NewServer(handler1)
 	defer server2.Close()
 
-	// Reconfigure with new URL (simulates reconnection to new endpoint)
+	// reconfigure with new URL (simulates reconnection to new endpoint)
 	wsURL2 := httpToWebSocketURL(server2.URL)
 	h.Close()
 
@@ -428,21 +428,21 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 	}
 	defer h2.Close()
 
-	// Wait for reconnection (poll until second connection established)
+	// wait for reconnection (poll until second connection established)
 	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return connectionCount >= 2
 	}, "timeout waiting for reconnection")
 
-	// Send another log
+	// send another log
 	logger2 := slog.New(h2)
 	logger2.Info("after reconnect")
 
-	// Wait for message after reconnect
+	// wait for message after reconnect
 	select {
 	case <-messages:
-		// Good, message received after reconnect
+		// good, message received after reconnect
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for message after reconnect")
 	}
@@ -451,7 +451,7 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 	finalConnections := connectionCount
 	mu.Unlock()
 
-	// Should have 2 connections total (initial + reconnect)
+	// should have 2 connections total (initial + reconnect)
 	if finalConnections != 2 {
 		t.Fatalf("expected 2 total connections, got %d", finalConnections)
 	}
@@ -459,24 +459,24 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 
 // TestHandler_WebSocket_BufferFull tests behavior when buffer is full
 func TestHandler_WebSocket_BufferFull(t *testing.T) {
-	// Create handler but don't start server
+	// create handler but don't start server
 	var buf bytes.Buffer
 	handler := NewHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 
-	// Configure with invalid URL so connection fails
+	// configure with invalid URL so connection fails
 	_ = handler.ConfigureWebSocket("ws://localhost:1/invalid", "token")
 	defer handler.Close()
 
-	// Send many messages rapidly
+	// send many messages rapidly
 	logger := slog.New(handler)
 	for i := 0; i < 2000; i++ {
 		logger.Info("flood test", "i", i)
 	}
 
-	// Should not panic or block
-	// Messages should be dropped when buffer is full
+	// should not panic or block
+	// messages should be dropped when buffer is full
 }
 
 // TestBuildLogEntry tests the log entry construction
@@ -486,7 +486,7 @@ func TestBuildLogEntry(t *testing.T) {
 		Level: slog.LevelInfo,
 	})
 
-	// Create a record
+	// create a record
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
 	record.AddAttrs(
 		slog.String("key1", "value1"),
