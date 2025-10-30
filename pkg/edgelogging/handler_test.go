@@ -223,8 +223,8 @@ func mockWebSocketServer(t *testing.T, token string) (*httptest.Server, chan []b
 	return server, messages
 }
 
-// TestHandler_WebSocket_Basic tests basic WebSocket logging
-func TestHandler_WebSocket_Basic(t *testing.T) {
+// TestHandler_WebSocket_SendsLogs tests that logs are successfully sent over WebSocket
+func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 	server, messages := mockWebSocketServer(t, "test-token")
 	defer server.Close()
 
@@ -387,5 +387,95 @@ func TestBuildLogEntry(t *testing.T) {
 
 	if v, ok := entry["key2"].(int64); !ok || v != 123 {
 		t.Errorf("key2 = %v (type %T), want 123", entry["key2"], entry["key2"])
+	}
+}
+
+// TestConfigureWebSocket_URLValidation tests URL validation in ConfigureWebSocket
+func TestConfigureWebSocket_URLValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		url       string
+		token     string
+		wantError bool
+		errorMsg  string
+	}{
+		{
+			name:      "valid ws URL",
+			url:       "ws://localhost:8080",
+			token:     "test-token",
+			wantError: false,
+		},
+		{
+			name:      "valid wss URL",
+			url:       "wss://logs.example.com/stream",
+			token:     "test-token",
+			wantError: false,
+		},
+		{
+			name:      "valid wss URL with path",
+			url:       "wss://logs.example.com:9000/path/to/logs",
+			token:     "test-token",
+			wantError: false,
+		},
+		{
+			name:      "empty URL",
+			url:       "",
+			token:     "test-token",
+			wantError: true,
+			errorMsg:  "WebSocket URL cannot be empty",
+		},
+		{
+			name:      "invalid scheme - http",
+			url:       "http://example.com",
+			token:     "test-token",
+			wantError: true,
+			errorMsg:  "invalid WebSocket URL scheme: must be 'ws' or 'wss', got 'http'",
+		},
+		{
+			name:      "invalid scheme - https",
+			url:       "https://example.com",
+			token:     "test-token",
+			wantError: true,
+			errorMsg:  "invalid WebSocket URL scheme: must be 'ws' or 'wss', got 'https'",
+		},
+		{
+			name:      "invalid URL format",
+			url:       "not-a-url",
+			token:     "test-token",
+			wantError: true,
+			errorMsg:  "invalid WebSocket URL scheme",
+		},
+		{
+			name:      "valid URL with empty token",
+			url:       "ws://localhost:8080",
+			token:     "",
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			handler := NewHandler(&buf, nil)
+
+			err := handler.ConfigureWebSocket(tt.url, tt.token)
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("ConfigureWebSocket() error = nil, want error containing '%s'", tt.errorMsg)
+					return
+				}
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("ConfigureWebSocket() error = %v, want error containing '%s'", err, tt.errorMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("ConfigureWebSocket() unexpected error = %v", err)
+					return
+				}
+				// clean up
+				handler.Close()
+			}
+		})
 	}
 }
