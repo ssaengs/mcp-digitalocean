@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,21 +177,38 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 // ConfigureWebSocket enables WebSocket logging with the given URL and token.
 // This method should be called after creating the handler to enable remote logging.
 // If url is empty, it returns an error.
-func (h *Handler) ConfigureWebSocket(url, token string) error {
-	if url == "" {
+func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
+	if wsURL == "" {
 		return fmt.Errorf("WebSocket URL cannot be empty")
+	}
+
+	// validate WebSocket URL
+	parsedURL, err := url.Parse(wsURL)
+	if err != nil {
+		return fmt.Errorf("invalid WebSocket URL: %w", err)
+	}
+
+	// check scheme is ws or wss
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if scheme != "ws" && scheme != "wss" {
+		return fmt.Errorf("invalid WebSocket URL scheme: must be 'ws' or 'wss', got '%s'", parsedURL.Scheme)
+	}
+
+	// warn if no token provided
+	if token == "" {
+		fmt.Fprintf(os.Stderr, "[edgelogging] WARNING: no authentication token provided - this is a security risk\n")
 	}
 
 	h.wsMu.Lock()
 	defer h.wsMu.Unlock()
 
-	h.wsURL = url
+	h.wsURL = wsURL
 	h.wsToken = token
 	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, bufferSize)
 
 	// log startup diagnostic to stdout
-	fmt.Fprintf(os.Stdout, "[edgelogging] configuring WebSocket logging to %s\n", url)
+	fmt.Fprintf(os.Stdout, "[edgelogging] configuring WebSocket logging to %s\n", wsURL)
 
 	// start log writer goroutine
 	go h.logWriter()
