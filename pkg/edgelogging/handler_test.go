@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -229,7 +230,7 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 	defer server.Close()
 
 	// Convert http:// to ws://
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	wsURL := httpToWebSocketURL(server.URL)
 
 	var buf bytes.Buffer
 	handler := NewHandler(&buf, &slog.HandlerOptions{
@@ -285,7 +286,7 @@ func TestHandler_WebSocket_WithAuth(t *testing.T) {
 	server, messages := mockWebSocketServer(t, "secret-token")
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	wsURL := httpToWebSocketURL(server.URL)
 
 	var buf bytes.Buffer
 	handler := NewHandler(&buf, &slog.HandlerOptions{
@@ -328,11 +329,132 @@ func TestHandler_ConfigureWebSocket_EmptyURL(t *testing.T) {
 	}
 }
 
+// httpToWebSocketURL converts an HTTP test server URL to a WebSocket URL
+func httpToWebSocketURL(httpURL string) string {
+	// httptest.NewServer returns http:// URLs, but we need ws:// for WebSocket
+	return "ws" + strings.TrimPrefix(httpURL, "http")
+}
+
+// waitForCondition polls a condition function until it returns true or timeout
+func waitForCondition(t *testing.T, timeout time.Duration, checkInterval time.Duration, condition func() bool, message string) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(checkInterval)
+	}
+	t.Fatal(message)
+}
+
 // TestHandler_WebSocket_Reconnection tests reconnection logic
 func TestHandler_WebSocket_Reconnection(t *testing.T) {
-	// This test is complex - for now, we'll skip it
-	// It would require closing the server and restarting it
-	t.Skip("Reconnection test requires complex server lifecycle management")
+	// Create a channel to track connection attempts
+	connectionCount := 0
+	var mu sync.Mutex
+	messages := make(chan []byte, 10)
+
+	// Create server handler
+	handler1 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		connectionCount++
+		mu.Unlock()
+
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		// Read messages
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			messages <- msg
+		}
+	})
+
+	server1 := httptest.NewServer(handler1)
+	wsURL := httpToWebSocketURL(server1.URL)
+
+	var buf bytes.Buffer
+	h := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
+
+	// Configure WebSocket
+	err := h.ConfigureWebSocket(wsURL, "test-token")
+	if err != nil {
+		t.Fatalf("ConfigureWebSocket() error: %v", err)
+	}
+	defer h.Close()
+
+	// Wait for initial connection (poll until connected)
+	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return connectionCount >= 1
+	}, "timeout waiting for initial connection")
+
+	// Send a log to verify connection works
+	logger := slog.New(h)
+	logger.Info("before disconnect")
+
+	// Wait for message to arrive
+	select {
+	case <-messages:
+		// Good, message received
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for first message")
+	}
+
+	// Close the server to simulate disconnection
+	server1.Close()
+
+	// Start a new server
+	server2 := httptest.NewServer(handler1)
+	defer server2.Close()
+
+	// Reconfigure with new URL (simulates reconnection to new endpoint)
+	wsURL2 := httpToWebSocketURL(server2.URL)
+	h.Close()
+
+	h2 := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
+	err = h2.ConfigureWebSocket(wsURL2, "test-token")
+	if err != nil {
+		t.Fatalf("ConfigureWebSocket() error on reconnect: %v", err)
+	}
+	defer h2.Close()
+
+	// Wait for reconnection (poll until second connection established)
+	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return connectionCount >= 2
+	}, "timeout waiting for reconnection")
+
+	// Send another log
+	logger2 := slog.New(h2)
+	logger2.Info("after reconnect")
+
+	// Wait for message after reconnect
+	select {
+	case <-messages:
+		// Good, message received after reconnect
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for message after reconnect")
+	}
+
+	mu.Lock()
+	finalConnections := connectionCount
+	mu.Unlock()
+
+	// Should have 2 connections total (initial + reconnect)
+	if finalConnections != 2 {
+		t.Fatalf("expected 2 total connections, got %d", finalConnections)
+	}
 }
 
 // TestHandler_WebSocket_BufferFull tests behavior when buffer is full
