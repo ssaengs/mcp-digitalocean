@@ -120,6 +120,11 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 
 // WithAttrs returns a new Handler with the given attributes added.
 // It creates a new handler that shares the WebSocket connection but has updated attributes.
+//
+// Note: We must return a new handler instance to maintain attribute isolation between loggers.
+// When logger.With("key", "value") is called, slog creates a derived logger with its own attributes.
+// Each derived logger needs its own handler that knows about its specific attributes, but they all
+// share the same WebSocket connection, buffer, and mutex for efficient resource usage.
 func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if len(attrs) == 0 {
 		return h
@@ -131,18 +136,21 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 	newHandler := &Handler{
 		fallbackHandler:  h.fallbackHandler.WithAttrs(attrs),
+		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
 		wsEnabled:        h.wsEnabled,
 		wsURL:            h.wsURL,
 		wsToken:          h.wsToken,
-		wsConn:           h.wsConn,
-		wsBuffer:         h.wsBuffer,
-		wsMu:             h.wsMu, // share the mutex
+		// these are shared across all derived handlers for efficiency
+		wsConn:           h.wsConn,           // shared connection
+		wsBuffer:         h.wsBuffer,         // shared buffer
+		wsMu:             h.wsMu,             // shared mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
-		attrs:            newAttrs,
-		groups:           h.groups,
-		closeOnce:        h.closeOnce, // share the closeOnce
-		closed:           h.closed,
+		// each derived handler has its own attributes and groups
+		attrs:     newAttrs,
+		groups:    h.groups,
+		closeOnce: h.closeOnce, // shared to ensure Close() runs only once
+		closed:    h.closed,
 	}
 
 	return newHandler
@@ -150,6 +158,9 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 // WithGroup returns a new Handler with the given group name added.
 // Subsequent keys will be qualified by the group name.
+//
+// Note: Similar to WithAttrs, we must return a new handler instance to maintain group isolation.
+// Each derived logger needs its own handler that knows about its specific group hierarchy.
 func (h *Handler) WithGroup(name string) slog.Handler {
 	if name == "" {
 		return h
@@ -161,18 +172,21 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 
 	newHandler := &Handler{
 		fallbackHandler:  h.fallbackHandler.WithGroup(name),
+		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
 		wsEnabled:        h.wsEnabled,
 		wsURL:            h.wsURL,
 		wsToken:          h.wsToken,
-		wsConn:           h.wsConn,
-		wsBuffer:         h.wsBuffer,
-		wsMu:             h.wsMu, // share the mutex
+		// these are shared across all derived handlers for efficiency
+		wsConn:           h.wsConn,           // shared connection
+		wsBuffer:         h.wsBuffer,         // shared buffer
+		wsMu:             h.wsMu,             // shared mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
-		attrs:            h.attrs,
-		groups:           newGroups,
-		closeOnce:        h.closeOnce, // share the closeOnce
-		closed:           h.closed,
+		// each derived handler has its own attributes and groups
+		attrs:     h.attrs,
+		groups:    newGroups,
+		closeOnce: h.closeOnce, // shared to ensure Close() runs only once
+		closed:    h.closed,
 	}
 
 	return newHandler
@@ -206,6 +220,8 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	h.wsMu.Lock()
 	defer h.wsMu.Unlock()
 
+	// store configuration in handler fields so WithAttrs() and WithGroup() can copy them
+	// when creating derived handlers (required for maintaining WS logging across logger.With() calls)
 	h.wsURL = wsURL
 	h.wsToken = token
 	h.wsEnabled = true
