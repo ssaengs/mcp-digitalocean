@@ -305,17 +305,19 @@ func (h *Handler) logWriter() {
 
 		// lock once, write once
 		h.wsMu.Lock()
-		defer h.wsMu.Unlock()
-
 		if h.wsConn != nil {
 			err := h.wsConn.WriteMessage(websocket.TextMessage, data)
+			h.wsMu.Unlock()
+
 			if err != nil {
 				// connection error will be handled by connectionManager
 				// which will set wsConn to nil
 				continue
 			}
+		} else {
+			h.wsMu.Unlock()
+			// no connection available - message is dropped
 		}
-		// no connection available - message is dropped
 	}
 }
 
