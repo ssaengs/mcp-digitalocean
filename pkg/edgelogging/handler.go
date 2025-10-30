@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -187,6 +188,9 @@ func (h *Handler) ConfigureWebSocket(url, token string) error {
 	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, bufferSize)
 
+	// log startup diagnostic to stdout
+	fmt.Fprintf(os.Stdout, "[edgelogging] configuring WebSocket logging to %s\n", url)
+
 	// start log writer goroutine
 	go h.logWriter()
 
@@ -337,7 +341,12 @@ func (h *Handler) connectionManager() {
 		if err != nil {
 			reconnectAttempts++
 
+			// log connection error to stderr
+			fmt.Fprintf(os.Stderr, "[edgelogging] connection failed (attempt %d/%d): %v\n",
+				reconnectAttempts, h.wsMaxReconnects, err)
+
 			if reconnectAttempts > h.wsMaxReconnects {
+				fmt.Fprintf(os.Stderr, "[edgelogging] max reconnection attempts reached, giving up\n")
 				return
 			}
 
@@ -348,6 +357,9 @@ func (h *Handler) connectionManager() {
 
 		// connection successful - reset retry counter
 		reconnectAttempts = 0
+
+		// log success to stdout
+		fmt.Fprintf(os.Stdout, "[edgelogging] WebSocket connection established to %s\n", h.wsURL)
 
 		h.wsMu.Lock()
 		h.wsConn = conn
@@ -368,6 +380,8 @@ func (h *Handler) connectionManager() {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
 				// connection lost
+				fmt.Fprintf(os.Stderr, "[edgelogging] connection lost: %v\n", err)
+
 				h.wsMu.Lock()
 				h.wsConn = nil
 				h.wsMu.Unlock()
