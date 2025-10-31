@@ -135,15 +135,15 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	copy(newAttrs[len(h.attrs):], attrs)
 
 	newHandler := &Handler{
-		fallbackHandler:  h.fallbackHandler.WithAttrs(attrs),
+		fallbackHandler: h.fallbackHandler.WithAttrs(attrs),
 		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
-		wsEnabled:        h.wsEnabled,
-		wsURL:            h.wsURL,
-		wsToken:          h.wsToken,
+		wsEnabled: h.wsEnabled,
+		wsURL:     h.wsURL,
+		wsToken:   h.wsToken,
 		// these are shared across all derived handlers for efficiency
-		wsConn:           h.wsConn,           // shared connection
-		wsBuffer:         h.wsBuffer,         // shared buffer
-		wsMu:             h.wsMu,             // shared mutex
+		wsConn:           h.wsConn,   // shared connection
+		wsBuffer:         h.wsBuffer, // shared buffer
+		wsMu:             h.wsMu,     // shared mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
 		// each derived handler has its own attributes and groups
@@ -171,15 +171,15 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	newGroups[len(newGroups)-1] = name
 
 	newHandler := &Handler{
-		fallbackHandler:  h.fallbackHandler.WithGroup(name),
+		fallbackHandler: h.fallbackHandler.WithGroup(name),
 		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
-		wsEnabled:        h.wsEnabled,
-		wsURL:            h.wsURL,
-		wsToken:          h.wsToken,
+		wsEnabled: h.wsEnabled,
+		wsURL:     h.wsURL,
+		wsToken:   h.wsToken,
 		// these are shared across all derived handlers for efficiency
-		wsConn:           h.wsConn,           // shared connection
-		wsBuffer:         h.wsBuffer,         // shared buffer
-		wsMu:             h.wsMu,             // shared mutex
+		wsConn:           h.wsConn,   // shared connection
+		wsBuffer:         h.wsBuffer, // shared buffer
+		wsMu:             h.wsMu,     // shared mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
 		// each derived handler has its own attributes and groups
@@ -192,8 +192,7 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	return newHandler
 }
 
-// ConfigureWebSocket enables WebSocket logging with the given URL and token.
-// This method should be called after creating the handler to enable remote logging.
+// ConfigureWebSocket configures WebSocket for logging with the given URL and token.
 // If url is empty, it returns an error.
 func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	if wsURL == "" {
@@ -229,22 +228,35 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 
 	// log startup diagnostic to stdout
 	fmt.Fprintf(os.Stdout, "[wslogging] configuring WebSocket logging to %s\n", wsURL)
-
-	// start log writer goroutine
-	go h.logWriter()
-
-	// start connection manager goroutine
-	go h.connectionManager()
-
 	return nil
 }
 
+// Start initiates the WebSocket connection manager and log writer goroutines.
+// This method should be called after creating the handler and calling ConfigureWebSocket to enable remote logging.
+// The provided context controls the lifecycle of the background goroutines - when the context is cancelled,
+// the goroutines will gracefully shut down.
+func (h *Handler) Start(ctx context.Context) {
+	// start log writer goroutine
+	go h.logWriter(ctx)
+
+	// start connection manager goroutine
+	go h.connectionManager(ctx)
+}
+
 // Close gracefully shuts down the handler and closes the WebSocket connection if open.
-// It should be called when the application is shutting down.
+// It accepts a context to control the timeout for flushing remaining buffered messages.
+// If the context is nil or has no deadline, it will use a default 5-second timeout.
+// The method attempts to flush all buffered messages before tearing down the connection.
 // This method is safe to call multiple times.
-func (h *Handler) Close() error {
+func (h *Handler) Close(ctx context.Context) error {
 	var err error
 	h.closeOnce.Do(func() {
+		// attempt to flush remaining buffered messages before tearing down
+		if h.wsBuffer != nil && h.wsConn != nil {
+			err = h.flushBuffer(ctx)
+		}
+
+		// mark as closed to stop goroutines
 		h.closed = true
 
 		// close the buffer channel if it exists
@@ -257,13 +269,57 @@ func (h *Handler) Close() error {
 		defer h.wsMu.Unlock()
 
 		if h.wsConn != nil {
-			// send close message
-			_ = h.wsConn.WriteMessage(websocket.CloseMessage, []byte{})
-			err = h.wsConn.Close()
+			// send close message to gracefully shutdown WebSocket
+			closeMsgWriteErr := h.wsConn.WriteMessage(websocket.CloseMessage, []byte{})
+			if closeMsgWriteErr != nil && err == nil {
+				err = fmt.Errorf("failed to send close message: %w", closeMsgWriteErr)
+			}
+
+			// close the underlying connection
+			connCloseErr := h.wsConn.Close()
+			if connCloseErr != nil && err == nil {
+				err = connCloseErr
+			}
 			h.wsConn = nil
 		}
 	})
 	return err
+}
+
+// flushBuffer attempts to flush all buffered messages before shutdown.
+// It respects the provided context timeout, allowing graceful shutdown control.
+func (h *Handler) flushBuffer(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// if no deadline, use a reasonable default timeout
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+	}
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// timeout or cancellation - stop attempting to flush
+			remaining := len(h.wsBuffer)
+			if remaining > 0 {
+				return fmt.Errorf("flush timeout: %d messages remaining in buffer", remaining)
+			}
+			return ctx.Err()
+		case <-ticker.C:
+			// check if buffer is empty
+			if len(h.wsBuffer) == 0 {
+				return nil
+			}
+			// continue polling
+		}
+	}
 }
 
 // buildLogEntry constructs a map representing the log entry for WebSocket transmission.
@@ -340,26 +396,38 @@ func (h *Handler) addAttrToMap(entry map[string]any, attr slog.Attr, groups []st
 
 // logWriter reads from the buffer and writes to WebSocket.
 // This should be called as a goroutine.
-func (h *Handler) logWriter() {
-	for data := range h.wsBuffer {
-		if h.closed {
+// It respects the provided context and will exit gracefully when the context is cancelled.
+func (h *Handler) logWriter(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			// context cancelled - graceful shutdown
 			return
-		}
-
-		// lock once, write once
-		h.wsMu.Lock()
-		if h.wsConn != nil {
-			err := h.wsConn.WriteMessage(websocket.TextMessage, data)
-			h.wsMu.Unlock()
-
-			if err != nil {
-				// connection error will be handled by connectionManager
-				// which will set wsConn to nil
-				continue
+		case data, ok := <-h.wsBuffer:
+			if !ok {
+				// channel closed
+				return
 			}
-		} else {
-			h.wsMu.Unlock()
-			// no connection available - message is dropped
+
+			if h.closed {
+				return
+			}
+
+			// lock once, write once
+			h.wsMu.Lock()
+			if h.wsConn != nil {
+				err := h.wsConn.WriteMessage(websocket.TextMessage, data)
+				h.wsMu.Unlock()
+
+				if err != nil {
+					// connection error will be handled by connectionManager
+					// which will set wsConn to nil
+					continue
+				}
+			} else {
+				h.wsMu.Unlock()
+				// no connection available - message is dropped
+			}
 		}
 	}
 }
@@ -367,10 +435,18 @@ func (h *Handler) logWriter() {
 // connectionManager manages the WebSocket connection.
 // It handles initial connection, reconnection on failure, and monitors connection health.
 // This should be called as a goroutine.
-func (h *Handler) connectionManager() {
+// It respects the provided context and will exit gracefully when the context is cancelled.
+func (h *Handler) connectionManager(ctx context.Context) {
 	var reconnectAttempts int
 
 	for {
+		select {
+		case <-ctx.Done():
+			// context cancelled - graceful shutdown
+			return
+		default:
+		}
+
 		if h.closed {
 			return
 		}
@@ -389,9 +465,13 @@ func (h *Handler) connectionManager() {
 				return
 			}
 
-			// wait before retrying
-			time.Sleep(h.wsReconnectDelay)
-			continue
+			// wait before retrying, but also check context
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(h.wsReconnectDelay):
+				continue
+			}
 		}
 
 		// connection successful - reset retry counter
@@ -419,6 +499,10 @@ func (h *Handler) connectionManager() {
 	monitorLoop:
 		for {
 			select {
+			case <-ctx.Done():
+				// context cancelled - graceful shutdown
+				break monitorLoop
+
 			case <-pingTicker.C:
 				if h.closed {
 					break monitorLoop
@@ -447,9 +531,14 @@ func (h *Handler) connectionManager() {
 		h.wsMu.Unlock()
 		_ = conn.Close()
 
-		// wait a bit before attempting to reconnect
+		// wait a bit before attempting to reconnect, but also check context
 		if !h.closed {
-			time.Sleep(h.wsReconnectDelay)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(h.wsReconnectDelay):
+				// continue to next iteration
+			}
 		}
 	}
 }

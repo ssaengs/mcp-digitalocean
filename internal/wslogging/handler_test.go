@@ -168,13 +168,14 @@ func TestHandler_Close(t *testing.T) {
 	})
 
 	// close should not error even without WebSocket
-	err := handler.Close()
+	ctx := context.Background()
+	err := handler.Close(ctx)
 	if err != nil {
 		t.Errorf("Close() returned error: %v", err)
 	}
 
 	// multiple closes should be safe
-	err = handler.Close()
+	err = handler.Close(ctx)
 	if err != nil {
 		t.Errorf("Second Close() returned error: %v", err)
 	}
@@ -242,7 +243,11 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
-	defer handler.Close()
+
+	// start WebSocket with background context
+	ctx := context.Background()
+	handler.Start(ctx)
+	defer handler.Close(context.Background())
 
 	// wait for connection
 	time.Sleep(100 * time.Millisecond)
@@ -298,7 +303,11 @@ func TestHandler_WebSocket_WithAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
-	defer handler.Close()
+
+	// start WebSocket with background context
+	ctx := context.Background()
+	handler.Start(ctx)
+	defer handler.Close(context.Background())
 
 	// wait for connection
 	time.Sleep(100 * time.Millisecond)
@@ -389,7 +398,11 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
-	defer h.Close()
+
+	// start WebSocket with background context
+	ctx := context.Background()
+	h.Start(ctx)
+	defer h.Close(context.Background())
 
 	// wait for initial connection (poll until connected)
 	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
@@ -419,14 +432,18 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 
 	// reconfigure with new URL (simulates reconnection to new endpoint)
 	wsURL2 := httpToWebSocketURL(server2.URL)
-	h.Close()
+	h.Close(context.Background())
 
 	h2 := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
 	err = h2.ConfigureWebSocket(wsURL2, "test-token")
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error on reconnect: %v", err)
 	}
-	defer h2.Close()
+
+	// start WebSocket with background context
+	ctx2 := context.Background()
+	h2.Start(ctx2)
+	defer h2.Close(context.Background())
 
 	// wait for reconnection (poll until second connection established)
 	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
@@ -467,7 +484,11 @@ func TestHandler_WebSocket_BufferFull(t *testing.T) {
 
 	// configure with invalid URL so connection fails
 	_ = handler.ConfigureWebSocket("ws://localhost:1/invalid", "token")
-	defer handler.Close()
+
+	// start WebSocket with background context
+	ctx := context.Background()
+	handler.Start(ctx)
+	defer handler.Close(context.Background())
 
 	// send many messages rapidly
 	logger := slog.New(handler)
@@ -596,7 +617,7 @@ func TestConfigureWebSocket_URLValidation(t *testing.T) {
 					return
 				}
 				// clean up
-				handler.Close()
+				handler.Close(context.Background())
 			}
 		})
 	}
@@ -674,7 +695,11 @@ func TestHandler_WebSocket_PingPong(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigureWebSocket() error: %v", err)
 	}
-	defer h.Close()
+
+	// start WebSocket with background context
+	ctx := context.Background()
+	h.Start(ctx)
+	defer h.Close(context.Background())
 
 	// wait a moment for connection to be fully established
 	time.Sleep(100 * time.Millisecond)
