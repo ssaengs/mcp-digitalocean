@@ -62,6 +62,8 @@ func main() {
 	}
 
 	// setup signal context for graceful shutdown
+	// This context is cancelled when the user presses Ctrl+C or the process receives SIGTERM/SIGINT.
+	// It is used to signal all long-running goroutines (like WebSocket handlers) to stop their work.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -76,10 +78,16 @@ func main() {
 		}
 
 		// start WebSocket logging with signal context for graceful shutdown
+		// The context passed here controls when the background goroutines should stop.
+		// When a signal is received, ctx is cancelled and the goroutines exit their loops.
 		wsLoggingHandler.Start(ctx)
 
 		defer func() {
 			// give the handler time to flush remaining logs before shutdown
+			// we are not reusing the signal context because:
+			// 1. The signal context (ctx) is already cancelled at this point
+			// 2. Close() needs time to flush buffered logs, so we give it a new wsLoggingContextTimeout (15-second)
+			// which ensures logs are properly flushed even during shutdown
 			closeCtx, cancel := context.WithTimeout(context.Background(), wsLoggingContextTimeout)
 			defer cancel()
 			if err := wsLoggingHandler.Close(closeCtx); err != nil {
