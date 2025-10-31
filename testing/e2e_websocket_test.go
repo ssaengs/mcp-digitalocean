@@ -265,7 +265,15 @@ func TestMCPServer_SendsLogsViaWebSocket(t *testing.T) {
 
 	// start MCP server with edge logging enabled
 	// use GetContainerURL() so the container can reach the host
-	container, err := startMcpServerWithEdgeLogging(ctx, fakeWS.GetContainerURL(), fakeWS.GetToken())
+	cfg := McpServerConfig{
+		BindAddr:             "0.0.0.0:8080",
+		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
+		LogLevel:             "debug",
+		Transport:            "http",
+		WSLoggingURL:         fakeWS.GetContainerURL(),
+		WSLoggingToken:       fakeWS.GetToken(),
+	}
+	container, err := startMcpServer(ctx, cfg)
 	require.NoError(t, err, "Failed to start MCP server")
 	defer container.Terminate(ctx)
 
@@ -318,7 +326,15 @@ func TestEdgeLogging_Authentication(t *testing.T) {
 	defer fakeWS.Close()
 
 	// start MCP server with WRONG token
-	container, err := startMcpServerWithEdgeLogging(ctx, fakeWS.GetContainerURL(), "wrong-token")
+	cfg := McpServerConfig{
+		BindAddr:             "0.0.0.0:8080",
+		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
+		LogLevel:             "debug",
+		Transport:            "http",
+		WSLoggingURL:         fakeWS.GetContainerURL(),
+		WSLoggingToken:       "wrong-token",
+	}
+	container, err := startMcpServer(ctx, cfg)
 	require.NoError(t, err, "Failed to start MCP server")
 	defer container.Terminate(ctx)
 
@@ -338,7 +354,15 @@ func TestEdgeLogging_Authentication(t *testing.T) {
 	fakeWS2 := NewFakeWebSocketServer("correct-token")
 	defer fakeWS2.Close()
 
-	container2, err := startMcpServerWithEdgeLogging(ctx, fakeWS2.GetContainerURL(), "correct-token")
+	cfg2 := McpServerConfig{
+		BindAddr:             "0.0.0.0:8080",
+		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
+		LogLevel:             "debug",
+		Transport:            "http",
+		WSLoggingURL:         fakeWS2.GetContainerURL(),
+		WSLoggingToken:       "correct-token",
+	}
+	container2, err := startMcpServer(ctx, cfg2)
 	require.NoError(t, err, "Failed to start MCP server")
 	defer container2.Terminate(ctx)
 
@@ -357,7 +381,15 @@ func TestEdgeLogging_LogLevels(t *testing.T) {
 	defer fakeWS.Close()
 
 	// start MCP server with debug level
-	container, err := startMcpServerWithEdgeLogging(ctx, fakeWS.GetContainerURL(), fakeWS.GetToken())
+	cfg := McpServerConfig{
+		BindAddr:             "0.0.0.0:8080",
+		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
+		LogLevel:             "debug",
+		Transport:            "http",
+		WSLoggingURL:         fakeWS.GetContainerURL(),
+		WSLoggingToken:       fakeWS.GetToken(),
+	}
+	container, err := startMcpServer(ctx, cfg)
 	require.NoError(t, err, "Failed to start MCP server")
 	defer container.Terminate(ctx)
 
@@ -404,7 +436,15 @@ func TestEdgeLogging_Reconnection(t *testing.T) {
 	fakeWS1 := NewFakeWebSocketServer("test-token")
 
 	// start MCP server pointing to first server
-	container, err := startMcpServerWithEdgeLogging(ctx, fakeWS1.GetContainerURL(), fakeWS1.GetToken())
+	cfg := McpServerConfig{
+		BindAddr:             "0.0.0.0:8080",
+		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
+		LogLevel:             "debug",
+		Transport:            "http",
+		WSLoggingURL:         fakeWS1.GetContainerURL(),
+		WSLoggingToken:       fakeWS1.GetToken(),
+	}
+	container, err := startMcpServer(ctx, cfg)
 	require.NoError(t, err)
 	defer container.Terminate(ctx)
 
@@ -454,36 +494,6 @@ func TestEdgeLogging_Reconnection(t *testing.T) {
 	// no panics occurred and the server is still responsive
 	t.Log("Verified: MCP server continues to function after WebSocket disconnection")
 	t.Log("Reconnection attempts are handled by the connection manager (automatic background retries)")
-}
-
-// startMcpServerWithEdgeLogging starts an MCP server container with edge logging configured
-func startMcpServerWithEdgeLogging(ctx context.Context, wsURL, wsToken string) (testcontainers.Container, error) {
-	apiToken := os.Getenv("DIGITALOCEAN_API_TOKEN")
-
-	dockerfilePath := filepath.Join("..", "Dockerfile")
-	buildCtx := filepath.Dir(dockerfilePath)
-
-	req := testcontainers.ContainerRequest{
-		FromDockerfile: testcontainers.FromDockerfile{
-			Context:    buildCtx,
-			Dockerfile: "Dockerfile",
-		},
-		ExposedPorts: []string{"8080/tcp"},
-		Env: map[string]string{
-			"BIND_ADDR":              "0.0.0.0:8080",
-			"DIGITALOCEAN_API_TOKEN": apiToken,
-			"LOG_LEVEL":              "debug",
-			"TRANSPORT":              "http",
-			"WS_LOGGING_URL":         wsURL,
-			"WS_LOGGING_TOKEN":       wsToken,
-		},
-		WaitingFor: wait.ForListeningPort("8080/tcp").WithStartupTimeout(60 * time.Second),
-	}
-
-	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
 }
 
 // initializeClientWithURL is a wrapper that accepts server URL parameter
