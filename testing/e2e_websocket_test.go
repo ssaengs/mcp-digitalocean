@@ -270,6 +270,7 @@ func TestMCPServer_WebSocketLogging(t *testing.T) {
 		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
 		LogLevel:             "debug",
 		Transport:            "http",
+		Services:             "apps,networking",
 		WSLoggingURL:         fakeWS.GetContainerURL(),
 		WSLoggingToken:       fakeWS.GetToken(),
 	}
@@ -322,6 +323,23 @@ func TestMCPServer_WebSocketLogging(t *testing.T) {
 	t.Logf("Log levels captured: %d INFO logs, %d DEBUG logs",
 		len(fakeWS.FindLogsByLevel("INFO")),
 		len(fakeWS.FindLogsByLevel("DEBUG")))
+
+	// verify enabled_services field is present in log entries
+	foundEnabledServices := false
+	for _, log := range logs {
+		if enabledServices, ok := log.Extra["enabled_services"]; ok {
+			foundEnabledServices = true
+			// verify it's a comma-separated string containing our configured services
+			if servicesStr, ok := enabledServices.(string); ok {
+				require.Contains(t, servicesStr, "apps", "enabled_services should contain 'apps'")
+				require.Contains(t, servicesStr, "networking", "enabled_services should contain 'networking'")
+				require.Equal(t, "apps,networking", servicesStr, "enabled_services should match exact configuration")
+				t.Logf("enabled_services field verified: %s", servicesStr)
+			}
+			break
+		}
+	}
+	require.True(t, foundEnabledServices, "At least one log entry should contain 'enabled_services' field")
 }
 
 // TestMCPServer_DualLogging verifies that logs are written to BOTH stderr and WebSocket
