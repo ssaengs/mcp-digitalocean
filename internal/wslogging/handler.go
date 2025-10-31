@@ -18,6 +18,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// logDiagnostic writes a diagnostic message about the wslogging infrastructure itself.
+// These messages use [wslogging] prefix to help developers identify internal logging system messages.
+// They are written directly to stdout/stderr rather than through the slog handler to avoid recursion
+// or complexity from trying to log about logging failures.
+func logDiagnostic(w io.Writer, format string, args ...any) {
+	fmt.Fprintf(w, "[wslogging] "+format, args...)
+}
+
 const (
 	// reconnectDelay is the delay between reconnection attempts
 	reconnectDelay = 5 * time.Second
@@ -123,12 +131,11 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 			entry := h.buildLogEntry(r)
 			data, err := json.Marshal(entry)
 			if err != nil {
-				// We use fmt.Fprintf directly to stderr here rather than stderrHandler.Handle() because this is infrastructure
-				// diagnostic logging about the logging system itself, not application-level logging. Using fmt.Fprintf keeps this
+				// We use logDiagnostic to stderr here rather than stderrHandler.Handle() because this is infrastructure
+				// diagnostic logging about the logging system itself, not application-level logging. Using logDiagnostic keeps this
 				// simple, avoids any potential recursion or complexity from trying to log about logging failures, and ensures
 				// this diagnostic message will always reach stderr even if there are issues with the handler or its configuration.
-				// The [wslogging] prefix helps developers identify these as internal logging system messages.
-				fmt.Fprintf(os.Stderr, "[wslogging] failed to marshal log entry: %v\n", err)
+				logDiagnostic(os.Stderr, "failed to marshal log entry: %v\n", err)
 				return
 			}
 
@@ -255,7 +262,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 
 	// warn if no token provided
 	if token == "" {
-		fmt.Fprintf(os.Stderr, "[wslogging] WARNING: no authentication token provided - this is a security risk\n")
+		logDiagnostic(os.Stderr, "WARNING: no authentication token provided - this is a security risk\n")
 	}
 
 	h.wsMu.Lock()
@@ -269,7 +276,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	h.wsBuffer = make(chan []byte, bufferSize)
 
 	// log startup diagnostic to stdout
-	fmt.Fprintf(os.Stdout, "[wslogging] configuring WebSocket logging to %s\n", wsURL)
+	logDiagnostic(os.Stdout, "configuring WebSocket logging to %s\n", wsURL)
 	return nil
 }
 
@@ -526,11 +533,11 @@ func (h *Handler) connectionManager(ctx context.Context) {
 			reconnectAttempts++
 
 			// log connection error to stderr
-			fmt.Fprintf(os.Stderr, "[wslogging] connection failed (attempt %d/%d): %v\n",
+			logDiagnostic(os.Stderr, "connection failed (attempt %d/%d): %v\n",
 				reconnectAttempts, h.wsMaxReconnects, err)
 
 			if reconnectAttempts > h.wsMaxReconnects {
-				fmt.Fprintf(os.Stderr, "[wslogging] max reconnection attempts reached, giving up\n")
+				logDiagnostic(os.Stderr, "max reconnection attempts reached, giving up\n")
 				return
 			}
 
@@ -547,7 +554,7 @@ func (h *Handler) connectionManager(ctx context.Context) {
 		reconnectAttempts = 0
 
 		// log success to stdout
-		fmt.Fprintf(os.Stdout, "[wslogging] WebSocket connection established to %s\n", h.wsURL)
+		logDiagnostic(os.Stdout, "WebSocket connection established to %s\n", h.wsURL)
 
 		h.wsMu.Lock()
 		h.wsConn = conn
@@ -586,13 +593,13 @@ func (h *Handler) connectionManager(ctx context.Context) {
 				err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second))
 				if err != nil {
 					// ping failed - connection is lost
-					fmt.Fprintf(os.Stderr, "[wslogging] connection lost: %v\n", err)
+					logDiagnostic(os.Stderr, "connection lost: %v\n", err)
 					break monitorLoop
 				}
 
 			case <-readDone:
 				// read loop exited - connection is lost
-				fmt.Fprintf(os.Stderr, "[wslogging] connection lost: read error\n")
+				logDiagnostic(os.Stderr, "connection lost: read error\n")
 				break monitorLoop
 			}
 		}
