@@ -403,8 +403,8 @@ func TestMCPServer_DualLogging(t *testing.T) {
 	require.NotEmpty(t, stderrOutput, "Expected logs in stderr")
 	t.Logf("stderr output length: %d bytes", len(stderrOutput))
 
-	// Verify WebSocket diagnostic logging appears in stderr
-	require.Contains(t, stderrOutput, "[wslogging] configuring WebSocket logging",
+	// Verify WebSocket diagnostic logging appears in stderr (JSON format)
+	require.Contains(t, stderrOutput, "configuring WebSocket logging",
 		"stderr should contain WebSocket diagnostic messages")
 
 	// Verify at least one application log message appears in both destinations
@@ -413,7 +413,8 @@ func TestMCPServer_DualLogging(t *testing.T) {
 	matchCount := 0
 	for _, wsLog := range wsLogs {
 		// Skip WebSocket diagnostic messages (these only go to stderr)
-		if strings.HasPrefix(wsLog.Message, "[wslogging]") {
+		// Diagnostic messages have "source":"wslogging" in the log entry
+		if source, ok := wsLog.Extra["source"].(string); ok && source == "wslogging" {
 			continue
 		}
 

@@ -59,15 +59,27 @@ This is particularly helpful for:
 - **Dual output** - Logs go to both stderr and WebSocket simultaneously
 - **Automatic reconnection** - If the WebSocket connection drops, it keeps retrying (unlimited by default)
 - **Non-blocking** - Uses buffered channels so logging never blocks your application
+- **Time-based batching** - Messages are batched for 100ms or up to 50 messages to reduce WebSocket write overhead
 - **Standard interface** - Implements `slog.Handler`, so it works with the standard library
 - **Persistent attributes** - Add context fields that appear in all logs
 
 ## Configuration
 
+### Automatic Reconnection
+
 The handler reconnects automatically when the connection is lost:
 - **Reconnect delay**: 5 seconds between attempts
 - **Max retries**: Unlimited by default (set to `-1`)
 - You can change `wsMaxReconnects` to a positive number for limited retries
+
+### Batching Behavior
+
+To reduce WebSocket write overhead, logs are batched before being sent:
+- **Batch interval**: 100ms - messages accumulate for up to 100ms before flushing
+- **Max batch size**: 50 messages - batch flushes immediately when 50 messages are queued
+- **Graceful shutdown**: During `Close()`, any pending messages are flushed immediately
+
+This batching significantly improves performance under high log volume while maintaining low latency (max 100ms delay).
 
 ## Testing
 

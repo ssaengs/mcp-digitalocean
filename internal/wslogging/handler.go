@@ -41,6 +41,10 @@ const (
 	flushBufferTicker = 100 * time.Millisecond
 	// flushBufferDeadline is the timeout for flushing the buffer
 	flushBufferDeadline = 5 * time.Second
+	// batchInterval is the interval for flushing batched log messages to WebSocket
+	batchInterval = 100 * time.Millisecond
+	// maxBatchSize is the maximum number of messages to batch before forcing a flush
+	maxBatchSize = 50
 )
 
 // Handler implements slog.Handler interface with optional WebSocket logging support.
@@ -56,6 +60,7 @@ type Handler struct {
 	wsToken          string
 	wsConn           *websocket.Conn
 	wsBuffer         chan []byte
+	wsFlushTrigger   chan struct{} // signals logWriter to flush batch immediately
 	wsMu             *sync.Mutex
 	wsReconnectDelay time.Duration
 	wsMaxReconnects  int
@@ -188,9 +193,10 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		wsURL:     h.wsURL,
 		wsToken:   h.wsToken,
 		// these are shared across all derived handlers for efficiency
-		wsConn:           h.wsConn,   // shared connection
-		wsBuffer:         h.wsBuffer, // shared buffer
-		wsMu:             h.wsMu,     // shared mutex
+		wsConn:           h.wsConn,         // shared connection
+		wsBuffer:         h.wsBuffer,       // shared buffer
+		wsFlushTrigger:   h.wsFlushTrigger, // shared flush trigger
+		wsMu:             h.wsMu,           // shared mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
 		// each derived handler has its own attributes and groups
@@ -224,9 +230,10 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 		wsURL:     h.wsURL,
 		wsToken:   h.wsToken,
 		// these are shared across all derived handlers for efficiency
-		wsConn:           h.wsConn,   // shared connection
-		wsBuffer:         h.wsBuffer, // shared buffer
-		wsMu:             h.wsMu,     // shared mutex
+		wsConn:           h.wsConn,         // shared connection
+		wsBuffer:         h.wsBuffer,       // shared buffer
+		wsFlushTrigger:   h.wsFlushTrigger, // shared flush trigger
+		wsMu:             h.wsMu,           // shared mutex
 		wsReconnectDelay: h.wsReconnectDelay,
 		wsMaxReconnects:  h.wsMaxReconnects,
 		// each derived handler has its own attributes and groups
@@ -272,6 +279,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	h.wsToken = token
 	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, bufferSize)
+	h.wsFlushTrigger = make(chan struct{}, 1) // buffered to prevent blocking
 
 	// log startup diagnostic to stdout
 	logDiagnostic(os.Stdout, "configuring WebSocket logging to %s\n", wsURL)
@@ -352,6 +360,7 @@ func (h *Handler) Close(ctx context.Context) error {
 }
 
 // flushBuffer attempts to flush all buffered messages before shutdown.
+// It triggers an immediate flush in the logWriter goroutine and then waits for the buffer to drain.
 // It respects the provided context timeout, allowing graceful shutdown control.
 func (h *Handler) flushBuffer(ctx context.Context) error {
 	if ctx == nil {
@@ -363,6 +372,14 @@ func (h *Handler) flushBuffer(ctx context.Context) error {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, flushBufferDeadline)
 		defer cancel()
+	}
+
+	// trigger immediate flush in logWriter goroutine (non-blocking send)
+	select {
+	case h.wsFlushTrigger <- struct{}{}:
+		// flush triggered
+	default:
+		// channel full, flush already pending
 	}
 
 	ticker := time.NewTicker(flushBufferTicker)
@@ -459,33 +476,36 @@ func (h *Handler) addAttrToMap(entry map[string]any, attr slog.Attr, groups []st
 	}
 }
 
-// logWriter reads from the buffer and writes to WebSocket.
+// logWriter reads from the buffer and writes to WebSocket with time-based batching.
+// Messages are accumulated for up to batchInterval (100ms) or until maxBatchSize is reached,
+// then flushed as a batch to reduce websocket write overhead.
 // This should be called as a goroutine.
 // It respects the provided context and will exit gracefully when the context is cancelled.
 func (h *Handler) logWriter(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			// context cancelled - graceful shutdown
+	batch := make([][]byte, 0, maxBatchSize)
+	ticker := time.NewTicker(batchInterval)
+	defer ticker.Stop()
+
+	// flushBatch writes accumulated messages to the websocket
+	flushBatch := func() {
+		if len(batch) == 0 {
 			return
-		case data, ok := <-h.wsBuffer:
-			if !ok {
-				// channel closed - this happens during shutdown after Close() is called
-				return
-			}
+		}
 
-			// Check if handler is closed (thread-safe check)
-			h.wsMu.Lock()
-			closed := h.closed
-			conn := h.wsConn
-			h.wsMu.Unlock()
+		// Check if handler is closed (thread-safe check)
+		h.wsMu.Lock()
+		closed := h.closed
+		conn := h.wsConn
+		h.wsMu.Unlock()
 
-			if closed {
-				return
-			}
+		if closed {
+			return
+		}
 
-			// write to WebSocket if connection is available
-			if conn != nil {
+		// write to WebSocket if connection is available
+		if conn != nil {
+			// write each message in the batch
+			for _, data := range batch {
 				h.wsMu.Lock()
 				err := h.wsConn.WriteMessage(websocket.TextMessage, data)
 				h.wsMu.Unlock()
@@ -493,10 +513,44 @@ func (h *Handler) logWriter(ctx context.Context) {
 				if err != nil {
 					// connection error will be handled by connectionManager
 					// which will set wsConn to nil
-					continue
+					break
 				}
 			}
-			// if no connection available - message is dropped
+		}
+
+		// clear the batch
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			// context cancelled - flush remaining messages before shutdown
+			flushBatch()
+			return
+
+		case data, ok := <-h.wsBuffer:
+			if !ok {
+				// channel closed - flush remaining messages before shutdown
+				flushBatch()
+				return
+			}
+
+			// add message to batch
+			batch = append(batch, data)
+
+			// flush if batch is full
+			if len(batch) >= maxBatchSize {
+				flushBatch()
+			}
+
+		case <-ticker.C:
+			// periodic flush
+			flushBatch()
+
+		case <-h.wsFlushTrigger:
+			// immediate flush requested (e.g., during shutdown)
+			flushBatch()
 		}
 	}
 }
