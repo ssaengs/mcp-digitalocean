@@ -698,9 +698,34 @@ func (h *Handler) readLoop(conn *websocket.Conn) {
 }
 
 // logDiagnostic writes a diagnostic message about the wslogging infrastructure itself.
-// These messages use [wslogging] prefix to help developers identify internal logging system messages.
-// They are written directly to stdout/stderr rather than through the slog handler to avoid recursion
+// These messages are written directly to stdout/stderr rather than through the slog handler to avoid recursion
 // or complexity from trying to log about logging failures.
+// The messages are formatted as JSON to maintain consistency with application logs.
+// The log level is determined by the writer: ERROR for stderr, INFO for stdout.
 func logDiagnostic(w io.Writer, format string, args ...any) {
-	fmt.Fprintf(w, "[wslogging] "+format, args...)
+	message := fmt.Sprintf(format, args...)
+	// remove trailing newline if present, as JSON encoding will add its own
+	message = strings.TrimSuffix(message, "\n")
+
+	// Determine log level based on the writer
+	level := "INFO"
+	if w == os.Stderr {
+		level = "ERROR"
+	}
+
+	entry := map[string]any{
+		"time":   time.Now().UTC().Format(time.RFC3339Nano),
+		"level":  level,
+		"msg":    message,
+		"source": "wslogging",
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		// Fallback to plain text if JSON marshaling fails
+		fmt.Fprintf(w, "[wslogging] %s\n", message)
+		return
+	}
+
+	fmt.Fprintf(w, "%s\n", data)
 }
