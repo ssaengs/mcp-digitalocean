@@ -40,9 +40,6 @@ jobs:
       - name: Check Code Formatting
         run: make format-check
 
-      - name: Test
-        run: make test
-
       - name: Test (with race detector)
         run: make test-race
 
