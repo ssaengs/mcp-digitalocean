@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -20,8 +19,6 @@ import (
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // LogEntry represents a structured log entry from the MCP server
@@ -255,8 +252,10 @@ func pollCondition(t *testing.T, timeout time.Duration, condition func() bool, e
 	}
 }
 
-// TestMCPServer_SendsLogsViaWebSocket tests end-to-end WebSocket logging with MCP server
-func TestMCPServer_SendsLogsViaWebSocket(t *testing.T) {
+// TestMCPServer_WebSocketLogging tests end-to-end WebSocket logging with MCP server.
+// This comprehensive test validates: connection establishment, authentication, log delivery,
+// log structure, and different log levels - all using a single container for efficiency.
+func TestMCPServer_WebSocketLogging(t *testing.T) {
 	ctx := context.Background()
 
 	// Start fake WebSocket server
@@ -283,38 +282,45 @@ func TestMCPServer_SendsLogsViaWebSocket(t *testing.T) {
 
 	serverURL := fmt.Sprintf("http://localhost:%s/mcp", port.Port())
 
-	// Poll until WebSocket connection is established
+	// Verify WebSocket connection is established with correct token
 	require.True(t, fakeWS.WaitForConnection(1, 10*time.Second),
 		"WebSocket connection not established within timeout")
+	require.Greater(t, fakeWS.GetConnectionCount(), 0, "No WebSocket connections received")
+	t.Log("WebSocket connection established with correct token")
 
 	// create MCP client
 	c := initializeClientWithURL(ctx, t, serverURL)
 	defer c.Close()
 
-	// make some API calls to generate logs
+	// make API call to generate logs
 	_, err = c.ListTools(ctx, mcp.ListToolsRequest{})
 	require.NoError(t, err, "ListTools failed")
 
 	// poll until logs arrive at fake server
 	require.True(t, fakeWS.WaitForLogs(1, 5*time.Second),
 		"No logs received within timeout")
+	t.Log("Logs sent to WebSocket")
 
-	// verify logs
+	// verify we have logs
 	logs := fakeWS.GetLogEntries()
 	require.NotEmpty(t, logs, "Expected at least one log entry")
+	t.Logf("Received %d log entries", len(logs))
 
-	// check that we received WebSocket connection
-	require.Greater(t, fakeWS.GetConnectionCount(), 0, "No WebSocket connections received")
-
-	// verify log structure
+	// verify log structure (timestamp, level, message)
 	for _, log := range logs {
 		require.NotEmpty(t, log.Timestamp, "Log missing timestamp")
 		require.NotEmpty(t, log.Level, "Log missing level")
 		require.NotEmpty(t, log.Message, "Log missing message")
 	}
+	t.Log("Log structure valid (timestamp, level, message)")
 
-	t.Logf("Received %d log entries", len(logs))
-	t.Logf("Connection count: %d", fakeWS.GetConnectionCount())
+	// verify different log levels are captured (INFO and/or DEBUG)
+	hasInfo := len(fakeWS.FindLogsByLevel("INFO")) > 0
+	hasDebug := len(fakeWS.FindLogsByLevel("DEBUG")) > 0
+	require.True(t, hasInfo || hasDebug, "Should have INFO or DEBUG logs")
+	t.Logf("Log levels captured: %d INFO logs, %d DEBUG logs",
+		len(fakeWS.FindLogsByLevel("INFO")),
+		len(fakeWS.FindLogsByLevel("DEBUG")))
 }
 
 // TestEdgeLogging_Authentication tests that authentication is required
@@ -371,61 +377,6 @@ func TestEdgeLogging_Authentication(t *testing.T) {
 		"Should connect with correct token within timeout")
 
 	require.Greater(t, fakeWS2.GetConnectionCount(), 0, "Should have successful connection")
-}
-
-// TestEdgeLogging_LogLevels tests different log levels
-func TestEdgeLogging_LogLevels(t *testing.T) {
-	ctx := context.Background()
-
-	fakeWS := NewFakeWebSocketServer("test-token")
-	defer fakeWS.Close()
-
-	// start MCP server with debug level
-	cfg := McpServerConfig{
-		BindAddr:             "0.0.0.0:8080",
-		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
-		LogLevel:             "debug",
-		Transport:            "http",
-		WSLoggingURL:         fakeWS.GetContainerURL(),
-		WSLoggingToken:       fakeWS.GetToken(),
-	}
-	container, err := startMcpServer(ctx, cfg)
-	require.NoError(t, err, "Failed to start MCP server")
-	defer container.Terminate(ctx)
-
-	port, err := container.MappedPort(ctx, "8080/tcp")
-	require.NoError(t, err)
-	serverURL := fmt.Sprintf("http://localhost:%s/mcp", port.Port())
-
-	// Poll until WebSocket connection is established
-	require.True(t, fakeWS.WaitForConnection(1, 10*time.Second),
-		"WebSocket connection not established within timeout")
-
-	// create client and make calls
-	c := initializeClientWithURL(ctx, t, serverURL)
-	defer c.Close()
-
-	_, err = c.ListTools(ctx, mcp.ListToolsRequest{})
-	require.NoError(t, err)
-
-	// poll until logs arrive
-	require.True(t, fakeWS.WaitForLogs(1, 5*time.Second),
-		"No logs received within timeout")
-
-	// check for different log levels
-	logs := fakeWS.GetLogEntries()
-	require.NotEmpty(t, logs, "Should have received logs")
-
-	// we should see INFO and/or DEBUG logs
-	hasInfo := len(fakeWS.FindLogsByLevel("INFO")) > 0
-	hasDebug := len(fakeWS.FindLogsByLevel("DEBUG")) > 0
-
-	require.True(t, hasInfo || hasDebug, "Should have INFO or DEBUG logs")
-
-	t.Logf("Found %d total logs, %d INFO logs, %d DEBUG logs",
-		len(logs),
-		len(fakeWS.FindLogsByLevel("INFO")),
-		len(fakeWS.FindLogsByLevel("DEBUG")))
 }
 
 // TestEdgeLogging_Reconnection tests WebSocket reconnection behavior
