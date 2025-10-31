@@ -590,6 +590,45 @@ func TestHandler_WebSocket_Reconnection(t *testing.T) {
 	}
 }
 
+// TestHandler_WebSocket_UnlimitedRetries tests that handler is configured for unlimited retries when maxReconnects = -1
+func TestHandler_WebSocket_UnlimitedRetries(t *testing.T) {
+	var buf bytes.Buffer
+	handler := NewHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+
+	// verify default is unlimited retries
+	if handler.wsMaxReconnects != -1 {
+		t.Errorf("expected wsMaxReconnects = -1 (unlimited), got %d", handler.wsMaxReconnects)
+	}
+
+	// verify that reconnectDelay is set
+	if handler.wsReconnectDelay <= 0 {
+		t.Errorf("expected wsReconnectDelay > 0, got %v", handler.wsReconnectDelay)
+	}
+
+	t.Logf("Handler configured for unlimited retries: wsMaxReconnects = %d, wsReconnectDelay = %v",
+		handler.wsMaxReconnects, handler.wsReconnectDelay)
+}
+
+// TestHandler_WebSocket_LimitedRetries tests that handler configuration can be changed to limited retries
+func TestHandler_WebSocket_LimitedRetries(t *testing.T) {
+	var buf bytes.Buffer
+	handler := NewHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+
+	// override to use limited retries
+	handler.wsMaxReconnects = 5
+
+	// verify configuration
+	if handler.wsMaxReconnects != 5 {
+		t.Errorf("expected wsMaxReconnects = 5, got %d", handler.wsMaxReconnects)
+	}
+
+	t.Logf("Handler configured for limited retries: wsMaxReconnects = %d", handler.wsMaxReconnects)
+}
+
 // TestHandler_WebSocket_BufferFull tests behavior when buffer is full
 func TestHandler_WebSocket_BufferFull(t *testing.T) {
 	// create handler but don't start server
@@ -601,8 +640,12 @@ func TestHandler_WebSocket_BufferFull(t *testing.T) {
 	// configure with invalid URL so connection fails
 	_ = handler.ConfigureWebSocket("ws://localhost:1/invalid", "token")
 
-	// start WebSocket with background context
-	ctx := context.Background()
+	// override max reconnects to avoid infinite retries in this test
+	handler.wsMaxReconnects = 1
+
+	// start WebSocket with a timeout context to prevent infinite retries
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	handler.Start(ctx)
 	defer handler.Close(context.Background())
 

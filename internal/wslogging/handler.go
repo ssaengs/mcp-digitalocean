@@ -22,7 +22,9 @@ const (
 	// reconnectDelay is the delay between reconnection attempts
 	reconnectDelay = 5 * time.Second
 	// maxReconnects is the maximum number of reconnection attempts before giving up
-	maxReconnects = 5
+	// Set to -1 for unlimited retries (recommended for production)
+	// Set to a positive integer (e.g., 5) for limited retries
+	maxReconnects = -1
 	// bufferSize is the size of the log buffer channel
 	bufferSize = 1000
 	// handshakeTimeout is the timeout for WebSocket handshake
@@ -529,10 +531,17 @@ func (h *Handler) connectionManager(ctx context.Context) {
 			reconnectAttempts++
 
 			// log connection error to stderr
-			logDiagnostic(os.Stderr, "connection failed (attempt %d/%d): %v\n",
-				reconnectAttempts, h.wsMaxReconnects, err)
+			// if maxReconnects is -1, show "unlimited" instead of a number
+			if h.wsMaxReconnects == -1 {
+				logDiagnostic(os.Stderr, "connection failed (attempt %d/unlimited): %v\n",
+					reconnectAttempts, err)
+			} else {
+				logDiagnostic(os.Stderr, "connection failed (attempt %d/%d): %v\n",
+					reconnectAttempts, h.wsMaxReconnects, err)
+			}
 
-			if reconnectAttempts > h.wsMaxReconnects {
+			// check if we've exceeded max reconnects (only if not unlimited)
+			if h.wsMaxReconnects != -1 && reconnectAttempts > h.wsMaxReconnects {
 				logDiagnostic(os.Stderr, "max reconnection attempts reached, giving up\n")
 				return
 			}
