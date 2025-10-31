@@ -1,4 +1,4 @@
-all: clean lint test build-dist
+all: clean lint test test-race build-dist
 build-dist: build-bin dist
 build-dist-snapshot: build-bin-snapshot dist
 
@@ -27,6 +27,9 @@ lint:
 
 test:
 	go test -v ./...
+
+test-race:
+	go test -race -v ./...
 
 format:
 	gofmt -w .

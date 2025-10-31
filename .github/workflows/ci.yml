@@ -11,7 +11,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Project
@@ -42,6 +42,9 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Test (with race detector)
+        run: make test-race
 
       - name: Build Dist
         run: make build-dist-snapshot
