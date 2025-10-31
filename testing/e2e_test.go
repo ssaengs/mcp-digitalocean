@@ -63,6 +63,7 @@ type McpServerConfig struct {
 	DigitalOceanAPIToken string
 	LogLevel             string
 	Transport            string
+	Services             string // optional: comma-separated list of services
 	WSLoggingURL         string // optional
 	WSLoggingToken       string // optional
 }
@@ -74,6 +75,11 @@ func (cfg McpServerConfig) ToMap() map[string]string {
 		"DIGITALOCEAN_API_TOKEN": cfg.DigitalOceanAPIToken,
 		"LOG_LEVEL":              cfg.LogLevel,
 		"TRANSPORT":              cfg.Transport,
+	}
+
+	// add optional services configuration if provided
+	if cfg.Services != "" {
+		env["SERVICES"] = cfg.Services
 	}
 
 	// add optional WebSocket logging configuration if provided
