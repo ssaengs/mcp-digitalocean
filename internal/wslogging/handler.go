@@ -682,6 +682,7 @@ func (h *Handler) readLoop(conn *websocket.Conn) {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
 			// connection closed or error - the connectionManager will handle reconnection
+			logDiagnostic(os.Stderr, "read loop error: %v\n", err)
 			return
 		}
 	}
