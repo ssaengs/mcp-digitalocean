@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -321,6 +322,95 @@ func TestMCPServer_WebSocketLogging(t *testing.T) {
 	t.Logf("Log levels captured: %d INFO logs, %d DEBUG logs",
 		len(fakeWS.FindLogsByLevel("INFO")),
 		len(fakeWS.FindLogsByLevel("DEBUG")))
+}
+
+// TestMCPServer_DualLogging verifies that logs are written to BOTH stderr and WebSocket
+func TestMCPServer_DualLogging(t *testing.T) {
+	ctx := context.Background()
+
+	// Start fake WebSocket server
+	fakeWS := NewFakeWebSocketServer("test-token")
+	defer fakeWS.Close()
+
+	// start MCP server with WebSocket logging enabled
+	cfg := McpServerConfig{
+		BindAddr:             "0.0.0.0:8080",
+		DigitalOceanAPIToken: os.Getenv("DIGITALOCEAN_API_TOKEN"),
+		LogLevel:             "debug",
+		Transport:            "http",
+		WSLoggingURL:         fakeWS.GetContainerURL(),
+		WSLoggingToken:       fakeWS.GetToken(),
+	}
+	container, err := startMcpServer(ctx, cfg)
+	require.NoError(t, err, "Failed to start MCP server")
+	defer container.Terminate(ctx)
+
+	// Wait for WebSocket connection
+	require.True(t, fakeWS.WaitForConnection(1, 10*time.Second),
+		"WebSocket connection not established within timeout")
+
+	// Get container port
+	port, err := container.MappedPort(ctx, "8080/tcp")
+	require.NoError(t, err, "Failed to get mapped port")
+	serverURL := fmt.Sprintf("http://localhost:%s/mcp", port.Port())
+
+	// Create MCP client and make API call to generate logs
+	c := initializeClientWithURL(ctx, t, serverURL)
+	defer c.Close()
+
+	_, err = c.ListTools(ctx, mcp.ListToolsRequest{})
+	require.NoError(t, err, "ListTools failed")
+
+	// Poll until logs arrive at WebSocket
+	require.True(t, fakeWS.WaitForLogs(1, 5*time.Second),
+		"No logs received at WebSocket within timeout")
+
+	wsLogs := fakeWS.GetLogEntries()
+	require.NotEmpty(t, wsLogs, "Expected logs in WebSocket")
+	t.Logf("Received %d logs via WebSocket", len(wsLogs))
+
+	// Get stderr logs from container
+	stderrLogs, err := container.Logs(ctx)
+	require.NoError(t, err, "Failed to get container logs")
+	defer stderrLogs.Close()
+
+	// Use io.ReadAll to get all available logs
+	stderrBytes, err := io.ReadAll(stderrLogs)
+	if err != nil {
+		t.Logf("Warning: error reading logs: %v", err)
+	}
+	stderrOutput := string(stderrBytes)
+
+	// Verify logs appear in stderr
+	require.NotEmpty(t, stderrOutput, "Expected logs in stderr")
+	t.Logf("stderr output length: %d bytes", len(stderrOutput))
+
+	// Verify WebSocket diagnostic logging appears in stderr
+	require.Contains(t, stderrOutput, "[wslogging] configuring WebSocket logging",
+		"stderr should contain WebSocket diagnostic messages")
+
+	// Verify at least one application log message appears in both destinations
+	// Look for log messages that should be in both places (not diagnostic messages)
+	foundInBoth := false
+	matchCount := 0
+	for _, wsLog := range wsLogs {
+		// Skip WebSocket diagnostic messages (these only go to stderr)
+		if strings.HasPrefix(wsLog.Message, "[wslogging]") {
+			continue
+		}
+
+		// Check if this log message appears in stderr
+		if strings.Contains(stderrOutput, wsLog.Message) {
+			matchCount++
+			if !foundInBoth {
+				foundInBoth = true
+				t.Logf("Verified dual logging: message '%s' found in both stderr and WebSocket", wsLog.Message)
+			}
+		}
+	}
+
+	require.True(t, foundInBoth, "At least one application log message should appear in both stderr and WebSocket")
+	t.Logf("Dual logging verified: %d application log messages found in both stderr and WebSocket", matchCount)
 }
 
 // TestEdgeLogging_Authentication tests that authentication is required
