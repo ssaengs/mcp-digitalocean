@@ -18,14 +18,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// logDiagnostic writes a diagnostic message about the wslogging infrastructure itself.
-// These messages use [wslogging] prefix to help developers identify internal logging system messages.
-// They are written directly to stdout/stderr rather than through the slog handler to avoid recursion
-// or complexity from trying to log about logging failures.
-func logDiagnostic(w io.Writer, format string, args ...any) {
-	fmt.Fprintf(w, "[wslogging] "+format, args...)
-}
-
 const (
 	// reconnectDelay is the delay between reconnection attempts
 	reconnectDelay = 5 * time.Second
@@ -43,6 +35,10 @@ const (
 	pingInterval = 30 * time.Second
 	// pongWait is the timeout for receiving pong responses
 	pongWait = 60 * time.Second
+	// flushBufferTicker is the interval for polling the buffer during flush
+	flushBufferTicker = 100 * time.Millisecond
+	// flushBufferDeadline is the timeout for flushing the buffer
+	flushBufferDeadline = 5 * time.Second
 )
 
 // Handler implements slog.Handler interface with optional WebSocket logging support.
@@ -363,11 +359,11 @@ func (h *Handler) flushBuffer(ctx context.Context) error {
 	// if no deadline, use a reasonable default timeout
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel = context.WithTimeout(ctx, flushBufferDeadline)
 		defer cancel()
 	}
 
-	ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(flushBufferTicker)
 	defer ticker.Stop()
 
 	for {
@@ -610,7 +606,9 @@ func (h *Handler) connectionManager(ctx context.Context) {
 			h.wsConn = nil
 		}
 		h.wsMu.Unlock()
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			logDiagnostic(os.Stderr, "failed to close connection: %v\n", err)
+		}
 
 		// wait a bit before attempting to reconnect, but also check context
 		h.wsMu.Lock()
@@ -644,13 +642,17 @@ func (h *Handler) connect() (*websocket.Conn, error) {
 	conn, resp, err := dialer.Dial(h.wsURL, headers)
 	if err != nil {
 		if resp != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				logDiagnostic(os.Stderr, "failed to close response body after dial error: %v\n", closeErr)
+			}
 		}
 		return nil, fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
 
 	if resp != nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logDiagnostic(os.Stderr, "failed to close response body: %v\n", closeErr)
+		}
 	}
 
 	return conn, nil
@@ -683,4 +685,12 @@ func (h *Handler) readLoop(conn *websocket.Conn) {
 			return
 		}
 	}
+}
+
+// logDiagnostic writes a diagnostic message about the wslogging infrastructure itself.
+// These messages use [wslogging] prefix to help developers identify internal logging system messages.
+// They are written directly to stdout/stderr rather than through the slog handler to avoid recursion
+// or complexity from trying to log about logging failures.
+func logDiagnostic(w io.Writer, format string, args ...any) {
+	fmt.Fprintf(w, "[wslogging] "+format, args...)
 }
