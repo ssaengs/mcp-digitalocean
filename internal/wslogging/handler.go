@@ -39,10 +39,10 @@ const (
 
 // Handler implements slog.Handler interface with optional WebSocket logging support.
 // By default, it logs to the provided io.Writer (typically stderr).
-// When configured with a WebSocket URL, it sends logs to the WebSocket endpoint instead.
+// When configured with a WebSocket URL, it sends logs to both stderr and the WebSocket endpoint.
 type Handler struct {
-	// fallback handler for local logging (stderr)
-	fallbackHandler slog.Handler
+	// standard handler for stderr logging (primary/baseline destination)
+	stderrHandler slog.Handler
 
 	// WebSocket configuration
 	wsEnabled        bool
@@ -72,7 +72,7 @@ func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 	}
 
 	h := &Handler{
-		fallbackHandler:  slog.NewJSONHandler(out, opts),
+		stderrHandler:    slog.NewJSONHandler(out, opts),
 		wsMu:             &sync.Mutex{},
 		wsReconnectDelay: reconnectDelay,
 		wsMaxReconnects:  maxReconnects,
@@ -83,39 +83,66 @@ func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 }
 
 // Enabled reports whether the handler handles records at the given level.
-// It delegates to the fallback handler's Enabled method.
+// It delegates to the stderr handler's Enabled method.
 func (h *Handler) Enabled(ctx context.Context, level slog.Level) bool {
-	return h.fallbackHandler.Enabled(ctx, level)
+	return h.stderrHandler.Enabled(ctx, level)
 }
 
 // Handle processes a log record.
-// If WebSocket logging is not enabled, it delegates to the fallback handler (stderr).
-// If WebSocket logging is enabled, it sends the log to WebSocket asynchronously.
+// Logs are always written to stderr (primary destination).
+// If WebSocket logging is enabled, logs are also sent to the WebSocket endpoint asynchronously (complementary destination).
+// Both destinations are independent - failure in one does not affect the other.
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	if h.closed {
 		return nil
 	}
 
-	// if WebSocket is not enabled, use fallback handler (stderr)
-	if !h.wsEnabled {
-		return h.fallbackHandler.Handle(ctx, r)
+	var stderrErr error
+
+	// log to stderr and WebSocket concurrently (independent operations)
+	var wg sync.WaitGroup
+
+	// always write to stderr
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		stderrErr = h.stderrHandler.Handle(ctx, r)
+	}()
+
+	// if WebSocket is enabled, also send to WebSocket
+	if h.wsEnabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			entry := h.buildLogEntry(r)
+			data, err := json.Marshal(entry)
+			if err != nil {
+				// We use fmt.Fprintf directly to stderr here rather than stderrHandler.Handle() because this is infrastructure
+				// diagnostic logging about the logging system itself, not application-level logging. Using fmt.Fprintf keeps this
+				// simple, avoids any potential recursion or complexity from trying to log about logging failures, and ensures
+				// this diagnostic message will always reach stderr even if there are issues with the handler or its configuration.
+				// The [wslogging] prefix helps developers identify these as internal logging system messages.
+				fmt.Fprintf(os.Stderr, "[wslogging] failed to marshal log entry: %v\n", err)
+				return
+			}
+
+			// try to send to buffer (non-blocking)
+			select {
+			case h.wsBuffer <- data:
+				// successfully queued for WebSocket transmission
+			default:
+				// buffer is full, drop the WebSocket message
+				// don't set wsErr because this is expected behavior under high load
+			}
+		}()
 	}
 
-	entry := h.buildLogEntry(r)
+	wg.Wait()
 
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return fmt.Errorf("failed to marshal log entry: %w", err)
-	}
-
-	// try to send to buffer (non-blocking)
-	select {
-	case h.wsBuffer <- data:
-		return nil
-	default:
-		// buffer is full, drop the message
-		return fmt.Errorf("log buffer full, message dropped")
-	}
+	// return stderr error if it failed (primary logging destination)
+	// we ignore WebSocket errors as it's a complementary logging destination
+	return stderrErr
 }
 
 // WithAttrs returns a new Handler with the given attributes added.
@@ -135,7 +162,7 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	copy(newAttrs[len(h.attrs):], attrs)
 
 	newHandler := &Handler{
-		fallbackHandler: h.fallbackHandler.WithAttrs(attrs),
+		stderrHandler: h.stderrHandler.WithAttrs(attrs),
 		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
 		wsEnabled: h.wsEnabled,
 		wsURL:     h.wsURL,
@@ -171,7 +198,7 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	newGroups[len(newGroups)-1] = name
 
 	newHandler := &Handler{
-		fallbackHandler: h.fallbackHandler.WithGroup(name),
+		stderrHandler: h.stderrHandler.WithGroup(name),
 		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
 		wsEnabled: h.wsEnabled,
 		wsURL:     h.wsURL,

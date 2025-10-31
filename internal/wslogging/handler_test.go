@@ -26,8 +26,8 @@ func TestNewHandler(t *testing.T) {
 		t.Fatal("NewHandler returned nil")
 	}
 
-	if handler.fallbackHandler == nil {
-		t.Error("fallbackHandler is nil")
+	if handler.stderrHandler == nil {
+		t.Error("stderrHandler is nil")
 	}
 
 	if handler.wsEnabled {
@@ -279,6 +279,73 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 		// check for standard fields
 		if _, ok := logEntry["timestamp"]; !ok {
 			t.Error("missing timestamp field")
+		}
+
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for WebSocket message")
+	}
+}
+
+// TestHandler_DualLogging tests that logs appear in BOTH stderr and WebSocket when WebSocket is enabled
+func TestHandler_DualLogging(t *testing.T) {
+	server, messages := mockWebSocketServer(t, "test-token")
+	defer server.Close()
+
+	wsURL := httpToWebSocketURL(server.URL)
+
+	var buf bytes.Buffer
+	handler := NewHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+
+	// configure WebSocket
+	err := handler.ConfigureWebSocket(wsURL, "test-token")
+	if err != nil {
+		t.Fatalf("ConfigureWebSocket() error: %v", err)
+	}
+
+	// start WebSocket with background context
+	ctx := context.Background()
+	handler.Start(ctx)
+	defer handler.Close(context.Background())
+
+	// wait for connection
+	time.Sleep(100 * time.Millisecond)
+
+	// send a log message
+	logger := slog.New(handler)
+	logger.Info("dual logging test", "destination", "both")
+
+	// verify the log appears in stderr (buf)
+	stderrOutput := buf.String()
+	if !strings.Contains(stderrOutput, "dual logging test") {
+		t.Errorf("stderr missing log message: %s", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "destination") {
+		t.Errorf("stderr missing attribute key: %s", stderrOutput)
+	}
+	if !strings.Contains(stderrOutput, "both") {
+		t.Errorf("stderr missing attribute value: %s", stderrOutput)
+	}
+
+	// verify the log also appears in WebSocket
+	select {
+	case msg := <-messages:
+		var logEntry map[string]any
+		if err := json.Unmarshal(msg, &logEntry); err != nil {
+			t.Fatalf("failed to unmarshal WebSocket log entry: %v", err)
+		}
+
+		if logEntry["message"] != "dual logging test" {
+			t.Errorf("WebSocket message = %v, want 'dual logging test'", logEntry["message"])
+		}
+
+		if logEntry["level"] != "INFO" {
+			t.Errorf("WebSocket level = %v, want 'INFO'", logEntry["level"])
+		}
+
+		if logEntry["destination"] != "both" {
+			t.Errorf("WebSocket destination = %v, want 'both'", logEntry["destination"])
 		}
 
 	case <-time.After(2 * time.Second):
