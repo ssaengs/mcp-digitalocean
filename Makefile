@@ -31,6 +31,9 @@ test:
 test-race:
 	go test -race -v ./...
 
+test-e2e:
+	go test -v -tags=integration -timeout 10m ./...
+
 format:
 	gofmt -w .
 	@echo "Code formatted successfully."
