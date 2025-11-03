@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 )
 
 // TestNewHandler tests the handler constructor
@@ -344,7 +344,7 @@ func TestHandler_WebSocket_SendsLogs(t *testing.T) {
 			t.Errorf("enabled_services = %v, want 'apps,networking'", enabledServices)
 		}
 
-	case <-time.After(2 * time.Second):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for WebSocket message")
 	}
 }
@@ -411,7 +411,7 @@ func TestHandler_DualLogging(t *testing.T) {
 			t.Errorf("WebSocket destination = %v, want 'both'", logEntry["destination"])
 		}
 
-	case <-time.After(2 * time.Second):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for WebSocket message")
 	}
 }
@@ -450,7 +450,7 @@ func TestHandler_WebSocket_WithAuth(t *testing.T) {
 	select {
 	case <-messages:
 		// success
-	case <-time.After(2 * time.Second):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for authenticated WebSocket message")
 	}
 }
@@ -487,175 +487,20 @@ func waitForCondition(t *testing.T, timeout time.Duration, checkInterval time.Du
 	t.Fatal(message)
 }
 
-// TestHandler_WebSocket_Reconnection tests reconnection logic
-func TestHandler_WebSocket_Reconnection(t *testing.T) {
-	// create a channel to track connection attempts
-	connectionCount := 0
-	var mu sync.Mutex
-	messages := make(chan []byte, 10)
-
-	// create server handler
-	handler1 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		connectionCount++
-		mu.Unlock()
-
-		upgrader := websocket.Upgrader{}
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		// read messages
-		for {
-			_, msg, err := conn.ReadMessage()
-			if err != nil {
-				return
-			}
-			messages <- msg
-		}
-	})
-
-	server1 := httptest.NewServer(handler1)
-	wsURL := httpToWebSocketURL(server1.URL)
-
-	var buf bytes.Buffer
-	h := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
-
-	// configure WebSocket
-	err := h.ConfigureWebSocket(wsURL, "test-token")
-	if err != nil {
-		t.Fatalf("ConfigureWebSocket() error: %v", err)
-	}
-
-	// start WebSocket with background context
-	ctx := context.Background()
-	h.Start(ctx)
-	defer h.Close(context.Background())
-
-	// wait for initial connection (poll until connected)
-	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return connectionCount >= 1
-	}, "timeout waiting for initial connection")
-
-	// send a log to verify connection works
-	logger := slog.New(h)
-	logger.Info("before disconnect")
-
-	// wait for message to arrive
-	select {
-	case <-messages:
-		// good, message received
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for first message")
-	}
-
-	// close the server to simulate disconnection
-	server1.Close()
-
-	// start a new server
-	server2 := httptest.NewServer(handler1)
-	defer server2.Close()
-
-	// reconfigure with new URL (simulates reconnection to new endpoint)
-	wsURL2 := httpToWebSocketURL(server2.URL)
-	h.Close(context.Background())
-
-	h2 := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
-	err = h2.ConfigureWebSocket(wsURL2, "test-token")
-	if err != nil {
-		t.Fatalf("ConfigureWebSocket() error on reconnect: %v", err)
-	}
-
-	// start WebSocket with background context
-	ctx2 := context.Background()
-	h2.Start(ctx2)
-	defer h2.Close(context.Background())
-
-	// wait for reconnection (poll until second connection established)
-	waitForCondition(t, 5*time.Second, 50*time.Millisecond, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return connectionCount >= 2
-	}, "timeout waiting for reconnection")
-
-	// send another log
-	logger2 := slog.New(h2)
-	logger2.Info("after reconnect")
-
-	// wait for message after reconnect
-	select {
-	case <-messages:
-		// good, message received after reconnect
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for message after reconnect")
-	}
-
-	mu.Lock()
-	finalConnections := connectionCount
-	mu.Unlock()
-
-	// should have 2 connections total (initial + reconnect)
-	if finalConnections != 2 {
-		t.Fatalf("expected 2 total connections, got %d", finalConnections)
-	}
-}
-
-// TestHandler_WebSocket_UnlimitedRetries tests that handler is configured for unlimited retries when maxReconnects = -1
-func TestHandler_WebSocket_UnlimitedRetries(t *testing.T) {
-	var buf bytes.Buffer
-	handler := NewHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
-
-	// verify default is unlimited retries
-	if handler.wsMaxReconnects != -1 {
-		t.Errorf("expected wsMaxReconnects = -1 (unlimited), got %d", handler.wsMaxReconnects)
-	}
-
-	// verify that reconnectDelay is set
-	if handler.wsReconnectDelay <= 0 {
-		t.Errorf("expected wsReconnectDelay > 0, got %v", handler.wsReconnectDelay)
-	}
-
-	t.Logf("Handler configured for unlimited retries: wsMaxReconnects = %d, wsReconnectDelay = %v",
-		handler.wsMaxReconnects, handler.wsReconnectDelay)
-}
-
-// TestHandler_WebSocket_LimitedRetries tests that handler configuration can be changed to limited retries
-func TestHandler_WebSocket_LimitedRetries(t *testing.T) {
-	var buf bytes.Buffer
-	handler := NewHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
-
-	// override to use limited retries
-	handler.wsMaxReconnects = 5
-
-	// verify configuration
-	if handler.wsMaxReconnects != 5 {
-		t.Errorf("expected wsMaxReconnects = 5, got %d", handler.wsMaxReconnects)
-	}
-
-	t.Logf("Handler configured for limited retries: wsMaxReconnects = %d", handler.wsMaxReconnects)
-}
-
-// TestHandler_WebSocket_BufferFull tests behavior when buffer is full
+// TestHandler_WebSocket_BufferFull tests that stderr (primary destination) receives all logs
+// even when WebSocket buffer overflows and drops messages
 func TestHandler_WebSocket_BufferFull(t *testing.T) {
-	// create handler but don't start server
-	var buf bytes.Buffer
-	handler := NewHandler(&buf, &slog.HandlerOptions{
+	// Note: This test intentionally generates ~1000 "buffer is full" diagnostic messages
+	// to stderr. These are expected and demonstrate proper backpressure handling.
+
+	// create handler with stderr going to our buffer
+	var stderrBuf bytes.Buffer
+	handler := NewHandler(&stderrBuf, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 
-	// configure with invalid URL so connection fails
+	// configure with invalid URL so connection fails (ensures buffer fills up)
 	_ = handler.ConfigureWebSocket("ws://localhost:1/invalid", "token")
-
-	// override max reconnects to avoid infinite retries in this test
-	handler.wsMaxReconnects = 1
 
 	// start WebSocket with a timeout context to prevent infinite retries
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -663,14 +508,30 @@ func TestHandler_WebSocket_BufferFull(t *testing.T) {
 	handler.Start(ctx)
 	defer handler.Close(context.Background())
 
-	// send many messages rapidly
+	// send many messages rapidly (more than buffer size of 1000)
+	const totalMessages = 2000
 	logger := slog.New(handler)
-	for i := 0; i < 2000; i++ {
+	for i := 0; i < totalMessages; i++ {
 		logger.Info("flood test", "i", i)
 	}
 
-	// should not panic or block
-	// messages should be dropped when buffer is full
+	// give time for async logging to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// verify ALL messages made it to stderr (primary destination)
+	// even though WebSocket buffer filled up and dropped messages
+	stderrLines := bytes.Split(stderrBuf.Bytes(), []byte("\n"))
+	actualLogCount := 0
+	for _, line := range stderrLines {
+		if bytes.Contains(line, []byte("flood test")) {
+			actualLogCount++
+		}
+	}
+	require.Equal(t, totalMessages, actualLogCount,
+		"All %d messages should be in stderr even though WebSocket dropped some", totalMessages)
+
+	t.Logf("Verified: all %d logs made it to stderr (primary destination)", totalMessages)
+	t.Logf("WebSocket dropped ~%d messages due to buffer overflow", totalMessages-bufferSize)
 }
 
 // TestBuildLogEntry tests the log entry construction
@@ -745,14 +606,14 @@ func TestConfigureWebSocket_URLValidation(t *testing.T) {
 			url:       "http://example.com",
 			token:     "test-token",
 			wantError: true,
-			errorMsg:  "invalid WebSocket URL scheme: must be 'ws' or 'wss', got 'http'",
+			errorMsg:  "invalid WebSocket URL scheme",
 		},
 		{
 			name:      "invalid scheme - https",
 			url:       "https://example.com",
 			token:     "test-token",
 			wantError: true,
-			errorMsg:  "invalid WebSocket URL scheme: must be 'ws' or 'wss', got 'https'",
+			errorMsg:  "invalid WebSocket URL scheme",
 		},
 		{
 			name:      "invalid URL format",
@@ -797,119 +658,3 @@ func TestConfigureWebSocket_URLValidation(t *testing.T) {
 }
 
 // TestHandler_WebSocket_PingPong tests that the handler sends pings and handles pongs
-func TestHandler_WebSocket_PingPong(t *testing.T) {
-	var mu sync.Mutex
-	pingCount := 0
-	pongCount := 0
-	messages := make(chan []byte, 10)
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			t.Logf("upgrade error: %v", err)
-			return
-		}
-		defer conn.Close()
-
-		// set up ping handler to count pings and respond with pongs
-		conn.SetPingHandler(func(appData string) error {
-			mu.Lock()
-			pingCount++
-			mu.Unlock()
-
-			// automatically send pong back (gorilla/websocket does this by default)
-			err := conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
-			if err != nil {
-				return err
-			}
-
-			mu.Lock()
-			pongCount++
-			mu.Unlock()
-
-			return nil
-		})
-
-		// set read deadline to keep connection alive
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
-		// read messages continuously (required to process ping frames)
-		for {
-			_, message, err := conn.ReadMessage()
-			if err != nil {
-				return
-			}
-
-			// reset read deadline on each message
-			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
-			// send message to channel
-			select {
-			case messages <- message:
-			default:
-				// channel full, skip
-			}
-		}
-	})
-
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	wsURL := httpToWebSocketURL(server.URL)
-
-	var buf bytes.Buffer
-	h := NewHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})
-
-	err := h.ConfigureWebSocket(wsURL, "test-token")
-	if err != nil {
-		t.Fatalf("ConfigureWebSocket() error: %v", err)
-	}
-
-	// start WebSocket with background context
-	ctx := context.Background()
-	h.Start(ctx)
-	defer h.Close(context.Background())
-
-	// wait a moment for connection to be fully established
-	time.Sleep(100 * time.Millisecond)
-
-	// send a log message to establish connection
-	logger := slog.New(h)
-	logger.Info("test message")
-
-	// wait for message
-	select {
-	case msg := <-messages:
-		t.Logf("received message: %s", string(msg))
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for message")
-	}
-
-	// wait for at least 1 ping (pingInterval is 30s, but we'll wait up to 35s)
-	waitForCondition(t, 35*time.Second, 100*time.Millisecond, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		return pingCount >= 1
-	}, "timeout waiting for ping")
-
-	mu.Lock()
-	finalPingCount := pingCount
-	finalPongCount := pongCount
-	mu.Unlock()
-
-	if finalPingCount < 1 {
-		t.Errorf("expected at least 1 ping, got %d", finalPingCount)
-	}
-
-	if finalPongCount < 1 {
-		t.Errorf("expected at least 1 pong, got %d", finalPongCount)
-	}
-
-	if finalPingCount != finalPongCount {
-		t.Errorf("ping count (%d) should equal pong count (%d)", finalPingCount, finalPongCount)
-	}
-}

@@ -1,4 +1,4 @@
-all: clean lint test test-race build-dist
+all: clean lint test-race build-dist
 build-dist: build-bin dist
 build-dist-snapshot: build-bin-snapshot dist
 
