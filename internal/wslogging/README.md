@@ -57,29 +57,36 @@ This is particularly helpful for:
 ## Features
 
 - **Dual output** - Logs go to both stderr and WebSocket simultaneously
-- **Automatic reconnection** - If the WebSocket connection drops, it keeps retrying (unlimited by default)
 - **Non-blocking** - Uses buffered channels so logging never blocks your application
-- **Time-based batching** - Messages are batched for 100ms or up to 50 messages to reduce WebSocket write overhead
+- **Time-based batching** - Messages are batched for 5 seconds or up to 50 messages to reduce WebSocket write overhead
+- **Thread-safe** - All operations are protected with mutexes for safe concurrent access
 - **Standard interface** - Implements `slog.Handler`, so it works with the standard library
 - **Persistent attributes** - Add context fields that appear in all logs
+- **Graceful shutdown** - `Close()` flushes remaining messages before shutdown
 
 ## Configuration
-
-### Automatic Reconnection
-
-The handler reconnects automatically when the connection is lost:
-- **Reconnect delay**: 5 seconds between attempts
-- **Max retries**: Unlimited by default (set to `-1`)
-- You can change `wsMaxReconnects` to a positive number for limited retries
 
 ### Batching Behavior
 
 To reduce WebSocket write overhead, logs are batched before being sent:
-- **Batch interval**: 100ms - messages accumulate for up to 100ms before flushing
+- **Batch interval**: 5 seconds - messages accumulate for up to 5 seconds before flushing
 - **Max batch size**: 50 messages - batch flushes immediately when 50 messages are queued
+- **Buffer size**: 1000 messages - the channel buffer between Handle() and logWriter()
 - **Graceful shutdown**: During `Close()`, any pending messages are flushed immediately
 
-This batching significantly improves performance under high log volume while maintaining low latency (max 100ms delay).
+This batching significantly improves performance under high log volume while maintaining reasonable latency (max 5 seconds delay).
+
+### Thread Safety
+
+The handler uses two mutexes for thread-safe operation:
+- **wsMu**: Protects WebSocket configuration (wsEnabled, wsURL, wsToken, closed state)
+- **flushMu**: Protects the batch slice during accumulation and flushing
+
+The design ensures:
+- Non-blocking log writes via buffered channel
+- Safe concurrent access from multiple goroutines
+- Single writer to batch (logWriter goroutine)
+- Copy semantics during flush to avoid holding locks during network I/O
 
 ## Testing
 

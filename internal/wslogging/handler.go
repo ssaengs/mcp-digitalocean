@@ -43,6 +43,13 @@ type Handler struct {
 	wsBuffer  chan []byte
 	wsMu      *sync.Mutex
 
+	// batch stores accumulated log messages for batched WebSocket transmission
+	// protected by flushMu
+	batch [][]byte
+
+	// flushMu protects batch modifications
+	flushMu *sync.Mutex
+
 	// handler state for WithAttrs/WithGroup
 	attrs  []slog.Attr
 	groups []string
@@ -61,6 +68,8 @@ func NewHandler(out io.Writer, opts *slog.HandlerOptions) *Handler {
 	h := &Handler{
 		stderrHandler: slog.NewJSONHandler(out, opts),
 		wsMu:          &sync.Mutex{},
+		batch:         make([][]byte, 0, maxBatchSize),
+		flushMu:       &sync.Mutex{},
 		closeOnce:     &sync.Once{},
 	}
 
@@ -154,6 +163,8 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		// these are shared across all derived handlers for efficiency
 		wsBuffer: h.wsBuffer, // shared buffer
 		wsMu:     h.wsMu,     // shared mutex
+		batch:    h.batch,    // shared batch (managed by single logWriter goroutine)
+		flushMu:  h.flushMu,  // shared flush mutex
 		// each derived handler has its own attributes and groups
 		attrs:     newAttrs,
 		groups:    h.groups,
@@ -184,6 +195,8 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 		// these are shared across all derived handlers for efficiency
 		wsBuffer: h.wsBuffer, // shared buffer
 		wsMu:     h.wsMu,     // shared mutex
+		batch:    h.batch,    // shared batch (managed by single logWriter goroutine)
+		flushMu:  h.flushMu,  // shared flush mutex
 		// each derived handler has its own attributes and groups
 		attrs:     h.attrs,
 		groups:    newGroups,
@@ -314,7 +327,6 @@ func (h *Handler) addAttrToMap(current map[string]any, attr slog.Attr, groups []
 // then a connection is established, messages are sent, and connection is closed.
 // This should be called as a goroutine.
 func (h *Handler) logWriter(ctx context.Context) {
-	batch := make([][]byte, 0, maxBatchSize)
 	ticker := time.NewTicker(batchInterval)
 	defer ticker.Stop()
 
@@ -322,27 +334,30 @@ func (h *Handler) logWriter(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// context cancelled - flush remaining messages before shutdown
-			h.flushBatch(&batch)
+			h.flushBatch()
 			return
 
 		case data, ok := <-h.wsBuffer:
 			if !ok {
 				// channel closed - flush remaining messages before shutdown
-				h.flushBatch(&batch)
+				h.flushBatch()
 				return
 			}
 
-			// add message to batch
-			batch = append(batch, data)
+			// add message to batch (protected by flushMu)
+			h.flushMu.Lock()
+			h.batch = append(h.batch, data)
+			batchLen := len(h.batch)
+			h.flushMu.Unlock()
 
 			// flush if batch is full
-			if len(batch) >= maxBatchSize {
-				h.flushBatch(&batch)
+			if batchLen >= maxBatchSize {
+				h.flushBatch()
 			}
 
 		case <-ticker.C:
 			// periodic flush
-			h.flushBatch(&batch)
+			h.flushBatch()
 		}
 	}
 }
@@ -350,13 +365,21 @@ func (h *Handler) logWriter(ctx context.Context) {
 // flushBatch sends accumulated messages to the websocket.
 // It establishes a connection, sends all messages, and closes the connection.
 // The batch is cleared only if all messages are sent successfully.
-func (h *Handler) flushBatch(batch *[][]byte) {
-	batchLen := len(*batch)
-	if batchLen == 0 {
+// Uses copy semantics to avoid holding locks during network I/O, with atomic write-back.
+func (h *Handler) flushBatch() {
+	// make a local copy of h.batch to work with
+	// this allows us to do network I/O without holding any locks
+	h.flushMu.Lock()
+	defer h.flushMu.Unlock()
+
+	if len(h.batch) == 0 {
 		return
 	}
 
-	// check if handler is closed
+	localBatch := make([][]byte, len(h.batch))
+	copy(localBatch, h.batch)
+
+	// read WebSocket configuration (protected by wsMu)
 	h.wsMu.Lock()
 	closed := h.closed
 	wsURL := h.wsURL
@@ -367,7 +390,7 @@ func (h *Handler) flushBatch(batch *[][]byte) {
 		return
 	}
 
-	// establish connection
+	// establish connection (no locks held during network I/O)
 	conn, err := h.connect(wsURL, wsToken)
 	if err != nil {
 		logDiagnostic(os.Stderr, "failed to connect to WebSocket: %v\n", err)
@@ -376,9 +399,9 @@ func (h *Handler) flushBatch(batch *[][]byte) {
 	}
 	defer conn.Close()
 
-	// send all messages in the batch
+	// send all messages in the local batch copy (no locks held during network I/O)
 	sentCount := 0
-	for _, data := range *batch {
+	for _, data := range localBatch {
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 			logDiagnostic(os.Stderr, "failed to write message to WebSocket: %v\n", err)
 			break
@@ -386,22 +409,19 @@ func (h *Handler) flushBatch(batch *[][]byte) {
 		sentCount++
 	}
 
-	// remove successfully sent messages from the batch.
-	// this ensures we don't resend messages that were already delivered, while keeping
-	// any unsent messages for retry on the next flush attempt.
+	// atomic write-back - update h.batch based on what was sent
+	batchLen := len(localBatch)
 	remainingCount := batchLen - sentCount
+
 	if remainingCount > 0 {
+		// some messages failed to send - keep only the unsent messages in the batch.
 		// copy remaining messages to a new slice to release memory from the old underlying array.
-		// without this copy, the slice would keep the entire original array in memory even though
-		// we only need a portion of it. This is especially important when we send most messages
-		// successfully but fail on the last few - we don't want to hold onto a 1000-element array
-		// when we only need to keep 10 elements for retry.
 		newBatch := make([][]byte, remainingCount)
-		copy(newBatch, (*batch)[sentCount:])
-		*batch = newBatch
-	} else if sentCount > 0 {
-		// all messages sent successfully - clear the batch completely
-		*batch = (*batch)[:0]
+		copy(newBatch, h.batch[sentCount:])
+		h.batch = newBatch
+	} else {
+		// all messages sent successfully (remainingCount == 0) - clear the batch completely
+		h.batch = h.batch[:0]
 	}
 }
 

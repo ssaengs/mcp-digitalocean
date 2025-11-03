@@ -657,4 +657,69 @@ func TestConfigureWebSocket_URLValidation(t *testing.T) {
 	}
 }
 
+// TestHandler_ThreadSafeBatch tests that the batch is thread-safe under concurrent access
+func TestHandler_ThreadSafeBatch(t *testing.T) {
+	server, messages := mockWebSocketServer(t, "test-token")
+	defer server.Close()
+
+	wsURL := httpToWebSocketURL(server.URL)
+
+	var buf bytes.Buffer
+	handler := NewHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+
+	// configure WebSocket
+	err := handler.ConfigureWebSocket(wsURL, "test-token")
+	if err != nil {
+		t.Fatalf("ConfigureWebSocket() error: %v", err)
+	}
+
+	ctx := context.Background()
+	handler.Start(ctx)
+	defer handler.Close(context.Background())
+
+	// wait for connection
+	time.Sleep(100 * time.Millisecond)
+
+	// spawn multiple goroutines writing logs concurrently
+	const numGoroutines = 10
+	const logsPerGoroutine = 20
+	const totalExpected = numGoroutines * logsPerGoroutine
+
+	done := make(chan bool, numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			logger := slog.New(handler)
+			for j := 0; j < logsPerGoroutine; j++ {
+				logger.Info("concurrent test", "goroutine", id, "msg", j)
+			}
+			done <- true
+		}(i)
+	}
+
+	// wait for all goroutines to finish
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// collect all messages (with timeout)
+	receivedCount := 0
+	timeout := time.After(10 * time.Second)
+	for receivedCount < totalExpected {
+		select {
+		case <-messages:
+			receivedCount++
+		case <-timeout:
+			t.Fatalf("timeout: received %d/%d messages", receivedCount, totalExpected)
+		}
+	}
+
+	if receivedCount != totalExpected {
+		t.Errorf("received %d messages, want %d", receivedCount, totalExpected)
+	}
+
+	t.Logf("Successfully received all %d messages from %d concurrent goroutines", receivedCount, numGoroutines)
+}
+
 // TestHandler_WebSocket_PingPong tests that the handler sends pings and handles pongs
