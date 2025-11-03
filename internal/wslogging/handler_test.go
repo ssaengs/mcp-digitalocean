@@ -221,6 +221,20 @@ func TestHandler_Close(t *testing.T) {
 	if !handler.closed {
 		t.Error("handler not marked as closed")
 	}
+
+	// attempting to log after close should return an error
+	logger := slog.New(handler)
+	ctx = context.Background()
+	logger.Info("this should fail")
+
+	// manually call Handle to check the error
+	err = handler.Handle(ctx, slog.Record{})
+	if err == nil {
+		t.Error("Handle() should return error after Close(), but got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "handler has been closed") {
+		t.Errorf("Expected error about handler being closed, got: %v", err)
+	}
 }
 
 // mockWebSocketServer creates a test WebSocket server

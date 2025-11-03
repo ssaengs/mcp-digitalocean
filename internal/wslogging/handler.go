@@ -110,7 +110,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	h.wsMu.Unlock()
 
 	if closed {
-		return nil
+		return fmt.Errorf("wslogging: handler has been closed and is no longer accepting log messages")
 	}
 
 	var stderrErr error
