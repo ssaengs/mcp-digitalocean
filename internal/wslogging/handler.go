@@ -39,8 +39,6 @@ const (
 	pongWait = 60 * time.Second
 	// flushBufferTicker is the interval for polling the buffer during flush
 	flushBufferTicker = 100 * time.Millisecond
-	// flushBufferDeadline is the timeout for flushing the buffer
-	flushBufferDeadline = 5 * time.Second
 	// batchInterval is the interval for flushing batched log messages to WebSocket
 	batchInterval = 100 * time.Millisecond
 	// maxBatchSize is the maximum number of messages to batch before forcing a flush
@@ -300,7 +298,7 @@ func (h *Handler) Start(ctx context.Context) {
 
 // Close gracefully shuts down the handler and closes the WebSocket connection if open.
 // It accepts a context to control the timeout for flushing remaining buffered messages.
-// If the context is nil or has no deadline, it will use a default 5-second timeout.
+// The flush operation polls the buffer every 100ms and completes once the buffer is empty.
 //
 // Shutdown sequence to prevent race conditions:
 // 1. Mark handler as closed (prevents new messages from being queued)
@@ -363,17 +361,11 @@ func (h *Handler) Close(ctx context.Context) error {
 
 // flushBuffer attempts to flush all buffered messages before shutdown.
 // It triggers an immediate flush in the logWriter goroutine and then waits for the buffer to drain.
-// It respects the provided context timeout, allowing graceful shutdown control.
+// The buffer is polled every 100ms and the function returns once it's empty.
+// If the provided context has a deadline, it will respect that timeout.
 func (h *Handler) flushBuffer(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
-	}
-
-	// if no deadline, use a reasonable default timeout
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, flushBufferDeadline)
-		defer cancel()
 	}
 
 	// trigger immediate flush in logWriter goroutine (non-blocking send)
