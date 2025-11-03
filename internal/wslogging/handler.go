@@ -343,15 +343,17 @@ func (h *Handler) Close(ctx context.Context) error {
 
 		if h.wsConn != nil {
 			// send close message to gracefully shutdown WebSocket
-			closeMsgWriteErr := h.wsConn.WriteMessage(websocket.CloseMessage, []byte{})
-			if closeMsgWriteErr != nil && err == nil {
+			if closeMsgWriteErr := h.wsConn.WriteMessage(websocket.CloseMessage, []byte{}); closeMsgWriteErr != nil {
 				err = fmt.Errorf("failed to send close message: %w", closeMsgWriteErr)
+				h.wsConn = nil
+				return
 			}
 
 			// close the underlying connection
-			connCloseErr := h.wsConn.Close()
-			if connCloseErr != nil && err == nil {
+			if connCloseErr := h.wsConn.Close(); connCloseErr != nil {
 				err = connCloseErr
+				h.wsConn = nil
+				return
 			}
 			h.wsConn = nil
 		}
