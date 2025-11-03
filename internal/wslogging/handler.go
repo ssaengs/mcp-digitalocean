@@ -316,9 +316,10 @@ func (h *Handler) Close(ctx context.Context) error {
 		// Step 1: Mark as closed to stop accepting new messages
 		// Must be done first to prevent race where new messages arrive after flush starts.
 		// Protected by mutex to ensure thread-safe access from Handle() and other goroutines.
+		// We hold this lock for the entire closure process to make it atomic.
 		h.wsMu.Lock()
+		defer h.wsMu.Unlock()
 		h.closed = true
-		h.wsMu.Unlock()
 
 		// Step 2: Flush remaining buffered messages before tearing down
 		// At this point no new messages can be queued (closed=true), so we can safely
@@ -336,9 +337,6 @@ func (h *Handler) Close(ctx context.Context) error {
 
 		// Step 4: Close WebSocket connection
 		// Final cleanup of network resources after all messages are flushed.
-		h.wsMu.Lock()
-		defer h.wsMu.Unlock()
-
 		if h.wsConn != nil {
 			// send close message to gracefully shutdown WebSocket
 			if closeMsgWriteErr := h.wsConn.WriteMessage(websocket.CloseMessage, []byte{}); closeMsgWriteErr != nil {
