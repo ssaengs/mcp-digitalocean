@@ -32,7 +32,13 @@ func TestMain(m *testing.M) {
 
 	// If the user doesn't provide an MCP Server URL, start a new mcp server from a container.
 	if mcpServerURL == "" {
-		container, err := startMcpServer(ctx)
+		cfg := McpServerConfig{
+			BindAddr:             "0.0.0.0:8080",
+			DigitalOceanAPIToken: apiToken,
+			LogLevel:             "debug",
+			Transport:            "http",
+		}
+		container, err := startMcpServer(ctx, cfg)
 		if err != nil {
 			fmt.Printf("Could not start MCP server container: %s\n", err)
 		}
@@ -51,7 +57,43 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func startMcpServer(ctx context.Context) (container testcontainers.Container, err error) {
+// McpServerConfig holds configuration for starting an MCP server container
+type McpServerConfig struct {
+	BindAddr             string
+	DigitalOceanAPIToken string
+	LogLevel             string
+	Transport            string
+	Services             string // optional: comma-separated list of services
+	WSLoggingURL         string // optional
+	WSLoggingToken       string // optional
+}
+
+// ToMap converts the config to a map of environment variables
+func (cfg McpServerConfig) ToMap() map[string]string {
+	env := map[string]string{
+		"BIND_ADDR":              cfg.BindAddr,
+		"DIGITALOCEAN_API_TOKEN": cfg.DigitalOceanAPIToken,
+		"LOG_LEVEL":              cfg.LogLevel,
+		"TRANSPORT":              cfg.Transport,
+	}
+
+	// add optional services configuration if provided
+	if cfg.Services != "" {
+		env["SERVICES"] = cfg.Services
+	}
+
+	// add optional WebSocket logging configuration if provided
+	if cfg.WSLoggingURL != "" {
+		env["WS_LOGGING_URL"] = cfg.WSLoggingURL
+	}
+	if cfg.WSLoggingToken != "" {
+		env["WS_LOGGING_TOKEN"] = cfg.WSLoggingToken
+	}
+
+	return env
+}
+
+func startMcpServer(ctx context.Context, cfg McpServerConfig) (container testcontainers.Container, err error) {
 	dockerfilePath := filepath.Join("..", "Dockerfile")
 	buildCtx := filepath.Dir(dockerfilePath)
 
@@ -61,13 +103,8 @@ func startMcpServer(ctx context.Context) (container testcontainers.Container, er
 			Dockerfile: "Dockerfile",
 		},
 		ExposedPorts: []string{"8080/tcp"},
-		Env: map[string]string{
-			"BIND_ADDR":              "0.0.0.0:8080",
-			"DIGITALOCEAN_API_TOKEN": apiToken,
-			"LOG_LEVEL":              "debug",
-			"TRANSPORT":              "http",
-		},
-		WaitingFor: wait.ForListeningPort("8080/tcp").WithStartupTimeout(60 * time.Second), // 60s
+		Env:          cfg.ToMap(),
+		WaitingFor:   wait.ForListeningPort("8080/tcp").WithStartupTimeout(60 * time.Second), // 60s
 	}
 
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{

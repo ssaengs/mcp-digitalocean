@@ -1,4 +1,4 @@
-all: clean lint test build-dist
+all: clean lint test-race build-dist
 build-dist: build-bin dist
 build-dist-snapshot: build-bin-snapshot dist
 
@@ -27,6 +27,12 @@ lint:
 
 test:
 	go test -v ./...
+
+test-race:
+	go test -race -v ./...
+
+test-e2e:
+	go test -v -tags=integration -timeout 10m ./...
 
 format:
 	gofmt -w .

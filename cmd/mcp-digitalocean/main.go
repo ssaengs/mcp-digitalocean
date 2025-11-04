@@ -13,6 +13,7 @@ import (
 	"time"
 
 	middleware "mcp-digitalocean/internal"
+	"mcp-digitalocean/internal/wslogging"
 	"mcp-digitalocean/pkg/registry"
 
 	"github.com/digitalocean/godo"
@@ -21,8 +22,9 @@ import (
 )
 
 const (
-	mcpName    = "mcp-digitalocean"
-	mcpVersion = "1.0.18"
+	mcpName                 = "mcp-digitalocean"
+	mcpVersion              = "1.0.18"
+	wsLoggingContextTimeout = 15 * time.Second
 )
 
 // getEnv retrieves the value of the environment variable named by the key.
@@ -41,6 +43,8 @@ func main() {
 	endpointFlag := flag.String("digitalocean-api-endpoint", getEnv("DIGITALOCEAN_API_ENDPOINT", "https://api.digitalocean.com"), "DigitalOcean API endpoint")
 	transport := flag.String("transport", getEnv("TRANSPORT", "stdio"), "The transport protocol to use (http or stdio). Default is stdio.")
 	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "127.0.0.1:8080"), "Bind address to bind to. Only used for http transport.")
+	wsLoggingURL := flag.String("ws-logging-url", getEnv("WS_LOGGING_URL", ""), "WebSocket URL for WebSocket logging (optional)")
+	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
 	flag.Parse()
 
 	var level slog.Level
@@ -57,16 +61,60 @@ func main() {
 		level = slog.LevelInfo
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	token := *tokenFlag
-	if token == "" && *transport == "stdio" {
-		logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
-		os.Exit(1)
+	// setup signal context for graceful shutdown
+	// This context is cancelled when the user presses Ctrl+C or the process receives SIGTERM/SIGINT.
+	// It is used to signal all long-running goroutines (like WebSocket handlers) to stop their work.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	// create WebSocket logging handler (drop-in replacement for slog.NewJSONHandler)
+	wsLoggingHandler := wslogging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: level})
+
+	// configure WebSocket logging if URL is provided
+	if *wsLoggingURL != "" {
+		if err := wsLoggingHandler.ConfigureWebSocket(*wsLoggingURL, *wsLoggingToken); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to configure WebSocket logging: %v\n", err)
+			os.Exit(1)
+		}
+
+		// start WebSocket logging with signal context for graceful shutdown
+		// The context passed here controls when the background goroutines should stop.
+		// When a signal is received, ctx is cancelled and the goroutines exit their loops.
+		wsLoggingHandler.Start(ctx)
+
+		defer func() {
+			// give the handler time to flush remaining logs before shutdown
+			// we are not reusing the signal context because:
+			// 1. The signal context (ctx) is already cancelled at this point
+			// 2. Close() needs time to flush buffered logs, so we give it a new wsLoggingContextTimeout (15-second)
+			// which ensures logs are properly flushed even during shutdown
+			closeCtx, cancel := context.WithTimeout(context.Background(), wsLoggingContextTimeout)
+			defer cancel()
+			if err := wsLoggingHandler.Close(closeCtx); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to close WebSocket handler: %v\n", err)
+			}
+		}()
 	}
 
 	var services []string
 	if *serviceFlag != "" {
 		services = strings.Split(*serviceFlag, ",")
+	}
+
+	// add enabled_services as persistent attribute for context/metrics
+	// this helps with filtering and understanding server configuration
+	if *serviceFlag != "" {
+		wsLoggingHandler = wsLoggingHandler.WithAttrs([]slog.Attr{
+			slog.String("enabled_services", *serviceFlag),
+		}).(*wslogging.Handler)
+	}
+
+	// create logger after adding service attributes
+	logger := slog.New(wsLoggingHandler)
+	token := *tokenFlag
+	if token == "" && *transport == "stdio" {
+		logger.Error("DigitalOcean API token not provided. Use --digitalocean-api-token flag or set DIGITALOCEAN_API_TOKEN environment variable")
+		os.Exit(1)
 	}
 
 	svr := server.NewMCPServer(mcpName, mcpVersion)
@@ -95,9 +143,6 @@ func main() {
 		getClientFn,
 		services...,
 	)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
 
 	// start our server.
 	err = runServer(ctx, svr, logger, *bindAddr, transport)
