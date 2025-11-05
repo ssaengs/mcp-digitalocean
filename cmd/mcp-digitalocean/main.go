@@ -23,7 +23,7 @@ import (
 
 const (
 	mcpName                 = "mcp-digitalocean"
-	mcpVersion              = "1.0.18"
+	mcpVersion              = "1.0.19"
 	wsLoggingContextTimeout = 15 * time.Second
 )
 
