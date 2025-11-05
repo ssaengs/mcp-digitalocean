@@ -33,13 +33,19 @@ func (m *ToolLoggingMiddleware) ToolMiddleware(next server.ToolHandlerFunc) serv
 		start := time.Now()
 		result, err := next(ctx, req)
 		if err != nil {
-			m.Logger.Error("Tool call failed", "tool", req.Params.Name, "duration", time.Since(start), "error", err)
+			m.Logger.Error("Tool call failed", "tool", req.Params.Name, "duration_seconds", time.Since(start).Seconds(), "error", err)
 		}
 
 		if result.IsError {
-			m.Logger.Error("Tool call returned error", "tool", req.Params.Name, "duration", time.Since(start), "content", result.Result)
+			var payload string
+			if len(result.Content) > 0 {
+				textContent, ok := result.Content[0].(mcp.TextContent)
+				if ok {
+					payload = textContent.Text
+				}
+			}
+			m.Logger.Error("Tool call returned error", "tool", req.Params.Name, "duration_seconds", time.Since(start).Seconds(), "content", payload)
 		}
-
 		return result, err
 	}
 }
