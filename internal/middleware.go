@@ -2,7 +2,12 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 type AuthKey struct{}
@@ -15,4 +20,26 @@ func AuthFromRequest(ctx context.Context, r *http.Request) context.Context {
 // WithAuthKey adds an auth key to the context.
 func WithAuthKey(ctx context.Context, auth string) context.Context {
 	return context.WithValue(ctx, AuthKey{}, auth)
+}
+
+// ToolLoggingMiddleware is a middleware that logs tool errors.
+type ToolLoggingMiddleware struct {
+	Logger *slog.Logger
+}
+
+// ToolMiddleware wraps a tool handler to log duration and success/error status.
+func (m *ToolLoggingMiddleware) ToolMiddleware(next server.ToolHandlerFunc) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		start := time.Now()
+		result, err := next(ctx, req)
+		if err != nil {
+			m.Logger.Error("Tool call failed", "tool", req.Params.Name, "duration", time.Since(start), "error", err)
+		}
+
+		if result.IsError {
+			m.Logger.Error("Tool call returned error", "tool", req.Params.Name, "duration", time.Since(start), "content", result.Result)
+		}
+
+		return result, err
+	}
 }
