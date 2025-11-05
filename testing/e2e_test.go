@@ -101,10 +101,17 @@ func startMcpServer(ctx context.Context, cfg McpServerConfig) (container testcon
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:    buildCtx,
 			Dockerfile: "Dockerfile",
+			KeepImage:  true, // Keep the image after container stops to enable Docker layer caching
+			Repo:       "mcp-digitalocean",
+			Tag:        "latest",
 		},
 		ExposedPorts: []string{"8080/tcp"},
 		Env:          cfg.ToMap(),
 		WaitingFor:   wait.ForListeningPort("8080/tcp").WithStartupTimeout(60 * time.Second), // 60s
+		// Add host.docker.internal mapping for containers to reach the host
+		// This is needed for WebSocket logging tests where the fake WS server runs on the host
+		// Using "host-gateway" which Docker automatically resolves to the host's gateway IP
+		ExtraHosts: []string{"host.docker.internal:host-gateway"},
 	}
 
 	return testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
