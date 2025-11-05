@@ -71,10 +71,11 @@ type McpServerConfig struct {
 // ToMap converts the config to a map of environment variables
 func (cfg McpServerConfig) ToMap() map[string]string {
 	env := map[string]string{
-		"BIND_ADDR":              cfg.BindAddr,
-		"DIGITALOCEAN_API_TOKEN": cfg.DigitalOceanAPIToken,
-		"LOG_LEVEL":              cfg.LogLevel,
-		"TRANSPORT":              cfg.Transport,
+		"BIND_ADDR":                 cfg.BindAddr,
+		"DIGITALOCEAN_API_TOKEN":    cfg.DigitalOceanAPIToken,
+		"LOG_LEVEL":                 cfg.LogLevel,
+		"TRANSPORT":                 cfg.Transport,
+		"ENABLE_TOOL_ERROR_LOGGING": "true",
 	}
 
 	// add optional services configuration if provided

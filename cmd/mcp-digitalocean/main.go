@@ -45,6 +45,7 @@ func main() {
 	bindAddr := flag.String("bind-addr", getEnv("BIND_ADDR", "127.0.0.1:8080"), "Bind address to bind to. Only used for http transport.")
 	wsLoggingURL := flag.String("ws-logging-url", getEnv("WS_LOGGING_URL", ""), "WebSocket URL for WebSocket logging (optional)")
 	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
+	enableToolErrorLogging := flag.Bool("enable-tool-error-logging", getEnv("ENABLE_TOOL_ERROR_LOGGING", "false") == "true", "Enable logging of tool errors")
 	flag.Parse()
 
 	var level slog.Level
@@ -117,7 +118,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	svr := server.NewMCPServer(mcpName, mcpVersion)
+	var opts []server.ServerOption
+	if *enableToolErrorLogging {
+		toolLoggingMiddleware := middleware.ToolLoggingMiddleware{Logger: logger}
+		opts = append(opts, server.WithToolHandlerMiddleware(toolLoggingMiddleware.ToolMiddleware))
+	}
+
+	svr := server.NewMCPServer(mcpName, mcpVersion, opts...)
 
 	// by default, we create a new client per request.
 	getClientFn := func(ctx context.Context) (*godo.Client, error) {
