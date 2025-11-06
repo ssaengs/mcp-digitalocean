@@ -25,7 +25,7 @@ func TestCreateApp(t *testing.T) {
 				{
 					Name: "sample-golang",
 					GitHub: &godo.GitHubSourceSpec{
-						Repo:   "ssaengs/sample-golang",
+						Repo:   "digitalocean/sample-golang",
 						Branch: "main",
 					},
 				},
