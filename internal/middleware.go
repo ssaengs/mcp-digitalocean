@@ -70,7 +70,7 @@ func (m *ToolLoggingMiddleware) ToolMiddleware(next server.ToolHandlerFunc) serv
 			return result, err
 		}
 
-		m.Logger.Error("Tool call successful",
+		m.Logger.Info("Tool call successful",
 			"tool", req.Params.Name,
 			"duration_seconds", time.Since(start).Seconds(),
 			"tool_call_outcome", ToolCallSuccess,
