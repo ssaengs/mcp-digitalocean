@@ -1,4 +1,4 @@
-//go:build integration && logging
+//go:build integration
 
 package testing
 
@@ -313,7 +313,7 @@ func TestMCPServer_WebSocketLogging(t *testing.T) {
 	// get the mapped port
 	port, err := container.MappedPort(ctx, "8080/tcp")
 	require.NoError(t, err, "Failed to get mapped port")
-	serverURL := fmt.Sprintf("http://localhost:%s/mcp", port.Port())
+	serverURL := fmt.Sprintf("http://127.0.0.1:%s/mcp", port.Port())
 
 	// run all test scenarios as sub-tests
 	// the container and WebSocket server are shared across all sub-tests for efficiency
@@ -490,7 +490,7 @@ func TestEdgeLogging_Authentication(t *testing.T) {
 	// get the mapped port and make API call to generate logs
 	port2, err := container2.MappedPort(ctx, "8080/tcp")
 	require.NoError(t, err, "Failed to get mapped port")
-	serverURL2 := fmt.Sprintf("http://localhost:%s/mcp", port2.Port())
+	serverURL2 := fmt.Sprintf("http://127.0.0.1:%s/mcp", port2.Port())
 
 	c2 := initializeClientWithURL(ctx, t, serverURL2)
 	defer c2.Close()
@@ -531,7 +531,7 @@ func TestEdgeLogging_ConnectOnFlush(t *testing.T) {
 
 	port, err := container.MappedPort(ctx, "8080/tcp")
 	require.NoError(t, err)
-	serverURL := fmt.Sprintf("http://localhost:%s/mcp", port.Port())
+	serverURL := fmt.Sprintf("http://127.0.0.1:%s/mcp", port.Port())
 
 	c := initializeClientWithURL(ctx, t, serverURL)
 	defer c.Close()

@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 			log.Fatalf("Could not get mapped port: %v", err)
 		}
 		mcpPort = port.Port()
-		mcpServerURL = fmt.Sprintf("http://localhost:%s/mcp", mcpPort)
+		mcpServerURL = fmt.Sprintf("http://127.0.0.1:%s/mcp", mcpPort)
 	} else {
 		fmt.Println("Using existing MCP server at:", mcpServerURL)
 	}
