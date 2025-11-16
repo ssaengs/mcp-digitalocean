@@ -79,11 +79,6 @@ type FakeWebSocketServer struct {
 }
 
 // NewFakeWebSocketServer creates and starts a new fake WebSocket server.
-// it binds to 0.0.0.0 instead of 127.0.0.1 to accept connections from:
-// - IPv4 clients
-// - IPv6 clients
-// - Docker containers (via host.docker.internal)
-// this cross-platform approach works on both Linux and macOS.
 func NewFakeWebSocketServer(token string) *FakeWebSocketServer {
 	fws := &FakeWebSocketServer{
 		token:      token,
