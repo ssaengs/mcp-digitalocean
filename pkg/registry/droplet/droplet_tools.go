@@ -31,6 +31,32 @@ func (d *DropletTool) createDroplet(ctx context.Context, req mcp.CallToolRequest
 	region := args["Region"].(string)
 	backup, _ := args["Backup"].(bool)         // Defaults to false
 	monitoring, _ := args["Monitoring"].(bool) // Defaults to false
+
+	// Handle SSH keys if provided
+	var sshKeys []godo.DropletCreateSSHKey
+	if sshKeysRaw, ok := args["SSHKeys"]; ok && sshKeysRaw != nil {
+		sshKeysList := sshKeysRaw.([]interface{})
+		for _, key := range sshKeysList {
+			switch v := key.(type) {
+			case float64:
+				sshKeys = append(sshKeys, godo.DropletCreateSSHKey{ID: int(v)})
+			case string:
+				sshKeys = append(sshKeys, godo.DropletCreateSSHKey{Fingerprint: v})
+			}
+		}
+	}
+
+	// Handle tags if provided
+	var tags []string
+	if tagsRaw, ok := args["Tags"]; ok && tagsRaw != nil {
+		tagsList := tagsRaw.([]interface{})
+		for _, tag := range tagsList {
+			if tagStr, ok := tag.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
 	// Create the droplet
 	dropletCreateRequest := &godo.DropletCreateRequest{
 		Name:       dropletName,
@@ -39,6 +65,8 @@ func (d *DropletTool) createDroplet(ctx context.Context, req mcp.CallToolRequest
 		Region:     region,
 		Backups:    backup,
 		Monitoring: monitoring,
+		SSHKeys:    sshKeys,
+		Tags:       tags,
 	}
 
 	client, err := d.client(ctx)
@@ -267,6 +295,8 @@ func (d *DropletTool) Tools() []server.ServerTool {
 				mcp.WithString("Region", mcp.Required(), mcp.Description("Slug of the region (e.g., nyc3)")),
 				mcp.WithBoolean("Backup", mcp.DefaultBool(false), mcp.Description("Whether to enable backups")),
 				mcp.WithBoolean("Monitoring", mcp.DefaultBool(false), mcp.Description("Whether to enable monitoring")),
+				mcp.WithArray("SSHKeys", mcp.Description("Array of SSH key IDs (numbers) or fingerprints (strings) to add to the droplet")),
+				mcp.WithArray("Tags", mcp.Description("Array of tag names to apply to the droplet")),
 			),
 		},
 		{

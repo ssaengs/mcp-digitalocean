@@ -56,6 +56,7 @@ func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*
 		filteredImages[idx] = map[string]any{
 			"id":           image.ID,
 			"name":         image.Name,
+			"slug":         image.Slug,
 			"distribution": image.Distribution,
 			"type":         image.Type,
 		}
@@ -67,6 +68,26 @@ func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*
 	}
 
 	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// deleteImage deletes an image/snapshot by its numeric ID.
+func (i *ImagesTool) deleteImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, ok := req.GetArguments()["ImageID"].(float64)
+	if !ok {
+		return mcp.NewToolResultError("ImageID is required"), nil
+	}
+
+	client, err := i.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.Images.Delete(ctx, int(id))
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Image deleted successfully"), nil
 }
 
 // getImageByID retrieves a specific image by its numeric ID.
@@ -112,6 +133,14 @@ func (i *ImagesTool) Tools() []server.ServerTool {
 				"image-get",
 				mcp.WithDescription("Get a specific image by its numeric ID."),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Image ID")),
+			),
+		},
+		{
+			Handler: i.deleteImage,
+			Tool: mcp.NewTool(
+				"snapshot-delete",
+				mcp.WithDescription("Delete an image/snapshot"),
+				mcp.WithNumber("ImageID", mcp.Required(), mcp.Description("ID of the image to delete")),
 			),
 		},
 	}

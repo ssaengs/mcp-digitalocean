@@ -171,3 +171,70 @@ func TestImagesTool_getImageByID(t *testing.T) {
 		})
 	}
 }
+
+func TestImagesTool_deleteImage(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tests := []struct {
+		name        string
+		imageID     float64
+		mockSetup   func(*MockImagesService)
+		expectError bool
+	}{
+		{
+			name:    "Successful delete",
+			imageID: 123,
+			mockSetup: func(m *MockImagesService) {
+				m.EXPECT().
+					Delete(gomock.Any(), 123).
+					Return(&godo.Response{}, nil).
+					Times(1)
+			},
+		},
+		{
+			name:    "API error",
+			imageID: 456,
+			mockSetup: func(m *MockImagesService) {
+				m.EXPECT().
+					Delete(gomock.Any(), 456).
+					Return(nil, errors.New("api error")).
+					Times(1)
+			},
+			expectError: true,
+		},
+		{
+			name:        "Missing ImageID argument",
+			imageID:     0,
+			mockSetup:   nil,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockImages := NewMockImagesService(ctrl)
+			if tc.mockSetup != nil {
+				tc.mockSetup(mockImages)
+			}
+			tool := setupImagesToolWithMock(mockImages)
+			args := map[string]any{}
+			if tc.imageID != 0 {
+				args["ImageID"] = tc.imageID
+			}
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
+			resp, err := tool.deleteImage(context.Background(), req)
+			if tc.expectError {
+				require.NotNil(t, resp)
+				require.True(t, resp.IsError)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.False(t, resp.IsError)
+			require.NotEmpty(t, resp.Content)
+			content := resp.Content[0].(mcp.TextContent).Text
+			require.Contains(t, content, "Image deleted successfully")
+		})
+	}
+}
