@@ -196,6 +196,30 @@ func (d *DropletTool) getDropletByID(ctx context.Context, req mcp.CallToolReques
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// getDropletBackupPolicy returns the backup policy for a droplet.
+func (d *DropletTool) getDropletBackupPolicy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, ok := req.GetArguments()["ID"].(float64)
+	if !ok {
+		return mcp.NewToolResultError("Droplet ID is required"), nil
+	}
+
+	client, err := d.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	policy, _, err := client.Droplets.GetBackupPolicy(ctx, int(id))
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	jsonData, err := json.MarshalIndent(policy, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
 func (d *DropletTool) getDropletActionByID(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	dropletID, ok := req.GetArguments()["DropletID"].(float64)
 	if !ok {
@@ -324,6 +348,13 @@ func (d *DropletTool) Tools() []server.ServerTool {
 			Handler: d.getDropletByID,
 			Tool: mcp.NewTool("droplet-get",
 				mcp.WithDescription("Get a droplet by its ID"),
+				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Droplet ID")),
+			),
+		},
+		{
+			Handler: d.getDropletBackupPolicy,
+			Tool: mcp.NewTool("droplet-backup-policy",
+				mcp.WithDescription("Get a droplet's backup policy"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Droplet ID")),
 			),
 		},
