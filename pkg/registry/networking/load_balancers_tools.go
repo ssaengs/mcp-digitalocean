@@ -536,7 +536,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 	return []server.ServerTool{
 		{
 			Handler: l.createLoadBalancer,
-			Tool: mcp.NewTool("load-balancer-create",
+			Tool: mcp.NewTool("lb-create",
 				mcp.WithDescription("Create a new Load Balancer"),
 				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
 				mcp.WithString("Region", mcp.Description("Region slug (e.g., nyc3)")),
@@ -554,7 +554,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.deleteLoadBalancer,
-			Tool: mcp.NewTool("load-balancer-delete",
+			Tool: mcp.NewTool("lb-delete",
 				mcp.WithDestructiveHintAnnotation(true),
 				mcp.WithDescription("Delete a Load Balancer by ID"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
@@ -562,7 +562,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.deleteLoadBalancerCache,
-			Tool: mcp.NewTool("load-balancer-delete-cache",
+			Tool: mcp.NewTool("lb-delete-cache",
 				mcp.WithDestructiveHintAnnotation(true),
 				mcp.WithDescription("Delete the CDN cache of a global load balancer by ID"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
@@ -570,14 +570,14 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.getLoadBalancer,
-			Tool: mcp.NewTool("load-balancer-get",
+			Tool: mcp.NewTool("lb-get",
 				mcp.WithDescription("Get a Load Balancer by ID"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 			),
 		},
 		{
 			Handler: l.listLoadBalancers,
-			Tool: mcp.NewTool("load-balancer-list",
+			Tool: mcp.NewTool("lb-list",
 				mcp.WithDescription("List Load Balancers with pagination"),
 				mcp.WithNumber("Page", mcp.DefaultNumber(1), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(20), mcp.Description("Items per page")),
@@ -585,7 +585,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.addDroplets,
-			Tool: mcp.NewTool("load-balancer-add-droplets",
+			Tool: mcp.NewTool("lb-add-droplets",
 				mcp.WithDescription("Add Droplets to a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the droplets to add")),
@@ -593,7 +593,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.removeDroplets,
-			Tool: mcp.NewTool("load-balancer-remove-droplets",
+			Tool: mcp.NewTool("lb-remove-droplets",
 				mcp.WithDescription("Remove Droplets from a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithArray("DropletIDs", mcp.Required(), mcp.Description("IDs of the droplets to remove")),
@@ -601,7 +601,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.updateLoadBalancer,
-			Tool: mcp.NewTool("load-balancer-update",
+			Tool: mcp.NewTool("lb-update",
 				mcp.WithDescription("Update a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the load balancer")),
@@ -620,7 +620,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.addForwardingRules,
-			Tool: mcp.NewTool("load-balancer-add-forwarding-rules",
+			Tool: mcp.NewTool("lb-add-fwd-rules",
 				mcp.WithDescription("Add Forwarding Rules to a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules to add")),
@@ -628,7 +628,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.removeForwardingRules,
-			Tool: mcp.NewTool("load-balancer-remove-forwarding-rules",
+			Tool: mcp.NewTool("lb-remove-fwd-rules",
 				mcp.WithDescription("Remove Forwarding Rules from a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules to remove")),
