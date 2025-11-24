@@ -173,16 +173,51 @@ This directory contains tools for managing DigitalOcean Droplets, Images, and Si
 
 ### Image Tools
 
-- **image-list**  
-  List all available distribution images. Supports pagination.  
+- **image-list** List available images (snapshots, backups, distributions, applications). Supports filtering by type.
   **Arguments:**
   - `Page` (number, default: 1): Page number
   - `PerPage` (number, default: 50): Items per page
+  - `Type` (string, optional): Filter by type: 'distribution', 'application', 'user' (snapshots/backups). If omitted, lists all.
 
-- **image-get**  
-  Get a specific image by its numeric ID.  
+- **image-get** Get a specific image by its numeric ID.
   **Arguments:**
   - `ID` (number, required): Image ID
+
+- **image-create** Create a custom image from a URL (e.g. QCOW2, ISO).
+  **Arguments:**
+  - `Name` (string, required): Name of the new image
+  - `Url` (string, required): URL to import the image from
+  - `Region` (string, required): Region slug (e.g. nyc3)
+  - `Distribution` (string, optional): Distribution name (e.g. Ubuntu)
+  - `Description` (string, optional): Description of the image
+  - `Tags` (array, optional): Tags to apply
+
+- **image-update** Update an image's name.
+  **Arguments:**
+  - `ID` (number, required): Image ID
+  - `Name` (string, required): New name for the image
+
+- **image-delete** Delete an image or snapshot.
+  **Arguments:**
+  - `ID` (number, required): ID of the image to delete
+
+---
+
+### Image Actions Tools
+
+- **image-action-transfer** Transfer an image to another region.
+  **Arguments:**
+  - `ID` (number, required): ID of the image to transfer
+  - `Region` (string, required): Region slug to transfer to (e.g., nyc3)
+
+- **image-action-convert** Convert an image (backup) to a snapshot.
+  **Arguments:**
+  - `ID` (number, required): ID of the image to convert
+
+- **image-action-get** Retrieve the status of an image action.
+  **Arguments:**
+  - `ImageID` (number, required): ID of the image
+  - `ActionID` (number, required): ID of the action
 
 ---
 

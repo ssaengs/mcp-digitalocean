@@ -59,7 +59,8 @@ func registerCommonTools(s *server.MCPServer, getClient getClientFn) error {
 func registerDropletTools(s *server.MCPServer, getClient getClientFn) error {
 	s.AddTools(droplet.NewDropletTool(getClient).Tools()...)
 	s.AddTools(droplet.NewDropletActionsTool(getClient).Tools()...)
-	s.AddTools(droplet.NewImagesTool(getClient).Tools()...)
+	s.AddTools(droplet.NewImageTool(getClient).Tools()...)
+	s.AddTools(droplet.NewImageActionsTool(getClient).Tools()...)
 	s.AddTools(droplet.NewSizesTool(getClient).Tools()...)
 	return nil
 }

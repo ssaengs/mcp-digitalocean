@@ -6,10 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"mcp-digitalocean/internal/testhelpers"
 	"os"
 	"testing"
 	"time"
+
+	"mcp-digitalocean/internal/testhelpers"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/client"
@@ -206,7 +207,7 @@ func deferCleanupDroplet(ctx context.Context, c *client.Client, t *testing.T, dr
 func deferCleanupImage(ctx context.Context, c *client.Client, t *testing.T, imageID float64) func() {
 	return func() {
 		t.Logf("Cleaning up snapshot image %.0f...", imageID)
-		DeleteResource(ctx, c, t, "snapshot", imageID)
+		DeleteResource(ctx, c, t, "image", imageID)
 	}
 }
 

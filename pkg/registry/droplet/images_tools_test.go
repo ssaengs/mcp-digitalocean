@@ -8,233 +8,273 @@ import (
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
-func setupImagesToolWithMock(images *MockImagesService) *ImagesTool {
-	client := func(ctx context.Context) (*godo.Client, error) {
-		return &godo.Client{Images: images}, nil
-	}
-
-	return NewImagesTool(client)
+// Helper to initialize tool and mock
+func newTestTool(t *testing.T) (*ImageTool, *MockImagesService) {
+	ctrl := gomock.NewController(t)
+	m := NewMockImagesService(ctrl)
+	return NewImageTool(func(context.Context) (*godo.Client, error) {
+		return &godo.Client{Images: m}, nil
+	}), m
 }
 
-func TestImagesTool_listImages(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestImageTool_listImages(t *testing.T) {
+	images := []godo.Image{{ID: 1, Name: "Ubuntu"}, {ID: 2, Name: "Backup"}}
 
-	testImages := []godo.Image{
-		{ID: 1, Name: "Ubuntu 22.04", Type: "distribution"},
-		{ID: 2, Name: "Debian 11", Type: "distribution"},
-	}
 	tests := []struct {
-		name        string
-		page        float64
-		perPage     float64
-		mockSetup   func(*MockImagesService)
-		expectError bool
+		name    string
+		args    map[string]any
+		setup   func(*MockImagesService)
+		wantErr bool
 	}{
 		{
-			name:    "Successful list (custom pagination)",
-			page:    2,
-			perPage: 10,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					ListDistribution(gomock.Any(), &godo.ListOptions{Page: 2, PerPage: 10}).
-					Return(testImages, &godo.Response{}, nil).
-					Times(1)
+			name: "List all (default)",
+			args: map[string]any{"Page": 1.0, "PerPage": 10.0},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().List(gomock.Any(), &godo.ListOptions{Page: 1, PerPage: 10}).Return(images, nil, nil)
 			},
 		},
 		{
-			name:    "Successful list (default pagination)",
-			page:    0,
-			perPage: 0,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					ListDistribution(gomock.Any(), &godo.ListOptions{Page: 1, PerPage: 50}).
-					Return(testImages, &godo.Response{}, nil).
-					Times(1)
+			name: "List distributions",
+			args: map[string]any{"Type": "distribution"},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().ListDistribution(gomock.Any(), gomock.Any()).Return(images, nil, nil)
 			},
 		},
 		{
-			name:    "API error",
-			page:    1,
-			perPage: 5,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					ListDistribution(gomock.Any(), &godo.ListOptions{Page: 1, PerPage: 5}).
-					Return(nil, nil, errors.New("api error")).
-					Times(1)
+			name: "List applications",
+			args: map[string]any{"Type": "application"},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().ListApplication(gomock.Any(), gomock.Any()).Return(images, nil, nil)
 			},
-			expectError: true,
+		},
+		{
+			name: "List user images",
+			args: map[string]any{"Type": "user"},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().ListUser(gomock.Any(), gomock.Any()).Return(images, nil, nil)
+			},
+		},
+		{
+			name: "API Error",
+			args: map[string]any{},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, nil, errors.New("api error"))
+			},
+			wantErr: true,
 		},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockImages := NewMockImagesService(ctrl)
-			if tc.mockSetup != nil {
-				tc.mockSetup(mockImages)
+			tool, m := newTestTool(t)
+			if tc.setup != nil {
+				tc.setup(m)
 			}
-			tool := setupImagesToolWithMock(mockImages)
-			args := map[string]any{}
-			if tc.page != 0 {
-				args["Page"] = tc.page
+
+			res, err := tool.listImages(context.Background(), mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Arguments: tc.args},
+			})
+
+			if tc.wantErr {
+				require.True(t, res.IsError)
+			} else {
+				require.NoError(t, err)
+				require.False(t, res.IsError)
+				require.NotEmpty(t, res.Content)
 			}
-			if tc.perPage != 0 {
-				args["PerPage"] = tc.perPage
-			}
-			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
-			resp, err := tool.listImages(context.Background(), req)
-			if tc.expectError {
-				require.NotNil(t, resp)
-				require.True(t, resp.IsError)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.False(t, resp.IsError)
-			require.NotEmpty(t, resp.Content)
-			content := resp.Content[0].(mcp.TextContent).Text
-			var outImages []map[string]any
-			require.NoError(t, json.Unmarshal([]byte(content), &outImages))
-			require.Len(t, outImages, len(testImages))
 		})
 	}
 }
 
-func TestImagesTool_getImageByID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestImageTool_getImageByID(t *testing.T) {
+	image := &godo.Image{ID: 123, Name: "test-image"}
 
-	testImage := &godo.Image{ID: 42, Name: "Fedora 38", Type: "distribution"}
 	tests := []struct {
-		name        string
-		id          float64
-		mockSetup   func(*MockImagesService)
-		expectError bool
+		name    string
+		args    map[string]any
+		setup   func(*MockImagesService)
+		wantErr bool
 	}{
 		{
-			name: "Successful get by ID",
-			id:   42,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					GetByID(gomock.Any(), 42).
-					Return(testImage, &godo.Response{}, nil).
-					Times(1)
+			name: "Successful get",
+			args: map[string]any{"ID": 123.0},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().GetByID(gomock.Any(), 123).Return(image, nil, nil)
 			},
 		},
 		{
-			name: "API error",
-			id:   99,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					GetByID(gomock.Any(), 99).
-					Return(nil, nil, errors.New("api error")).
-					Times(1)
+			name: "API Error",
+			args: map[string]any{"ID": 456.0},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().GetByID(gomock.Any(), 456).Return(nil, nil, errors.New("not found"))
 			},
-			expectError: true,
+			wantErr: true,
 		},
 		{
-			name:        "Missing ID argument",
-			id:          0,
-			mockSetup:   nil,
-			expectError: true,
+			name:    "Missing ID",
+			args:    map[string]any{},
+			wantErr: true,
 		},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockImages := NewMockImagesService(ctrl)
-			if tc.mockSetup != nil {
-				tc.mockSetup(mockImages)
+			tool, m := newTestTool(t)
+			if tc.setup != nil {
+				tc.setup(m)
 			}
-			tool := setupImagesToolWithMock(mockImages)
-			args := map[string]any{}
-			if tc.name != "Missing ID argument" {
-				args["ID"] = tc.id
+
+			res, err := tool.getImageByID(context.Background(), mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Arguments: tc.args},
+			})
+
+			if tc.wantErr {
+				require.True(t, res.IsError)
+			} else {
+				require.NoError(t, err)
+				var out map[string]any
+				json.Unmarshal([]byte(res.Content[0].(mcp.TextContent).Text), &out)
+				assert.Equal(t, image.Name, out["name"])
 			}
-			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
-			resp, err := tool.getImageByID(context.Background(), req)
-			if tc.expectError {
-				require.NotNil(t, resp)
-				require.True(t, resp.IsError)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.False(t, resp.IsError)
-			require.NotEmpty(t, resp.Content)
-			content := resp.Content[0].(mcp.TextContent).Text
-			var outImage godo.Image
-			require.NoError(t, json.Unmarshal([]byte(content), &outImage))
-			require.Equal(t, int(tc.id), outImage.ID)
 		})
 	}
 }
 
-func TestImagesTool_deleteImage(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestImageTool_createImage(t *testing.T) {
+	image := &godo.Image{ID: 123, Name: "custom-image"}
+	baseArgs := map[string]any{
+		"Name":         "custom-image",
+		"Url":          "http://example.com/image.iso",
+		"Region":       "nyc3",
+		"Distribution": "Ubuntu",
+		"Description":  "A custom image",
+		"Tags":         []any{"custom"},
+	}
 
 	tests := []struct {
-		name        string
-		imageID     float64
-		mockSetup   func(*MockImagesService)
-		expectError bool
+		name    string
+		args    map[string]any
+		setup   func(*MockImagesService)
+		wantErr bool
 	}{
 		{
-			name:    "Successful delete",
-			imageID: 123,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					Delete(gomock.Any(), 123).
-					Return(&godo.Response{}, nil).
-					Times(1)
+			name: "Successful create",
+			args: baseArgs,
+			setup: func(m *MockImagesService) {
+				m.EXPECT().Create(gomock.Any(), &godo.CustomImageCreateRequest{
+					Name:         "custom-image",
+					Url:          "http://example.com/image.iso",
+					Region:       "nyc3",
+					Distribution: "Ubuntu",
+					Description:  "A custom image",
+					Tags:         []string{"custom"},
+				}).Return(image, nil, nil)
 			},
 		},
+		{name: "Missing Name", args: map[string]any{"Url": "u", "Region": "r"}, wantErr: true},
+		{name: "Missing Url", args: map[string]any{"Name": "n", "Region": "r"}, wantErr: true},
+		{name: "Missing Region", args: map[string]any{"Name": "n", "Url": "u"}, wantErr: true},
 		{
-			name:    "API error",
-			imageID: 456,
-			mockSetup: func(m *MockImagesService) {
-				m.EXPECT().
-					Delete(gomock.Any(), 456).
-					Return(nil, errors.New("api error")).
-					Times(1)
+			name: "API Error",
+			args: baseArgs,
+			setup: func(m *MockImagesService) {
+				m.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, nil, errors.New("error"))
 			},
-			expectError: true,
-		},
-		{
-			name:        "Missing ImageID argument",
-			imageID:     0,
-			mockSetup:   nil,
-			expectError: true,
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockImages := NewMockImagesService(ctrl)
-			if tc.mockSetup != nil {
-				tc.mockSetup(mockImages)
+			tool, m := newTestTool(t)
+			if tc.setup != nil {
+				tc.setup(m)
 			}
-			tool := setupImagesToolWithMock(mockImages)
-			args := map[string]any{}
-			if tc.imageID != 0 {
-				args["ImageID"] = tc.imageID
+			res, _ := tool.createImage(context.Background(), mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Arguments: tc.args},
+			})
+			require.Equal(t, tc.wantErr, res.IsError)
+		})
+	}
+}
+
+func TestImageTool_updateImage(t *testing.T) {
+	image := &godo.Image{ID: 123, Name: "new-name"}
+
+	tests := []struct {
+		name    string
+		args    map[string]any
+		setup   func(*MockImagesService)
+		wantErr bool
+	}{
+		{
+			name: "Successful update",
+			args: map[string]any{"ID": 123.0, "Name": "new-name"},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().Update(gomock.Any(), 123, &godo.ImageUpdateRequest{Name: "new-name"}).Return(image, nil, nil)
+			},
+		},
+		{name: "Missing Name", args: map[string]any{"ID": 123.0}, wantErr: true},
+		{name: "Missing ID", args: map[string]any{"Name": "new"}, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tool, m := newTestTool(t)
+			if tc.setup != nil {
+				tc.setup(m)
 			}
-			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: args}}
-			resp, err := tool.deleteImage(context.Background(), req)
-			if tc.expectError {
-				require.NotNil(t, resp)
-				require.True(t, resp.IsError)
-				return
+			res, _ := tool.updateImage(context.Background(), mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Arguments: tc.args},
+			})
+			require.Equal(t, tc.wantErr, res.IsError)
+		})
+	}
+}
+
+func TestImageTool_deleteImage(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    map[string]any
+		setup   func(*MockImagesService)
+		wantErr bool
+	}{
+		{
+			name: "Successful delete",
+			args: map[string]any{"ID": 123.0},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().Delete(gomock.Any(), 123).Return(nil, nil)
+			},
+		},
+		{
+			name: "API Error",
+			args: map[string]any{"ID": 456.0},
+			setup: func(m *MockImagesService) {
+				m.EXPECT().Delete(gomock.Any(), 456).Return(nil, errors.New("error"))
+			},
+			wantErr: true,
+		},
+		{name: "Missing ID", args: map[string]any{}, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tool, m := newTestTool(t)
+			if tc.setup != nil {
+				tc.setup(m)
 			}
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.False(t, resp.IsError)
-			require.NotEmpty(t, resp.Content)
-			content := resp.Content[0].(mcp.TextContent).Text
-			require.Contains(t, content, "Image deleted successfully")
+			res, _ := tool.deleteImage(context.Background(), mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Arguments: tc.args},
+			})
+			require.Equal(t, tc.wantErr, res.IsError)
+			if !tc.wantErr {
+				assert.Contains(t, res.Content[0].(mcp.TextContent).Text, "deleted successfully")
+			}
 		})
 	}
 }

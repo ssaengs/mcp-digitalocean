@@ -4,9 +4,10 @@ package testing
 
 import (
 	"fmt"
-	"mcp-digitalocean/internal/testhelpers"
 	"testing"
 	"time"
+
+	"mcp-digitalocean/internal/testhelpers"
 
 	"github.com/digitalocean/godo"
 	"github.com/stretchr/testify/require"
@@ -81,7 +82,7 @@ func TestDropletRebuildBySlug(t *testing.T) {
 		ID   int    `json:"id"`
 		Slug string `json:"slug"`
 	}
-	images := callTool[[]imageShort](ctx, c, t, "image-list", map[string]interface{}{"Page": 1, "PerPage": 20})
+	images := callTool[[]imageShort](ctx, c, t, "image-list", map[string]interface{}{"Page": 1, "PerPage": 20, "Type": "distribution"})
 
 	var imageSlug string
 	for _, img := range images {

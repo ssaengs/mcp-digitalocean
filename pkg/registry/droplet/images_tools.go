@@ -15,18 +15,18 @@ const (
 	defaultImagesPage     = 1
 )
 
-// ImagesTool provides tool-based handlers for DigitalOcean images.
-type ImagesTool struct {
+// ImageTool provides tool-based handlers for DigitalOcean images.
+type ImageTool struct {
 	client func(ctx context.Context) (*godo.Client, error)
 }
 
-// NewImagesTool creates a new ImagesTool instance.
-func NewImagesTool(client func(ctx context.Context) (*godo.Client, error)) *ImagesTool {
-	return &ImagesTool{client: client}
+// NewImageTool creates a new ImageTool instance.
+func NewImageTool(client func(ctx context.Context) (*godo.Client, error)) *ImageTool {
+	return &ImageTool{client: client}
 }
 
-// listImages lists all distribution images with pagination support.
-func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// listImages lists images with pagination and optional type filtering.
+func (i *ImageTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	page, ok := req.GetArguments()["Page"].(float64)
 	if !ok {
 		page = defaultImagesPage
@@ -35,6 +35,7 @@ func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*
 	if !ok {
 		perPage = defaultImagesPageSize
 	}
+	imageType, _ := req.GetArguments()["Type"].(string)
 
 	opt := &godo.ListOptions{
 		Page:    int(page),
@@ -46,19 +47,39 @@ func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	images, _, err := client.Images.ListDistribution(ctx, opt)
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	var images []godo.Image
+	var apiErr error
+
+	// Dispatch based on requested image type
+	switch imageType {
+	case "distribution":
+		images, _, apiErr = client.Images.ListDistribution(ctx, opt)
+	case "application":
+		images, _, apiErr = client.Images.ListApplication(ctx, opt)
+	case "user":
+		images, _, apiErr = client.Images.ListUser(ctx, opt)
+	default:
+		// Default to listing all if unspecified
+		images, _, apiErr = client.Images.List(ctx, opt)
 	}
 
+	if apiErr != nil {
+		return mcp.NewToolResultErrorFromErr("api error", apiErr), nil
+	}
+
+	// returning mapped structure to match other tools' verbosity.
 	filteredImages := make([]map[string]any, len(images))
 	for idx, image := range images {
 		filteredImages[idx] = map[string]any{
-			"id":           image.ID,
-			"name":         image.Name,
-			"slug":         image.Slug,
-			"distribution": image.Distribution,
-			"type":         image.Type,
+			"id":            image.ID,
+			"name":          image.Name,
+			"slug":          image.Slug,
+			"distribution":  image.Distribution,
+			"type":          image.Type,
+			"public":        image.Public,
+			"regions":       image.Regions,
+			"created_at":    image.Created,
+			"min_disk_size": image.MinDiskSize,
 		}
 	}
 
@@ -70,28 +91,8 @@ func (i *ImagesTool) listImages(ctx context.Context, req mcp.CallToolRequest) (*
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-// deleteImage deletes an image/snapshot by its numeric ID.
-func (i *ImagesTool) deleteImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id, ok := req.GetArguments()["ImageID"].(float64)
-	if !ok {
-		return mcp.NewToolResultError("ImageID is required"), nil
-	}
-
-	client, err := i.client(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
-	}
-
-	_, err = client.Images.Delete(ctx, int(id))
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
-	}
-
-	return mcp.NewToolResultText("Image deleted successfully"), nil
-}
-
 // getImageByID retrieves a specific image by its numeric ID.
-func (i *ImagesTool) getImageByID(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (i *ImageTool) getImageByID(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id, ok := req.GetArguments()["ID"].(float64)
 	if !ok {
 		return mcp.NewToolResultError("Image ID is required"), nil
@@ -115,16 +116,122 @@ func (i *ImagesTool) getImageByID(ctx context.Context, req mcp.CallToolRequest) 
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// createImage creates a new custom image from a URL.
+func (i *ImageTool) createImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, ok := req.GetArguments()["Name"].(string)
+	if !ok || name == "" {
+		return mcp.NewToolResultError("Name is required"), nil
+	}
+	url, ok := req.GetArguments()["Url"].(string)
+	if !ok || url == "" {
+		return mcp.NewToolResultError("Url is required"), nil
+	}
+	region, ok := req.GetArguments()["Region"].(string)
+	if !ok || region == "" {
+		return mcp.NewToolResultError("Region is required"), nil
+	}
+	distribution, _ := req.GetArguments()["Distribution"].(string)
+	description, _ := req.GetArguments()["Description"].(string)
+	tagsArg, _ := req.GetArguments()["Tags"].([]any)
+
+	var tags []string
+	for _, t := range tagsArg {
+		if s, ok := t.(string); ok {
+			tags = append(tags, s)
+		}
+	}
+
+	createRequest := &godo.CustomImageCreateRequest{
+		Name:         name,
+		Url:          url,
+		Region:       region,
+		Distribution: distribution,
+		Description:  description,
+		Tags:         tags,
+	}
+
+	client, err := i.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	image, _, err := client.Images.Create(ctx, createRequest)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	jsonData, err := json.MarshalIndent(image, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// updateImage updates an image's name.
+func (i *ImageTool) updateImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, ok := req.GetArguments()["ID"].(float64)
+	if !ok {
+		return mcp.NewToolResultError("Image ID is required"), nil
+	}
+	name, ok := req.GetArguments()["Name"].(string)
+	if !ok || name == "" {
+		return mcp.NewToolResultError("Name is required"), nil
+	}
+
+	client, err := i.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	updateReq := &godo.ImageUpdateRequest{
+		Name: name,
+	}
+
+	image, _, err := client.Images.Update(ctx, int(id), updateReq)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	jsonData, err := json.MarshalIndent(image, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// deleteImage deletes an image/snapshot by its numeric ID.
+func (i *ImageTool) deleteImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, ok := req.GetArguments()["ID"].(float64)
+	if !ok {
+		return mcp.NewToolResultError("ID is required"), nil
+	}
+
+	client, err := i.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	_, err = client.Images.Delete(ctx, int(id))
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("api error", err), nil
+	}
+
+	return mcp.NewToolResultText("Image deleted successfully"), nil
+}
+
 // Tools returns the list of server tools for images.
-func (i *ImagesTool) Tools() []server.ServerTool {
+func (i *ImageTool) Tools() []server.ServerTool {
 	return []server.ServerTool{
 		{
 			Handler: i.listImages,
 			Tool: mcp.NewTool(
 				"image-list",
-				mcp.WithDescription("List all available distribution images. Supports pagination."),
+				mcp.WithDescription("List available images (snapshots, backups, distributions, applications)."),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultImagesPage), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultImagesPageSize), mcp.Description("Items per page")),
+				mcp.WithString("Type", mcp.Description("Filter by type: 'distribution', 'application', 'user' (snapshots/backups). If omitted, lists all.")),
 			),
 		},
 		{
@@ -136,11 +243,34 @@ func (i *ImagesTool) Tools() []server.ServerTool {
 			),
 		},
 		{
+			Handler: i.createImage,
+			Tool: mcp.NewTool(
+				"image-create",
+				mcp.WithDescription("Create a custom image from a URL (e.g. QCOW2, ISO)."),
+				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the new image")),
+				mcp.WithString("Url", mcp.Required(), mcp.Description("URL to import the image from")),
+				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug (e.g. nyc3)")),
+				mcp.WithString("Distribution", mcp.Description("Distribution name (e.g. Ubuntu)")),
+				mcp.WithString("Description", mcp.Description("Description of the image")),
+				mcp.WithArray("Tags", mcp.Description("Tags to apply"), mcp.Items(map[string]any{"type": "string"})),
+			),
+		},
+		{
+			Handler: i.updateImage,
+			Tool: mcp.NewTool(
+				"image-update",
+				mcp.WithDescription("Update an image's name."),
+				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Image ID")),
+				mcp.WithString("Name", mcp.Required(), mcp.Description("New name for the image")),
+			),
+		},
+		{
 			Handler: i.deleteImage,
 			Tool: mcp.NewTool(
-				"snapshot-delete",
-				mcp.WithDescription("Delete an image/snapshot"),
-				mcp.WithNumber("ImageID", mcp.Required(), mcp.Description("ID of the image to delete")),
+				"image-delete",
+				mcp.WithDestructiveHintAnnotation(true),
+				mcp.WithDescription("Delete an image or snapshot."),
+				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the image to delete")),
 			),
 		},
 	}
