@@ -620,7 +620,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.addForwardingRules,
-			Tool: mcp.NewTool("load-balancer-add-forwarding-rules",
+			Tool: mcp.NewTool("load-balancer-add-fwd-rules",
 				mcp.WithDescription("Add Forwarding Rules to a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules to add")),
@@ -628,7 +628,7 @@ func (l *LoadBalancersTool) Tools() []server.ServerTool {
 		},
 		{
 			Handler: l.removeForwardingRules,
-			Tool: mcp.NewTool("load-balancer-remove-forwarding-rules",
+			Tool: mcp.NewTool("load-balancer-rm-forwarding-rules",
 				mcp.WithDescription("Remove Forwarding Rules from a Load Balancer"),
 				mcp.WithString("LoadBalancerID", mcp.Required(), mcp.Description("ID of the load balancer")),
 				mcp.WithArray("ForwardingRules", mcp.Required(), mcp.Description("Forwarding rules to remove")),
