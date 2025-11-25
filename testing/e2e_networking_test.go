@@ -75,7 +75,7 @@ func TestListLoadBalancers(t *testing.T) {
 
 	resp, err := c.CallTool(context.Background(), mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "load-balancer-list",
+			Name: "lb-list",
 			Arguments: map[string]interface{}{
 				"Page":    1,
 				"PerPage": 10,
