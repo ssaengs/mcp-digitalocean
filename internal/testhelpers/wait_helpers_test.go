@@ -145,3 +145,48 @@ func TestWaitForDropletDeleted_Treats404AsSuccess(t *testing.T) {
 	err := WaitForDropletDeleted(ctx, client, dropletID, 5*time.Millisecond, 500*time.Millisecond)
 	require.NoError(t, err)
 }
+
+func TestWaitForImage_WaitsUntilAvailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockImages := dropletmocks.NewMockImagesService(ctrl)
+	imageID := 888
+
+	// First call: new. Second call: available.
+	gomock.InOrder(
+		mockImages.EXPECT().
+			GetByID(gomock.Any(), imageID).
+			Return(&godo.Image{ID: imageID, Status: "new"}, nil, nil),
+		mockImages.EXPECT().
+			GetByID(gomock.Any(), imageID).
+			Return(&godo.Image{ID: imageID, Status: "available"}, nil, nil),
+	)
+
+	client := &godo.Client{Images: mockImages}
+	ctx := context.Background()
+
+	img, err := WaitForImage(ctx, client, imageID, IsImageAvailable, 5*time.Millisecond, 500*time.Millisecond)
+	require.NoError(t, err)
+	require.NotNil(t, img)
+	require.Equal(t, "available", img.Status)
+}
+
+func TestWaitForImageDeleted_Treats404AsSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockImages := dropletmocks.NewMockImagesService(ctrl)
+	imageID := 777
+
+	mockImages.EXPECT().
+		GetByID(gomock.Any(), imageID).
+		Return(nil, &godo.Response{Response: &http.Response{StatusCode: http.StatusNotFound}}, errors.New("not found")).
+		Times(1)
+
+	client := &godo.Client{Images: mockImages}
+	ctx := context.Background()
+
+	err := WaitForImageDeleted(ctx, client, imageID, 5*time.Millisecond, 500*time.Millisecond)
+	require.NoError(t, err)
+}
