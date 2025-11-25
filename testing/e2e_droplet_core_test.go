@@ -14,6 +14,8 @@ import (
 )
 
 func TestDropletLifecycle(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -44,6 +46,8 @@ func TestDropletLifecycle(t *testing.T) {
 }
 
 func TestDropletSnapshot(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -75,6 +79,8 @@ func TestDropletSnapshot(t *testing.T) {
 }
 
 func TestDropletRebuildBySlug(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, _, teardown := setupTest(t)
 	defer teardown()
 
@@ -115,6 +121,8 @@ func TestDropletRebuildBySlug(t *testing.T) {
 }
 
 func TestDropletRestore(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, _, teardown := setupTest(t)
 	defer teardown()
 

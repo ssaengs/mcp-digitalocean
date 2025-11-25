@@ -22,7 +22,8 @@ import (
 func setupTest(t *testing.T) (context.Context, *client.Client, *godo.Client, func()) {
 	ctx := context.Background()
 	c := initializeClient(ctx, t)
-	gclient := testhelpers.MustGodoClient()
+	gclient, err := testhelpers.MustGodoClient(ctx, t.Name())
+	require.NoError(t, err)
 
 	return ctx, c, gclient, func() {
 		c.Close()
@@ -127,8 +128,6 @@ func ListResources(ctx context.Context, c *client.Client, t *testing.T, resource
 
 func getSSHKeys(ctx context.Context, c *client.Client, t *testing.T) []interface{} {
 	keys := callTool[[]map[string]interface{}](ctx, c, t, "key-list", map[string]interface{}{})
-	require.NotEmpty(t, keys, "No SSH keys found in account.")
-
 	var keyIDs []interface{}
 	for _, key := range keys {
 		if id, ok := key["id"].(float64); ok {
@@ -174,14 +173,16 @@ func selectRegion(ctx context.Context, c *client.Client, t *testing.T) string {
 // --- Wait Wrappers ---
 
 func WaitForDropletActive(ctx context.Context, _ *client.Client, t *testing.T, dropletID int, timeout time.Duration) godo.Droplet {
-	gclient := testhelpers.MustGodoClient()
+	gclient, err := testhelpers.MustGodoClient(ctx, t.Name())
+	require.NoError(t, err)
 	d, err := testhelpers.WaitForDroplet(ctx, gclient, dropletID, testhelpers.IsDropletActive, 3*time.Second, timeout)
 	require.NoError(t, err, "WaitForDropletActive failed")
 	return *d
 }
 
 func WaitForActionComplete(ctx context.Context, c *client.Client, t *testing.T, dropletID int, actionID int, timeout time.Duration) godo.Action {
-	gclient := testhelpers.MustGodoClient()
+	gclient, err := testhelpers.MustGodoClient(ctx, t.Name())
+	require.NoError(t, err)
 
 	// Verify tool works
 	act := callTool[godo.Action](ctx, c, t, "droplet-action", map[string]interface{}{

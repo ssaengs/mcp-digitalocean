@@ -4,15 +4,18 @@ package testing
 
 import (
 	"fmt"
-	"mcp-digitalocean/internal/testhelpers"
 	"testing"
 	"time"
+
+	"mcp-digitalocean/internal/testhelpers"
 
 	"github.com/digitalocean/godo"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDropletReboot(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -23,6 +26,8 @@ func TestDropletReboot(t *testing.T) {
 }
 
 func TestDropletPowerCycle(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -33,6 +38,8 @@ func TestDropletPowerCycle(t *testing.T) {
 }
 
 func TestDropletSnapshotAction(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -61,6 +68,8 @@ func TestDropletSnapshotAction(t *testing.T) {
 }
 
 func TestDropletRename(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -86,6 +95,8 @@ func TestDropletRename(t *testing.T) {
 }
 
 func TestDropletEnableIPv6(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -104,6 +115,8 @@ func TestDropletEnableIPv6(t *testing.T) {
 }
 
 func TestDropletEnableBackups(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 
@@ -131,6 +144,8 @@ func TestDropletEnableBackups(t *testing.T) {
 }
 
 func TestDropletActionTool(t *testing.T) {
+	t.Parallel()
+
 	ctx, c, gclient, teardown := setupTest(t)
 	defer teardown()
 

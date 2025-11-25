@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/digitalocean/godo"
+	"golang.org/x/oauth2"
 )
 
 // Default timeouts
@@ -22,6 +23,12 @@ func WaitForAction(ctx context.Context, client *godo.Client, dropletID, actionID
 	var action *godo.Action
 	err := poll(ctx, interval, timeout, func() (bool, error) {
 		a, resp, err := client.DropletActions.Get(ctx, dropletID, actionID)
+
+		// Resiliency: If the request timed out locally (client-side), just retry
+		if err != nil && os.IsTimeout(err) {
+			return false, nil
+		}
+
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return false, errors.New("action not found")
 		}
@@ -60,6 +67,12 @@ func WaitForDroplet(ctx context.Context, client *godo.Client, dropletID int, pre
 	var last *godo.Droplet
 	err := poll(ctx, interval, timeout, func() (bool, error) {
 		d, resp, err := client.Droplets.Get(ctx, dropletID)
+
+		// Resiliency: If the request timed out locally (client-side), just retry
+		if err != nil && os.IsTimeout(err) {
+			return false, nil
+		}
+
 		if err != nil {
 			if resp != nil && resp.StatusCode == http.StatusNotFound {
 				if predicate == nil {
@@ -90,13 +103,31 @@ func IsDropletActive(d *godo.Droplet) bool {
 	return d != nil && d.Status == "active" && d.Networks != nil && len(d.Networks.V4) > 0
 }
 
-// MustGodoClient returns a client or panics if the token is missing.
-func MustGodoClient() *godo.Client {
+// MustGodoClient returns a client or error if the token is missing.
+func MustGodoClient(ctx context.Context, testName string) (*godo.Client, error) {
 	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
 	if token == "" {
-		panic("DIGITALOCEAN_API_TOKEN environment variable must be set to run E2E tests")
+		return nil, errors.New("DIGITALOCEAN_API_TOKEN environment variable must be set to run E2E tests")
 	}
-	return godo.NewFromToken(token)
+
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	oauthClient := oauth2.NewClient(ctx, tokenSource)
+
+	// 1. Timeout: Prevent indefinite hangs (Client-side resiliency)
+	oauthClient.Timeout = 30 * time.Second
+
+	// 2. Retries: Handle API flakes and Rate Limits (Server-side resiliency)
+	retryConfig := godo.RetryConfig{
+		RetryMax:     4,
+		RetryWaitMin: godo.PtrTo(float64(1)),
+		RetryWaitMax: godo.PtrTo(float64(30)),
+	}
+
+	return godo.New(
+		oauthClient,
+		godo.WithRetryAndBackoffs(retryConfig),
+		godo.SetUserAgent(fmt.Sprintf("mcp-e2e-tests-%s", testName)),
+	)
 }
 
 // --- Internal Helpers ---
