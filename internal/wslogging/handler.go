@@ -36,12 +36,10 @@ type Handler struct {
 	// standard handler for stderr logging (primary/baseline destination)
 	stderrHandler slog.Handler
 
-	// WebSocket configuration
-	wsEnabled bool
-	wsURL     string
-	wsToken   string
-	wsBuffer  chan []byte
-	wsMu      *sync.Mutex
+	wsURL    string
+	wsToken  string
+	wsBuffer chan []byte
+	wsMu     *sync.Mutex
 
 	// batch stores accumulated log messages for batched WebSocket transmission
 	// protected by flushMu
@@ -90,7 +88,6 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	// Check if handler is closed and capture wsEnabled state (thread-safe)
 	h.wsMu.Lock()
 	closed := h.closed
-	wsEnabled := h.wsEnabled
 	h.wsMu.Unlock()
 
 	if closed {
@@ -101,9 +98,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	stderrErr := h.stderrHandler.Handle(ctx, r)
 
 	// if WebSocket is enabled, also send to WebSocket asynchronously
-	if wsEnabled {
-		go h.sendToWebSocket(r)
-	}
+	go h.sendToWebSocket(r)
 
 	// return stderr error if it failed (primary logging destination)
 	// we ignore WebSocket errors as it's a complementary logging destination
@@ -156,10 +151,8 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 	newHandler := &Handler{
 		stderrHandler: h.stderrHandler.WithAttrs(attrs),
-		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
-		wsEnabled: h.wsEnabled,
-		wsURL:     h.wsURL,
-		wsToken:   h.wsToken,
+		wsURL:         h.wsURL,
+		wsToken:       h.wsToken,
 		// these are shared across all derived handlers for efficiency
 		wsBuffer: h.wsBuffer, // shared buffer
 		wsMu:     h.wsMu,     // shared mutex
@@ -188,10 +181,8 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 
 	newHandler := &Handler{
 		stderrHandler: h.stderrHandler.WithGroup(name),
-		// WebSocket configuration must be copied so derived handlers maintain WS logging capability
-		wsEnabled: h.wsEnabled,
-		wsURL:     h.wsURL,
-		wsToken:   h.wsToken,
+		wsURL:         h.wsURL,
+		wsToken:       h.wsToken,
 		// these are shared across all derived handlers for efficiency
 		wsBuffer: h.wsBuffer, // shared buffer
 		wsMu:     h.wsMu,     // shared mutex
@@ -227,7 +218,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 
 	// warn if no token provided (security risk)
 	if token == "" {
-		logDiagnostic(slog.LevelError, os.Stderr, "WARNING: no authentication token provided - this is a security risk\n")
+		logDiagnostic(slog.LevelWarn, os.Stderr, "no authentication token provided - this is a security risk\n")
 	}
 
 	h.wsMu.Lock()
@@ -237,11 +228,10 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	// when creating derived handlers (required for maintaining WS logging across logger.With() calls)
 	h.wsURL = wsURL
 	h.wsToken = token
-	h.wsEnabled = true
 	h.wsBuffer = make(chan []byte, bufferSize)
 
 	// log startup diagnostic to stdout
-	logDiagnostic(slog.LevelError, os.Stdout, "configuring WebSocket logging to %s\n", wsURL)
+	logDiagnostic(slog.LevelInfo, os.Stdout, "configuring WebSocket logging to %s\n", wsURL)
 	return nil
 }
 
@@ -407,7 +397,7 @@ func (h *Handler) flushBatch() {
 		if err != nil {
 			logDiagnostic(slog.LevelError, os.Stderr, "failed to send close message to WebSocket: %v\n", err)
 		}
-		defer conn.Close()
+		conn.Close()
 	}()
 
 	// send all messages in the local batch copy (no locks held during network I/O)

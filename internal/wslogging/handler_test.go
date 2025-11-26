@@ -29,10 +29,6 @@ func TestNewHandler(t *testing.T) {
 	if handler.stderrHandler == nil {
 		t.Error("stderrHandler is nil")
 	}
-
-	if handler.wsEnabled {
-		t.Error("wsEnabled should be false by default")
-	}
 }
 
 // TestHandler_Enabled tests the Enabled method
