@@ -19,7 +19,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const dbaasClusterStatusOnline = "online"
+const (
+	dbaasClusterStatusOnline = "online"
+
+	// Configuration Defaults
+	defaultDropletSize   = "s-1vcpu-1gb"
+	defaultTestImageSlug = "ubuntu-22-04-x64"
+
+	// Polling Intervals
+	defaultPollInterval  = 2 * time.Second
+	resourcePollInterval = 3 * time.Second
+
+	// Timeouts
+	defaultActionTimeout     = 5 * time.Minute
+	dropletActiveTimeout     = 2 * time.Minute
+	dropletDeleteTimeout     = 2 * time.Minute
+	imageAvailableTimeout    = 5 * time.Minute
+	snapshotDiscoveryTimeout = 1 * time.Minute
+)
 
 // setupTest initializes context, MCP client (via Docker/HTTP), and Godo client.
 func setupTest(t *testing.T) (context.Context, *client.Client, *godo.Client, func()) {
@@ -44,7 +61,7 @@ func triggerGenericActionAndWait(t *testing.T, ctx context.Context, c *client.Cl
 	// Log 1: Initial State
 	LogActionStatus(t, tool, action)
 
-	final, err := waiter(ctx, gclient, resourceID, action.ID, 2*time.Second, timeout)
+	final, err := waiter(ctx, gclient, resourceID, action.ID, defaultPollInterval, timeout)
 	require.NoError(t, err, fmt.Sprintf("Action %s failed to complete", tool))
 
 	// Log 2: Final State
@@ -53,12 +70,12 @@ func triggerGenericActionAndWait(t *testing.T, ctx context.Context, c *client.Cl
 
 // triggerActionAndWait is a specific helper for Droplet actions
 func triggerActionAndWait(t *testing.T, ctx context.Context, c *client.Client, gclient *godo.Client, tool string, args map[string]any, resourceID int) {
-	triggerGenericActionAndWait(t, ctx, c, gclient, tool, args, resourceID, testhelpers.WaitForAction, 5*time.Minute)
+	triggerGenericActionAndWait(t, ctx, c, gclient, tool, args, resourceID, testhelpers.WaitForAction, defaultActionTimeout)
 }
 
 // triggerImageActionAndWait calls an image action tool and waits for completion.
 func triggerImageActionAndWait(t *testing.T, ctx context.Context, c *client.Client, gclient *godo.Client, tool string, args map[string]any, imageID int) {
-	triggerGenericActionAndWait(t, ctx, c, gclient, tool, args, imageID, testhelpers.WaitForImageAction, 5*time.Minute)
+	triggerGenericActionAndWait(t, ctx, c, gclient, tool, args, imageID, testhelpers.WaitForImageAction, defaultActionTimeout)
 }
 
 // callTool calls an MCP tool and returns the unmarshaled result T.
@@ -104,7 +121,7 @@ func CreateTestDroplet(ctx context.Context, c *client.Client, t *testing.T, name
 
 	droplet := callTool[godo.Droplet](ctx, c, t, "droplet-create", map[string]any{
 		"Name":       dropletName,
-		"Size":       "s-1vcpu-1gb",
+		"Size":       defaultDropletSize,
 		"ImageID":    imageID,
 		"Region":     region,
 		"Backup":     false,
@@ -115,7 +132,7 @@ func CreateTestDroplet(ctx context.Context, c *client.Client, t *testing.T, name
 	// Log 1: Initial State
 	LogResourceCreated(t, "droplet", droplet.ID, droplet.Name, droplet.Status, region)
 
-	activeDroplet := WaitForDropletActive(ctx, c, t, droplet.ID, 2*time.Minute)
+	activeDroplet := WaitForDropletActive(ctx, c, t, droplet.ID, dropletActiveTimeout)
 
 	// Log 2: Confirmation of Active state
 	LogResourceCreated(t, "droplet", activeDroplet.ID, activeDroplet.Name, activeDroplet.Status, activeDroplet.Region.Slug)
@@ -132,7 +149,7 @@ func CreateTestSnapshotImage(ctx context.Context, c *client.Client, t *testing.T
 	// Ensure cleanup of the setup droplet
 	defer func() {
 		DeleteResource(ctx, c, t, "droplet", float64(droplet.ID))
-		testhelpers.WaitForDropletDeleted(ctx, gclient, droplet.ID, 2*time.Second, 2*time.Minute)
+		testhelpers.WaitForDropletDeleted(ctx, gclient, droplet.ID, defaultPollInterval, dropletDeleteTimeout)
 	}()
 
 	// 2. Create Snapshot
@@ -150,13 +167,13 @@ func CreateTestSnapshotImage(ctx context.Context, c *client.Client, t *testing.T
 	// but the droplet's SnapshotIDs field will be updated.
 	updatedDroplet, err := testhelpers.WaitForDroplet(ctx, gclient, droplet.ID, func(d *godo.Droplet) bool {
 		return len(d.SnapshotIDs) > 0
-	}, 3*time.Second, 1*time.Minute)
+	}, resourcePollInterval, snapshotDiscoveryTimeout)
 	require.NoError(t, err, "Failed to find created snapshot on droplet")
 
 	imageID := updatedDroplet.SnapshotIDs[0]
 
 	// 4. Wait for image to be available
-	img := WaitForImageAvailable(ctx, c, t, imageID, 5*time.Minute)
+	img := WaitForImageAvailable(ctx, c, t, imageID, imageAvailableTimeout)
 	t.Logf("Created test image: %d (%s)", img.ID, img.Name)
 
 	return img
@@ -285,7 +302,7 @@ func getTestImage(ctx context.Context, c *client.Client, t *testing.T) (float64,
 	images := callTool[[]map[string]any](ctx, c, t, "image-list", map[string]any{"Type": "distribution"})
 
 	for _, img := range images {
-		if slug, ok := img["slug"].(string); ok && slug == "ubuntu-22-04-x64" {
+		if slug, ok := img["slug"].(string); ok && slug == defaultTestImageSlug {
 			return img["id"].(float64), slug
 		}
 	}
@@ -319,7 +336,7 @@ func selectRegion(ctx context.Context, c *client.Client, t *testing.T) string {
 func WaitForDropletActive(ctx context.Context, _ *client.Client, t *testing.T, dropletID int, timeout time.Duration) godo.Droplet {
 	gclient, err := testhelpers.MustGodoClient(ctx, t.Name())
 	require.NoError(t, err)
-	d, err := testhelpers.WaitForDroplet(ctx, gclient, dropletID, testhelpers.IsDropletActive, 3*time.Second, timeout)
+	d, err := testhelpers.WaitForDroplet(ctx, gclient, dropletID, testhelpers.IsDropletActive, resourcePollInterval, timeout)
 	require.NoError(t, err, "WaitForDropletActive failed")
 	return *d
 }
@@ -327,7 +344,7 @@ func WaitForDropletActive(ctx context.Context, _ *client.Client, t *testing.T, d
 func WaitForImageAvailable(ctx context.Context, _ *client.Client, t *testing.T, imageID int, timeout time.Duration) godo.Image {
 	gclient, err := testhelpers.MustGodoClient(ctx, t.Name())
 	require.NoError(t, err)
-	img, err := testhelpers.WaitForImage(ctx, gclient, imageID, testhelpers.IsImageAvailable, 3*time.Second, timeout)
+	img, err := testhelpers.WaitForImage(ctx, gclient, imageID, testhelpers.IsImageAvailable, resourcePollInterval, timeout)
 	require.NoError(t, err, "WaitForImageAvailable failed")
 	return *img
 }
@@ -343,7 +360,7 @@ func WaitForActionComplete(ctx context.Context, c *client.Client, t *testing.T, 
 	})
 	require.Equal(t, actionID, act.ID)
 
-	final, err := testhelpers.WaitForAction(ctx, gclient, dropletID, actionID, 2*time.Second, timeout)
+	final, err := testhelpers.WaitForAction(ctx, gclient, dropletID, actionID, defaultPollInterval, timeout)
 	require.NoError(t, err, "WaitForActionComplete failed")
 	return *final
 }
@@ -359,7 +376,7 @@ func WaitForImageActionComplete(ctx context.Context, c *client.Client, t *testin
 	})
 	require.Equal(t, actionID, act.ID)
 
-	final, err := testhelpers.WaitForImageAction(ctx, gclient, imageID, actionID, 2*time.Second, timeout)
+	final, err := testhelpers.WaitForImageAction(ctx, gclient, imageID, actionID, defaultPollInterval, timeout)
 	require.NoError(t, err, "WaitForImageActionComplete failed")
 	return *final
 }
@@ -396,8 +413,7 @@ func waitForDbaasClusterActive(ctx context.Context, c *client.Client, t *testing
 
 		result = db
 		return db.Status == dbaasClusterStatusOnline
-
-	}, timeout, 2*time.Second, "cluster did not become active in time")
+	}, timeout, defaultPollInterval, "cluster did not become active in time")
 
 	return result, nil
 }

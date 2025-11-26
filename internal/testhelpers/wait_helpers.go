@@ -13,10 +13,26 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// Default timeouts
+// Constants for configuration and magic values
 const (
+	// Polling defaults
 	defaultInterval = 2 * time.Second
 	defaultTimeout  = 10 * time.Minute
+
+	// Client configuration
+	clientTimeout      = 30 * time.Second
+	clientRetryMax     = 4
+	clientRetryWaitMin = 1.0
+	clientRetryWaitMax = 30.0
+
+	// Environment variables
+	envAPIToken = "DIGITALOCEAN_API_TOKEN"
+
+	// Resource statuses
+	actionStatusCompleted = "completed"
+	actionStatusErrored   = "errored"
+	dropletStatusActive   = "active"
+	imageStatusAvailable  = "available"
 )
 
 // WaitForAction polls for a droplet action to complete or error.
@@ -82,32 +98,32 @@ func WaitForImageDeleted(ctx context.Context, client *godo.Client, imageID int, 
 
 // IsDropletActive checks if status is active and has an IPv4.
 func IsDropletActive(d *godo.Droplet) bool {
-	return d != nil && d.Status == "active" && d.Networks != nil && len(d.Networks.V4) > 0
+	return d != nil && d.Status == dropletStatusActive && d.Networks != nil && len(d.Networks.V4) > 0
 }
 
 // IsImageAvailable checks if the image status is available.
 func IsImageAvailable(i *godo.Image) bool {
-	return i != nil && i.Status == "available"
+	return i != nil && i.Status == imageStatusAvailable
 }
 
 // MustGodoClient returns a client or error if the token is missing.
 func MustGodoClient(ctx context.Context, testName string) (*godo.Client, error) {
-	token := os.Getenv("DIGITALOCEAN_API_TOKEN")
+	token := os.Getenv(envAPIToken)
 	if token == "" {
-		return nil, errors.New("DIGITALOCEAN_API_TOKEN environment variable must be set to run E2E tests")
+		return nil, fmt.Errorf("%s environment variable must be set to run E2E tests", envAPIToken)
 	}
 
 	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	oauthClient := oauth2.NewClient(ctx, tokenSource)
 
 	// 1. Timeout: Prevent indefinite hangs (Client-side resiliency)
-	oauthClient.Timeout = 30 * time.Second
+	oauthClient.Timeout = clientTimeout
 
 	// 2. Retries: Handle API flakes and Rate Limits (Server-side resiliency)
 	retryConfig := godo.RetryConfig{
-		RetryMax:     4,
-		RetryWaitMin: godo.PtrTo(float64(1)),
-		RetryWaitMax: godo.PtrTo(float64(30)),
+		RetryMax:     clientRetryMax,
+		RetryWaitMin: godo.PtrTo(clientRetryWaitMin),
+		RetryWaitMax: godo.PtrTo(clientRetryWaitMax),
 	}
 
 	return godo.New(
@@ -138,9 +154,9 @@ func waitForActionGeneric(ctx context.Context, interval, timeout time.Duration, 
 		}
 		action = a
 		switch a.Status {
-		case "completed":
+		case actionStatusCompleted:
 			return true, nil
-		case "errored":
+		case actionStatusErrored:
 			return false, errors.New("action errored")
 		default:
 			return false, nil // in-progress
