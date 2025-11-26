@@ -70,7 +70,6 @@ func main() {
 
 	// create WebSocket logging handler (drop-in replacement for slog.NewJSONHandler)
 	wsLoggingHandler := wslogging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-
 	// configure WebSocket logging if URL is provided
 	if *wsLoggingURL != "" {
 		if err := wsLoggingHandler.ConfigureWebSocket(*wsLoggingURL, *wsLoggingToken); err != nil {

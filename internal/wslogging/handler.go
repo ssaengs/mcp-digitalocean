@@ -398,17 +398,17 @@ func (h *Handler) flushBatch() {
 		return
 	}
 
-	err = conn.WriteControl(
-		websocket.CloseMessage,
-		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
-		time.Now().Add(time.Second),
-	)
-
-	if err != nil {
-		logDiagnostic(slog.LevelError, os.Stderr, "failed to send close message to WebSocket: %v\n", err)
-	}
-
-	defer conn.Close()
+	defer func() {
+		err = conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			time.Now().Add(time.Second),
+		)
+		if err != nil {
+			logDiagnostic(slog.LevelError, os.Stderr, "failed to send close message to WebSocket: %v\n", err)
+		}
+		defer conn.Close()
+	}()
 
 	// send all messages in the local batch copy (no locks held during network I/O)
 	sentCount := 0
