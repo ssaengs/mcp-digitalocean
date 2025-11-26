@@ -1,4 +1,4 @@
-// wslogging provides a slog.Handler that can optionally send logs to a WebSocket endpoint.
+// Package wslogging provides a slog.Handler that can optionally send logs to a WebSocket endpoint.
 // It is a drop-in replacement for slog.JSONHandler that maintains stderr logging by default,
 // but can be configured to send logs to a WebSocket server for centralized log aggregation.
 package wslogging
@@ -116,7 +116,7 @@ func (h *Handler) sendToWebSocket(r slog.Record) {
 	entry := h.buildLogEntry(r)
 	data, err := json.Marshal(entry)
 	if err != nil {
-		logDiagnostic(os.Stderr, "failed to marshal log entry: %v\n", err)
+		logDiagnostic(slog.LevelError, os.Stderr, "failed to marshal log entry: %v\n", err)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (h *Handler) sendToWebSocket(r slog.Record) {
 	defer h.wsMu.Unlock()
 
 	if h.closed {
-		logDiagnostic(os.Stderr, "dropping log message: handler is closed\n")
+		logDiagnostic(slog.LevelError, os.Stderr, "dropping log message: handler is closed\n")
 		return
 	}
 
@@ -134,7 +134,7 @@ func (h *Handler) sendToWebSocket(r slog.Record) {
 		// successfully queued for WebSocket transmission
 	default:
 		// buffer is full, drop the WebSocket message
-		logDiagnostic(os.Stderr, "dropping log message: buffer is full (%d messages)\n", bufferSize)
+		logDiagnostic(slog.LevelError, os.Stderr, "dropping log message: buffer is full (%d messages)\n", bufferSize)
 	}
 }
 
@@ -227,7 +227,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 
 	// warn if no token provided (security risk)
 	if token == "" {
-		logDiagnostic(os.Stderr, "WARNING: no authentication token provided - this is a security risk\n")
+		logDiagnostic(slog.LevelError, os.Stderr, "WARNING: no authentication token provided - this is a security risk\n")
 	}
 
 	h.wsMu.Lock()
@@ -241,7 +241,7 @@ func (h *Handler) ConfigureWebSocket(wsURL, token string) error {
 	h.wsBuffer = make(chan []byte, bufferSize)
 
 	// log startup diagnostic to stdout
-	logDiagnostic(os.Stdout, "configuring WebSocket logging to %s\n", wsURL)
+	logDiagnostic(slog.LevelError, os.Stdout, "configuring WebSocket logging to %s\n", wsURL)
 	return nil
 }
 
@@ -393,17 +393,28 @@ func (h *Handler) flushBatch() {
 	// establish connection (no locks held during network I/O)
 	conn, err := h.connect(wsURL, wsToken)
 	if err != nil {
-		logDiagnostic(os.Stderr, "failed to connect to WebSocket: %v\n", err)
+		logDiagnostic(slog.LevelError, os.Stderr, "failed to connect to WebSocket: %v\n", err)
 		// don't clear batch - we'll retry on next flush
 		return
 	}
-	defer conn.Close()
+
+	defer func() {
+		err = conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			time.Now().Add(time.Second),
+		)
+		if err != nil {
+			logDiagnostic(slog.LevelError, os.Stderr, "failed to send close message to WebSocket: %v\n", err)
+		}
+		defer conn.Close()
+	}()
 
 	// send all messages in the local batch copy (no locks held during network I/O)
 	sentCount := 0
 	for _, data := range localBatch {
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			logDiagnostic(os.Stderr, "failed to write message to WebSocket: %v\n", err)
+		if err = conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			logDiagnostic(slog.LevelError, os.Stderr, "failed to write message to WebSocket: %v\n", err)
 			break
 		}
 		sentCount++
@@ -449,13 +460,13 @@ func (h *Handler) connect(wsURL, token string) (*websocket.Conn, error) {
 // logDiagnostic writes a diagnostic message to the specified writer.
 // This is used for logging infrastructure issues (not application logs).
 // Messages are written as JSON to maintain consistency with application logs.
-func logDiagnostic(w io.Writer, format string, args ...any) {
+func logDiagnostic(level slog.Level, w io.Writer, format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
 	// trim trailing newline if present (we'll add it back after JSON)
 	message = strings.TrimSuffix(message, "\n")
 
 	entry := map[string]any{
-		"level":  "ERROR",
+		"level":  level.String(),
 		"msg":    message,
 		"source": "wslogging",
 		"time":   time.Now().UTC().Format(time.RFC3339Nano),

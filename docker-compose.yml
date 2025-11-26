@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  mcp-digitalocean:
+    build:
+      dockerfile: Dockerfile
+    container_name: mcp-digitalocean
+    environment:
+      - TRANSPORT=http
+      - LOG_LEVEL=debug
+      - BIND_ADDR=0.0.0.0:8080
+      - ENABLE_TOOL_ERROR_LOGGING=true
+      - WS_LOGGING_URL=ws://ws-echo-server:8081
+      - WS_LOGGING_TOKEN=example-token
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  websocket-server:
+    image: "jmalloc/echo-server"
+    container_name: ws-echo-server
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+    restart: unless-stopped
+
