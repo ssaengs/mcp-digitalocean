@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  mcp-digitalocean:
+    build:
+      dockerfile: ./Dockerfile
+    container_name: mcp-digitalocean
+    environment:
+      - TRANSPORT=http
+      - LOG_LEVEL=debug
+      - BIND_ADDR=0.0.0.0:8080
+      - ENABLE_TOOL_ERROR_LOGGING=true
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+

@@ -455,7 +455,7 @@ func logDiagnostic(w io.Writer, format string, args ...any) {
 	message = strings.TrimSuffix(message, "\n")
 
 	entry := map[string]any{
-		"level":  "ERROR",
+		"level":  "DEBUG",
 		"msg":    message,
 		"source": "wslogging",
 		"time":   time.Now().UTC().Format(time.RFC3339Nano),
