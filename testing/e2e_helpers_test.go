@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const dbaasClusterStatusOnline = "online"
+
 // setupTest initializes context, MCP client (via Docker/HTTP), and Godo client.
 func setupTest(t *testing.T) (context.Context, *client.Client, *godo.Client, func()) {
 	ctx := context.Background()
@@ -187,6 +189,85 @@ func ListResources(ctx context.Context, c *client.Client, t *testing.T, resource
 	})
 }
 
+func createDbaasCluster(ctx context.Context, t *testing.T, c *client.Client, name string, engine string, version string, region string, size string, numNodes int) godo.Database {
+	resp, err := c.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "db-cluster-create",
+			Arguments: map[string]interface{}{
+				"name":      name,
+				"engine":    engine,
+				"version":   version,
+				"region":    region,
+				"size":      size,
+				"num_nodes": numNodes,
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	if resp.IsError {
+		t.Fatalf("Tool call returned error: %v", resp.Content)
+	}
+
+	var cluster godo.Database
+	clusterJSON := resp.Content[0].(mcp.TextContent).Text
+	err = json.Unmarshal([]byte(clusterJSON), &cluster)
+	require.NoError(t, err)
+	t.Logf("Created cluster: %v", cluster)
+
+	return cluster
+}
+
+func deleteDbaasCluster(ctx context.Context, t *testing.T, c *client.Client, id string) {
+	resp, err := c.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "db-cluster-delete",
+			Arguments: map[string]interface{}{
+				"id": id,
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	if resp.IsError {
+		t.Fatalf("Tool call returned error: %v", resp.Content)
+	}
+
+	t.Logf("Deleted cluster with ID: %s", id)
+}
+
+func dbaasAssertClusterExists(ctx context.Context, t *testing.T, c *client.Client, clusterID string) {
+	resp, err := c.CallTool(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "db-cluster-list",
+			Arguments: map[string]interface{}{
+				"page":     1,
+				"per_page": 50,
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.False(t, resp.IsError, "Tool call returned error: %v", resp.Content)
+
+	var clusters []godo.Database
+	err = json.Unmarshal([]byte(resp.Content[0].(mcp.TextContent).Text), &clusters)
+	require.NoError(t, err)
+
+	for _, cl := range clusters {
+		if cl.ID == clusterID {
+			t.Logf("Cluster %s found in list", clusterID)
+			return
+		}
+	}
+
+	t.Fatalf("Cluster %s not found in list", clusterID)
+}
+
 // --- Prerequisite Helpers ---
 
 func getSSHKeys(ctx context.Context, c *client.Client, t *testing.T) []interface{} {
@@ -281,6 +362,44 @@ func WaitForImageActionComplete(ctx context.Context, c *client.Client, t *testin
 	final, err := testhelpers.WaitForImageAction(ctx, gclient, imageID, actionID, 2*time.Second, timeout)
 	require.NoError(t, err, "WaitForImageActionComplete failed")
 	return *final
+}
+
+func waitForDbaasClusterActive(ctx context.Context, c *client.Client, t *testing.T, clusterID string, timeout time.Duration) (godo.Database, error) {
+	var result godo.Database
+
+	require.Eventually(t, func() bool {
+		// Call MCP tool
+		resp, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "db-cluster-get",
+				Arguments: map[string]interface{}{
+					"id": clusterID,
+				},
+			},
+		})
+
+		if err != nil || resp.IsError {
+			// Keep retrying — do NOT fail inside Eventually
+			return false
+		}
+
+		var db godo.Database
+		dbJSON := resp.Content[0].(mcp.TextContent).Text
+		if json.Unmarshal([]byte(dbJSON), &db) != nil {
+			return false
+		}
+
+		// Log only when status changes
+		if result.Status != db.Status {
+			t.Logf("Cluster %s status changed: %s → %s", clusterID, result.Status, db.Status)
+		}
+
+		result = db
+		return db.Status == dbaasClusterStatusOnline
+
+	}, timeout, 2*time.Second, "cluster did not become active in time")
+
+	return result, nil
 }
 
 // --- Cleanup & Logging ---
