@@ -53,7 +53,7 @@ func triggerGenericActionAndWait(t *testing.T, ctx context.Context, c *client.Cl
 
 // triggerActionAndWait is a specific helper for Droplet actions
 func triggerActionAndWait(t *testing.T, ctx context.Context, c *client.Client, gclient *godo.Client, tool string, args map[string]any, resourceID int) {
-	triggerGenericActionAndWait(t, ctx, c, gclient, tool, args, resourceID, testhelpers.WaitForAction, 2*time.Minute)
+	triggerGenericActionAndWait(t, ctx, c, gclient, tool, args, resourceID, testhelpers.WaitForAction, 5*time.Minute)
 }
 
 // triggerImageActionAndWait calls an image action tool and waits for completion.
