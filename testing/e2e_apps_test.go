@@ -5,7 +5,6 @@ package testing
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/digitalocean/godo"
@@ -50,7 +49,7 @@ func TestCreateApp(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, app.ID)
 
-	fmt.Printf("created app: %v+", app)
+	t.Logf("app ID: %s\n", app.ID)
 
 	// cleanup the app
 	resp, err = c.CallTool(ctx, mcp.CallToolRequest{
@@ -65,5 +64,5 @@ func TestCreateApp(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, resp.IsError)
 
-	fmt.Printf("app %s deleted", app.ID)
+	t.Logf("deleted app: %v", app.ID)
 }
