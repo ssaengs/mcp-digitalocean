@@ -135,6 +135,12 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 	defer cleanup()
 	tc := testContext{ctx: ctx, client: c}
 
+	// Get account email (required for alert notifications - must be verified)
+	t.Log("fetching account information...")
+	account := callTool[godo.Account](ctx, c, t, "account-get-information", map[string]interface{}{})
+	require.NotEmpty(t, account.Email, "account email should not be empty")
+	t.Logf("using account email: %s", account.Email)
+
 	checkName := fmt.Sprintf("test-uptime-alert-check-%d", time.Now().Unix())
 	target := "https://www.digitalocean.com"
 
@@ -152,6 +158,7 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 	defer func() { deleteUptimeCheck(t, tc, uptimeCheck.ID) }()
 
 	// create uptime check alert
+	// Note: The DigitalOcean API requires at least one notification (email or slack)
 	alertName := fmt.Sprintf("test-alert-%d", time.Now().Unix())
 	t.Log("creating uptime check alert...")
 	alert := callTool[godo.UptimeAlert](ctx, c, t, "uptimecheck-alert-create", map[string]interface{}{
@@ -159,7 +166,8 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 		"Name":         alertName,
 		"Type":         "down",
 		"Period":       "2m",
-		"Emails":       []string{},
+		"Comparison":   "",
+		"Emails":       []string{account.Email},
 		"SlackDetails": []map[string]string{},
 	})
 	require.NotEmpty(t, alert.ID, "alert ID should not be empty")
@@ -195,7 +203,8 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 		"Name":         updatedAlertName,
 		"Type":         "down",
 		"Period":       "3m",
-		"Emails":       []string{},
+		"Comparison":   "",
+		"Emails":       []string{account.Email},
 		"SlackDetails": []map[string]string{},
 	})
 	require.Equal(t, updatedAlertName, updatedAlert.Name)
@@ -208,9 +217,16 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 	defer cleanup()
 	tc := testContext{ctx: ctx, client: c}
 
+	// Get account email (required for alert notifications - must be verified)
+	t.Log("fetching account information...")
+	account := callTool[godo.Account](ctx, c, t, "account-get-information", map[string]interface{}{})
+	require.NotEmpty(t, account.Email, "account email should not be empty")
+	t.Logf("using account email: %s", account.Email)
+
 	policyDescription := fmt.Sprintf("test-policy-%d", time.Now().Unix())
 
 	// create alert policy
+	// Note: The DigitalOcean API requires at least one alert action (email or slack)
 	t.Log("creating alert policy...")
 	policy := callTool[godo.AlertPolicy](ctx, c, t, "alert-policy-create", map[string]interface{}{
 		"Type":        "v1/insights/droplet/cpu",
@@ -221,7 +237,7 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 		"Entities":    []string{},
 		"Tags":        []string{"test-tag"},
 		"Alerts": map[string]interface{}{
-			"Email": []string{},
+			"Email": []string{account.Email},
 			"Slack": []interface{}{},
 		},
 		"Enabled": true,
@@ -261,7 +277,7 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 		"Entities":    []string{},
 		"Tags":        []string{"test-tag", "updated-tag"},
 		"Alerts": map[string]interface{}{
-			"Email": []string{},
+			"Email": []string{account.Email},
 			"Slack": []interface{}{},
 		},
 		"Enabled": true,
