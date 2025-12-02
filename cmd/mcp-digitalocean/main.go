@@ -107,6 +107,10 @@ func main() {
 		wsLoggingHandler = wsLoggingHandler.WithAttrs([]slog.Attr{
 			slog.String("enabled_services", *serviceFlag),
 		}).(*wslogging.Handler)
+	} else {
+		wsLoggingHandler = wsLoggingHandler.WithAttrs([]slog.Attr{
+			slog.String("enabled_services", "all"),
+		}).(*wslogging.Handler)
 	}
 
 	// create logger after adding service attributes
