@@ -20,7 +20,7 @@ func TestCreateCluster(t *testing.T) {
 	defer c.Close()
 
 	create := godo.KubernetesClusterCreateRequest{
-		Name:        uuid.New().String(),
+		Name:        fmt.Sprintf("doks-%s", uuid.New().String()),
 		RegionSlug:  "sfo3",
 		VersionSlug: "latest",
 		NodePools: []*godo.KubernetesNodePoolCreateRequest{
