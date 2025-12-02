@@ -32,7 +32,7 @@ const (
 
 	// Timeouts
 	defaultActionTimeout     = 5 * time.Minute
-	dropletActiveTimeout     = 2 * time.Minute
+	dropletActiveTimeout     = 5 * time.Minute
 	dropletDeleteTimeout     = 2 * time.Minute
 	imageAvailableTimeout    = 5 * time.Minute
 	snapshotDiscoveryTimeout = 1 * time.Minute
