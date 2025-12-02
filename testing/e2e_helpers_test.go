@@ -108,6 +108,22 @@ func callTool[T any](ctx context.Context, c *client.Client, t *testing.T, name s
 	return result
 }
 
+// testContext bundles context and client for cleanup helpers.
+type testContext struct {
+	ctx    context.Context
+	client *client.Client
+}
+
+// requireFoundInList asserts that at least one item in the list matches the predicate.
+func requireFoundInList[T any](t *testing.T, items []T, match func(T) bool, itemName string) {
+	for _, item := range items {
+		if match(item) {
+			return
+		}
+	}
+	t.Fatalf("%s not found in list", itemName)
+}
+
 // --- Resource Lifecycle Helpers ---
 
 func CreateTestDroplet(ctx context.Context, c *client.Client, t *testing.T, namePrefix string) godo.Droplet {
