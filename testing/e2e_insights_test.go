@@ -68,8 +68,7 @@ func deleteAlertPolicy(t *testing.T, tc testContext, uuid string) {
 
 // TestUptimeCheckLifecycle tests the full lifecycle of an uptime check:
 func TestUptimeCheckLifecycle(t *testing.T) {
-	ctx, c, _, cleanup := setupTest(t)
-	defer cleanup()
+	ctx, c := setupTest(t)
 	tc := testContext{ctx: ctx, client: c}
 
 	checkName := fmt.Sprintf("test-uptime-check-%d", time.Now().Unix())
@@ -77,7 +76,7 @@ func TestUptimeCheckLifecycle(t *testing.T) {
 
 	// create uptime check
 	t.Log("creating uptime check...")
-	uptimeCheck := callTool[godo.UptimeCheck](ctx, c, t, "uptimecheck-create", map[string]interface{}{
+	uptimeCheck := callTool[godo.UptimeCheck](t, "uptimecheck-create", map[string]interface{}{
 		"Name":    checkName,
 		"Type":    "https",
 		"Target":  target,
@@ -91,7 +90,7 @@ func TestUptimeCheckLifecycle(t *testing.T) {
 
 	// get uptime check
 	t.Log("getting uptime check...")
-	fetchedCheck := callTool[godo.UptimeCheck](ctx, c, t, "uptimecheck-get", map[string]interface{}{
+	fetchedCheck := callTool[godo.UptimeCheck](t, "uptimecheck-get", map[string]interface{}{
 		"ID": uptimeCheck.ID,
 	})
 	require.Equal(t, uptimeCheck.ID, fetchedCheck.ID)
@@ -100,7 +99,7 @@ func TestUptimeCheckLifecycle(t *testing.T) {
 
 	// list uptime checks
 	t.Log("listing uptime checks...")
-	checks := callTool[[]godo.UptimeCheck](ctx, c, t, "uptimecheck-list", map[string]interface{}{
+	checks := callTool[[]godo.UptimeCheck](t, "uptimecheck-list", map[string]interface{}{
 		"Page":    1,
 		"PerPage": 50,
 	})
@@ -109,7 +108,7 @@ func TestUptimeCheckLifecycle(t *testing.T) {
 
 	// get uptime check state
 	t.Log("getting uptime check state...")
-	checkState := callTool[godo.UptimeCheckState](ctx, c, t, "uptimecheck-get-state", map[string]interface{}{
+	checkState := callTool[godo.UptimeCheckState](t, "uptimecheck-get-state", map[string]interface{}{
 		"ID": uptimeCheck.ID,
 	})
 	t.Logf("uptime check state: %+v", checkState)
@@ -117,7 +116,7 @@ func TestUptimeCheckLifecycle(t *testing.T) {
 	// update uptime check
 	updatedName := checkName + "-updated"
 	t.Log("updating uptime check...")
-	updatedCheck := callTool[godo.UptimeCheck](ctx, c, t, "uptimecheck-update", map[string]interface{}{
+	updatedCheck := callTool[godo.UptimeCheck](t, "uptimecheck-update", map[string]interface{}{
 		"ID":      uptimeCheck.ID,
 		"Name":    updatedName,
 		"Type":    "https",
@@ -131,13 +130,12 @@ func TestUptimeCheckLifecycle(t *testing.T) {
 
 // TestUptimeCheckAlertLifecycle tests the full lifecycle of an uptime check alert:
 func TestUptimeCheckAlertLifecycle(t *testing.T) {
-	ctx, c, _, cleanup := setupTest(t)
-	defer cleanup()
+	ctx, c := setupTest(t)
 	tc := testContext{ctx: ctx, client: c}
 
 	// Get account email (required for alert notifications - must be verified)
 	t.Log("fetching account information...")
-	account := callTool[godo.Account](ctx, c, t, "account-get-information", map[string]interface{}{})
+	account := callTool[godo.Account](t, "account-get-information", map[string]interface{}{})
 	require.NotEmpty(t, account.Email, "account email should not be empty")
 	t.Logf("using account email: %s", account.Email)
 
@@ -146,7 +144,7 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 
 	// create uptime check first (required for alerts)
 	t.Log("creating uptime check for alert testing...")
-	uptimeCheck := callTool[godo.UptimeCheck](ctx, c, t, "uptimecheck-create", map[string]interface{}{
+	uptimeCheck := callTool[godo.UptimeCheck](t, "uptimecheck-create", map[string]interface{}{
 		"Name":    checkName,
 		"Type":    "https",
 		"Target":  target,
@@ -161,7 +159,7 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 	// Note: The DigitalOcean API requires at least one notification (email or slack)
 	alertName := fmt.Sprintf("test-alert-%d", time.Now().Unix())
 	t.Log("creating uptime check alert...")
-	alert := callTool[godo.UptimeAlert](ctx, c, t, "uptimecheck-alert-create", map[string]interface{}{
+	alert := callTool[godo.UptimeAlert](t, "uptimecheck-alert-create", map[string]interface{}{
 		"CheckID":      uptimeCheck.ID,
 		"Name":         alertName,
 		"Type":         "down",
@@ -177,7 +175,7 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 
 	// get uptime check alert
 	t.Log("getting uptime check alert...")
-	fetchedAlert := callTool[godo.UptimeAlert](ctx, c, t, "uptimecheck-alert-get", map[string]interface{}{
+	fetchedAlert := callTool[godo.UptimeAlert](t, "uptimecheck-alert-get", map[string]interface{}{
 		"CheckID": uptimeCheck.ID,
 		"AlertID": alert.ID,
 	})
@@ -186,7 +184,7 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 
 	// list uptime check alerts
 	t.Log("listing uptime check alerts...")
-	alerts := callTool[[]godo.UptimeAlert](ctx, c, t, "uptimecheck-alert-list", map[string]interface{}{
+	alerts := callTool[[]godo.UptimeAlert](t, "uptimecheck-alert-list", map[string]interface{}{
 		"CheckID": uptimeCheck.ID,
 		"Page":    1,
 		"PerPage": 50,
@@ -197,7 +195,7 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 	// update uptime check alert
 	updatedAlertName := alertName + "-updated"
 	t.Log("updating uptime check alert...")
-	updatedAlert := callTool[godo.UptimeAlert](ctx, c, t, "uptimecheck-alert-update", map[string]interface{}{
+	updatedAlert := callTool[godo.UptimeAlert](t, "uptimecheck-alert-update", map[string]interface{}{
 		"CheckID":      uptimeCheck.ID,
 		"AlertID":      alert.ID,
 		"Name":         updatedAlertName,
@@ -213,13 +211,12 @@ func TestUptimeCheckAlertLifecycle(t *testing.T) {
 
 // TestAlertPolicyLifecycle tests the full lifecycle of an alert policy:
 func TestAlertPolicyLifecycle(t *testing.T) {
-	ctx, c, _, cleanup := setupTest(t)
-	defer cleanup()
+	ctx, c := setupTest(t)
 	tc := testContext{ctx: ctx, client: c}
 
 	// Get account email (required for alert notifications - must be verified)
 	t.Log("fetching account information...")
-	account := callTool[godo.Account](ctx, c, t, "account-get-information", map[string]interface{}{})
+	account := callTool[godo.Account](t, "account-get-information", map[string]interface{}{})
 	require.NotEmpty(t, account.Email, "account email should not be empty")
 	t.Logf("using account email: %s", account.Email)
 
@@ -228,7 +225,7 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 	// create alert policy
 	// Note: The DigitalOcean API requires at least one alert action (email or slack)
 	t.Log("creating alert policy...")
-	policy := callTool[godo.AlertPolicy](ctx, c, t, "alert-policy-create", map[string]interface{}{
+	policy := callTool[godo.AlertPolicy](t, "alert-policy-create", map[string]interface{}{
 		"Type":        "v1/insights/droplet/cpu",
 		"Description": policyDescription,
 		"Compare":     "GreaterThan",
@@ -249,7 +246,7 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 
 	// get alert policy
 	t.Log("getting alert policy...")
-	fetchedPolicy := callTool[godo.AlertPolicy](ctx, c, t, "alert-policy-get", map[string]interface{}{
+	fetchedPolicy := callTool[godo.AlertPolicy](t, "alert-policy-get", map[string]interface{}{
 		"UUID": policy.UUID,
 	})
 	require.Equal(t, policy.UUID, fetchedPolicy.UUID)
@@ -257,7 +254,7 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 
 	// list alert policies
 	t.Log("listing alert policies...")
-	policies := callTool[[]godo.AlertPolicy](ctx, c, t, "alert-policy-list", map[string]interface{}{
+	policies := callTool[[]godo.AlertPolicy](t, "alert-policy-list", map[string]interface{}{
 		"Page":    1,
 		"PerPage": 50,
 	})
@@ -267,7 +264,7 @@ func TestAlertPolicyLifecycle(t *testing.T) {
 	// update alert policy
 	updatedDescription := policyDescription + "-updated"
 	t.Log("updating alert policy...")
-	updatedPolicy := callTool[godo.AlertPolicy](ctx, c, t, "alert-policy-update", map[string]interface{}{
+	updatedPolicy := callTool[godo.AlertPolicy](t, "alert-policy-update", map[string]interface{}{
 		"UUID":        policy.UUID,
 		"Type":        "v1/insights/droplet/cpu",
 		"Description": updatedDescription,
