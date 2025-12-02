@@ -43,7 +43,11 @@ func TestCreateCluster(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.False(t, resp.IsError)
+
+	if resp.IsError {
+		fmt.Printf("response is error: %s", resp.Content[0].(mcp.TextContent).Text)
+		t.Fail()
+	}
 
 	var doksCluster godo.KubernetesCluster
 	doksClusterJSON := resp.Content[0].(mcp.TextContent).Text
