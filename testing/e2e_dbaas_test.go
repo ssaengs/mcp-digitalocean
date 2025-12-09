@@ -67,8 +67,7 @@ func TestDbaasKafkaLifecycle(t *testing.T) {
 	defer c.Close()
 
 	registerClusterCleanup(t)
-
-	topicName := "mcp-e2e-test-topic"
+	topicName := uuid.New().String()
 	// Create cluster with unique name
 	clusterName := fmt.Sprintf("mcp-e2e-test-kafka-%s", uuid.New().String())
 
