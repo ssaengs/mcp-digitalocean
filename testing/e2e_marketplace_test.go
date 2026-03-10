@@ -81,6 +81,7 @@ func TestListOneClickApps(t *testing.T) {
 
 // TestInstallKubernetesApps tests installing single and multiple 1-click apps on a Kubernetes cluster
 func TestInstallKubernetesApps(t *testing.T) {
+	t.Skip("Skipping because of vpc subnet range overlap issue with e2e_doks_test. Will re-enable after fix is in place.")
 	ctx := context.Background()
 	c := initializeClient(ctx, t)
 	defer c.Close()
