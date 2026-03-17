@@ -33,14 +33,6 @@ jobs:
       - name: Build dist
         run: make dist
 
-      - name: Publish to npm
-        run: |
-          cd scripts/npm
-          npm config set //registry.npmjs.org/:_authToken=${NPM_TOKEN}
-          npm publish --access public
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
