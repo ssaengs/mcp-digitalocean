@@ -71,6 +71,9 @@ func TestRegistryTool_get(t *testing.T) {
 			require.NotNil(t, resp)
 			require.False(t, resp.IsError)
 			require.NotEmpty(t, resp.Content)
+			textContent, ok := resp.Content[0].(mcp.TextContent)
+			require.True(t, ok)
+			require.Contains(t, textContent.Text, "my-registry")
 		})
 	}
 }
