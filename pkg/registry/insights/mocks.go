@@ -286,6 +286,182 @@ func (mr *MockMonitoringServiceMockRecorder) GetAlertPolicy(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAlertPolicy", reflect.TypeOf((*MockMonitoringService)(nil).GetAlertPolicy), arg0, arg1)
 }
 
+// GetDbaasMysqlCpuUsage mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlCpuUsage(ctx context.Context, args *godo.DbaasMysqlCpuUsageRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlCpuUsage", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlCpuUsage indicates an expected call of GetDbaasMysqlCpuUsage.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlCpuUsage(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlCpuUsage", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlCpuUsage), ctx, args)
+}
+
+// GetDbaasMysqlDiskUsage mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlDiskUsage(ctx context.Context, args *godo.DbaasMysqlDiskUsageRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlDiskUsage", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlDiskUsage indicates an expected call of GetDbaasMysqlDiskUsage.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlDiskUsage(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlDiskUsage", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlDiskUsage), ctx, args)
+}
+
+// GetDbaasMysqlIndexVsSequentialReads mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlIndexVsSequentialReads(ctx context.Context, args *godo.DbaasMysqlServiceMetricsRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlIndexVsSequentialReads", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlIndexVsSequentialReads indicates an expected call of GetDbaasMysqlIndexVsSequentialReads.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlIndexVsSequentialReads(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlIndexVsSequentialReads", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlIndexVsSequentialReads), ctx, args)
+}
+
+// GetDbaasMysqlLoad mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlLoad(ctx context.Context, args *godo.DbaasMysqlLoadRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlLoad", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlLoad indicates an expected call of GetDbaasMysqlLoad.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlLoad(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlLoad", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlLoad), ctx, args)
+}
+
+// GetDbaasMysqlMemoryUsage mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlMemoryUsage(ctx context.Context, args *godo.DbaasMysqlMemoryUsageRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlMemoryUsage", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlMemoryUsage indicates an expected call of GetDbaasMysqlMemoryUsage.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlMemoryUsage(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlMemoryUsage", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlMemoryUsage), ctx, args)
+}
+
+// GetDbaasMysqlOpRates mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlOpRates(ctx context.Context, args *godo.DbaasMysqlOpRatesRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlOpRates", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlOpRates indicates an expected call of GetDbaasMysqlOpRates.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlOpRates(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlOpRates", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlOpRates), ctx, args)
+}
+
+// GetDbaasMysqlSchemaLatency mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlSchemaLatency(ctx context.Context, args *godo.DbaasMysqlSchemaLatencyRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlSchemaLatency", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlSchemaLatency indicates an expected call of GetDbaasMysqlSchemaLatency.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlSchemaLatency(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlSchemaLatency", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlSchemaLatency), ctx, args)
+}
+
+// GetDbaasMysqlSchemaThroughput mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlSchemaThroughput(ctx context.Context, args *godo.DbaasMysqlSchemaThroughputRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlSchemaThroughput", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlSchemaThroughput indicates an expected call of GetDbaasMysqlSchemaThroughput.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlSchemaThroughput(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlSchemaThroughput", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlSchemaThroughput), ctx, args)
+}
+
+// GetDbaasMysqlThreadsActive mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlThreadsActive(ctx context.Context, args *godo.DbaasMysqlServiceMetricsRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlThreadsActive", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlThreadsActive indicates an expected call of GetDbaasMysqlThreadsActive.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlThreadsActive(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlThreadsActive", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlThreadsActive), ctx, args)
+}
+
+// GetDbaasMysqlThreadsConnected mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlThreadsConnected(ctx context.Context, args *godo.DbaasMysqlServiceMetricsRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlThreadsConnected", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlThreadsConnected indicates an expected call of GetDbaasMysqlThreadsConnected.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlThreadsConnected(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlThreadsConnected", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlThreadsConnected), ctx, args)
+}
+
+// GetDbaasMysqlThreadsCreatedRate mocks base method.
+func (m *MockMonitoringService) GetDbaasMysqlThreadsCreatedRate(ctx context.Context, args *godo.DbaasMysqlServiceMetricsRequest) (*godo.MetricsResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDbaasMysqlThreadsCreatedRate", ctx, args)
+	ret0, _ := ret[0].(*godo.MetricsResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDbaasMysqlThreadsCreatedRate indicates an expected call of GetDbaasMysqlThreadsCreatedRate.
+func (mr *MockMonitoringServiceMockRecorder) GetDbaasMysqlThreadsCreatedRate(ctx, args any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDbaasMysqlThreadsCreatedRate", reflect.TypeOf((*MockMonitoringService)(nil).GetDbaasMysqlThreadsCreatedRate), ctx, args)
+}
+
 // GetDropletAvailableMemory mocks base method.
 func (m *MockMonitoringService) GetDropletAvailableMemory(arg0 context.Context, arg1 *godo.DropletMetricsRequest) (*godo.MetricsResponse, *godo.Response, error) {
 	m.ctrl.T.Helper()
