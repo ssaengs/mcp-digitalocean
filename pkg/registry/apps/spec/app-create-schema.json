@@ -444,6 +444,25 @@
                 },
                 "type": "object"
               },
+              "inactivity_sleep": {
+                "properties": {
+                  "after_seconds": {
+                    "type": "integer"
+                  },
+                  "loading_page": {
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "custom_url": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
               "liveness_health_check": {
                 "properties": {
                   "initial_delay_seconds": {
@@ -1900,6 +1919,20 @@
               },
               "type": "array",
               "description": "Rules for configuring HTTP ingress for component routes, CORS, rewrites, and redirects."
+            },
+            "secure_header": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "remove_header": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
             }
           },
           "type": "object"
