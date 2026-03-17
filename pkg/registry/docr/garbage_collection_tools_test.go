@@ -141,12 +141,14 @@ func TestGarbageCollectionTool_listGarbageCollections(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	testGCs := []*godo.GarbageCollection{{UUID: "gc-1"}, {UUID: "gc-2"}}
+	testGCsMeta := &godo.Meta{Total: 2, Page: 1, Pages: 1}
 
 	tests := []struct {
-		name        string
-		args        map[string]any
-		mockSetup   func(*MockRegistriesService)
-		expectError bool
+		name           string
+		args           map[string]any
+		mockSetup      func(*MockRegistriesService)
+		expectError    bool
+		expectContains []string
 	}{
 		{
 			name:        "missing RegistryName",
@@ -169,10 +171,11 @@ func TestGarbageCollectionTool_listGarbageCollections(t *testing.T) {
 					func(_ context.Context, name string, opts *godo.ListOptions) ([]*godo.GarbageCollection, *godo.Response, error) {
 						require.Equal(t, 1, opts.Page)
 						require.Equal(t, 10, opts.PerPage)
-						return testGCs, nil, nil
+						return testGCs, &godo.Response{Meta: testGCsMeta}, nil
 					},
 				)
 			},
+			expectContains: []string{`"meta"`, `"total": 2`},
 		},
 	}
 
@@ -194,6 +197,11 @@ func TestGarbageCollectionTool_listGarbageCollections(t *testing.T) {
 			require.NotNil(t, resp)
 			require.False(t, resp.IsError)
 			require.NotEmpty(t, resp.Content)
+			textContent, ok := resp.Content[0].(mcp.TextContent)
+			require.True(t, ok)
+			for _, s := range tc.expectContains {
+				require.Contains(t, textContent.Text, s)
+			}
 		})
 	}
 }

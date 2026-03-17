@@ -49,7 +49,7 @@ func (r *RepositoryTool) listRepositories(ctx context.Context, req mcp.CallToolR
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	repos, _, err := client.Registries.ListRepositoriesV2(ctx, registryName, &godo.TokenListOptions{
+	repos, resp, err := client.Registries.ListRepositoriesV2(ctx, registryName, &godo.TokenListOptions{
 		Page:    page,
 		PerPage: perPage,
 		Token:   pageToken,
@@ -58,7 +58,15 @@ func (r *RepositoryTool) listRepositories(ctx context.Context, req mcp.CallToolR
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
 
-	jsonRepos, err := json.MarshalIndent(repos, "", "  ")
+	result := struct {
+		Repositories []*godo.RepositoryV2 `json:"repositories"`
+		Meta         *godo.Meta           `json:"meta,omitempty"`
+	}{
+		Repositories: repos,
+		Meta:         resp.Meta,
+	}
+
+	jsonRepos, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -92,7 +100,7 @@ func (r *RepositoryTool) listRepositoryTags(ctx context.Context, req mcp.CallToo
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	tags, _, err := client.Registries.ListRepositoryTags(ctx, registryName, repository, &godo.ListOptions{
+	tags, resp, err := client.Registries.ListRepositoryTags(ctx, registryName, repository, &godo.ListOptions{
 		Page:    page,
 		PerPage: perPage,
 	})
@@ -100,7 +108,15 @@ func (r *RepositoryTool) listRepositoryTags(ctx context.Context, req mcp.CallToo
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
 
-	jsonTags, err := json.MarshalIndent(tags, "", "  ")
+	result := struct {
+		Tags []*godo.RepositoryTag `json:"tags"`
+		Meta *godo.Meta            `json:"meta,omitempty"`
+	}{
+		Tags: tags,
+		Meta: resp.Meta,
+	}
+
+	jsonTags, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -164,7 +180,7 @@ func (r *RepositoryTool) listRepositoryManifests(ctx context.Context, req mcp.Ca
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	manifests, _, err := client.Registries.ListRepositoryManifests(ctx, registryName, repository, &godo.ListOptions{
+	manifests, resp, err := client.Registries.ListRepositoryManifests(ctx, registryName, repository, &godo.ListOptions{
 		Page:    page,
 		PerPage: perPage,
 	})
@@ -172,7 +188,15 @@ func (r *RepositoryTool) listRepositoryManifests(ctx context.Context, req mcp.Ca
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
 
-	jsonManifests, err := json.MarshalIndent(manifests, "", "  ")
+	result := struct {
+		Manifests []*godo.RepositoryManifest `json:"manifests"`
+		Meta      *godo.Meta                 `json:"meta,omitempty"`
+	}{
+		Manifests: manifests,
+		Meta:      resp.Meta,
+	}
+
+	jsonManifests, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}

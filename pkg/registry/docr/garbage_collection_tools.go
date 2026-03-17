@@ -105,7 +105,7 @@ func (g *GarbageCollectionTool) listGarbageCollections(ctx context.Context, req 
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	gcs, _, err := client.Registries.ListGarbageCollections(ctx, registryName, &godo.ListOptions{
+	gcs, resp, err := client.Registries.ListGarbageCollections(ctx, registryName, &godo.ListOptions{
 		Page:    page,
 		PerPage: perPage,
 	})
@@ -113,7 +113,15 @@ func (g *GarbageCollectionTool) listGarbageCollections(ctx context.Context, req 
 		return mcp.NewToolResultErrorFromErr("api error", err), nil
 	}
 
-	jsonGCs, err := json.MarshalIndent(gcs, "", "  ")
+	result := struct {
+		GarbageCollections []*godo.GarbageCollection `json:"garbage_collections"`
+		Meta               *godo.Meta                `json:"meta,omitempty"`
+	}{
+		GarbageCollections: gcs,
+		Meta:               resp.Meta,
+	}
+
+	jsonGCs, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
