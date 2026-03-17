@@ -19,6 +19,7 @@ The easiest way to get started is to use DigitalOcean's hosted MCP services. Eac
 | databases    | https://databases.mcp.digitalocean.com/mcp  | Provision, manage, and monitor managed database clusters (Postgres, MySQL, Redis, etc.). |
 | doks         | https://doks.mcp.digitalocean.com/mcp       | Manage DigitalOcean Kubernetes clusters and node pools. |
 | droplets     | https://droplets.mcp.digitalocean.com/mcp   | Create, manage, resize, snapshot, and monitor droplets (virtual machines) on DigitalOcean. |
+| docr         | https://docr.mcp.digitalocean.com/mcp       | Manage DigitalOcean Container Registry repositories, tags, manifests, and garbage collection. |
 | insights     | https://insights.mcp.digitalocean.com/mcp   | Monitors your resources, endpoints and alert you when they're slow, unavailable, or SSL certificates are expiring. |
 | marketplace  | https://marketplace.mcp.digitalocean.com/mcp| Discover and manage DigitalOcean Marketplace applications. |
 | networking   | https://networking.mcp.digitalocean.com/mcp | Manage domains, DNS records, certificates, firewalls, load balancers, reserved IPs, BYOIP Prefixes, VPCs, and CDNs. |
