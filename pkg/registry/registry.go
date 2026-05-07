@@ -44,6 +44,7 @@ var supportedServices = map[string]struct{}{
 	"dedicated-inference":    {},
 	"inference-modelcatalog": {},
 	"genai-evaluation":       {},
+	"genai-model-evaluation": {},
 	"genai-batchinference":   {},
 	"insights":               {},
 	"doks":                   {},
@@ -143,6 +144,12 @@ func registerModelCatalogTools(s *server.MCPServer, getClient getClientFn) error
 // registerGenAIEvaluationTools registers the GenAI evaluation tools with the MCP server.
 func registerGenAIEvaluationTools(s *server.MCPServer, getClient getClientFn) error {
 	s.AddTools(genai.NewEvaluationTool(getClient).Tools()...)
+	return nil
+}
+
+// registerGenAIModelEvaluationTools registers the GenAI model evaluation tools with the MCP server.
+func registerGenAIModelEvaluationTools(s *server.MCPServer, getClient getClientFn) error {
+	s.AddTools(genai.NewModelEvaluationTool(getClient).Tools()...)
 	return nil
 }
 
@@ -270,6 +277,10 @@ func Register(logger *slog.Logger, s *server.MCPServer, getClient getClientFn, s
 		case "genai-evaluation":
 			if err := registerGenAIEvaluationTools(s, getClient); err != nil {
 				return fmt.Errorf("failed to register genai-evaluation tools: %w", err)
+			}
+		case "genai-model-evaluation":
+			if err := registerGenAIModelEvaluationTools(s, getClient); err != nil {
+				return fmt.Errorf("failed to register genai-model-evaluation tools: %w", err)
 			}
 		case "genai-batchinference":
 			if err := registerGenAIBatchInferenceTools(s, getClient); err != nil {
