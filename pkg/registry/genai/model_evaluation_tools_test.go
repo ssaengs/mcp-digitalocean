@@ -25,15 +25,15 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 	require.Len(t, tools, 9, "should have 9 model evaluation tools")
 
 	expectedTools := map[string]bool{
-		"genai-model-eval-list-metrics":              false,
-		"genai-model-eval-list-presets":              false,
-		"genai-model-eval-get-preset":                false,
-		"genai-model-eval-create-dataset":            false,
-		"genai-model-eval-create-run":                false,
-		"genai-model-eval-list-runs":                 false,
-		"genai-model-eval-get-run":                   false,
-		"genai-model-eval-get-results-download-url":  false,
-		"genai-model-eval-run-workflow":              false,
+		"genai-model-eval-list-metrics":             false,
+		"genai-model-eval-list-presets":             false,
+		"genai-model-eval-get-preset":               false,
+		"genai-model-eval-create-dataset":           false,
+		"genai-model-eval-create-run":               false,
+		"genai-model-eval-list-runs":                false,
+		"genai-model-eval-get-run":                  false,
+		"genai-model-eval-get-results-download-url": false,
+		"genai-model-eval-run-workflow":             false,
 	}
 
 	for _, st := range tools {

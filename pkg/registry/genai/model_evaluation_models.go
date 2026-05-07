@@ -6,7 +6,7 @@ import "time"
 type ModelEvaluationRunStatus string
 
 const (
-	ModelEvalRunStatusUnspecified          ModelEvaluationRunStatus = "MODEL_EVALUATION_RUN_STATUS_UNSPECIFIED"
+	ModelEvalRunStatusUnspecified         ModelEvaluationRunStatus = "MODEL_EVALUATION_RUN_STATUS_UNSPECIFIED"
 	ModelEvalRunStatusQueued              ModelEvaluationRunStatus = "QUEUED"
 	ModelEvalRunStatusRunningDataset      ModelEvaluationRunStatus = "RUNNING_DATASET"
 	ModelEvalRunStatusEvaluatingResults   ModelEvaluationRunStatus = "EVALUATING_RESULTS"
@@ -115,35 +115,35 @@ type ListModelEvaluationRunsOutput struct {
 
 // ModelEvaluationResult holds per-prompt evaluation results.
 type ModelEvaluationResult struct {
-	Prompt           string                  `json:"prompt"`
-	Response         string                  `json:"response"`
-	GroundTruth      *string                 `json:"ground_truth,omitempty"`
+	Prompt           string                   `json:"prompt"`
+	Response         string                   `json:"response"`
+	GroundTruth      *string                  `json:"ground_truth,omitempty"`
 	MetricResults    []EvaluationMetricResult `json:"metric_results,omitempty"`
-	ErrorDescription *string                 `json:"error_description,omitempty"`
+	ErrorDescription *string                  `json:"error_description,omitempty"`
 }
 
 // ModelEvaluationRunDetail is the full detail of a model evaluation run.
 type ModelEvaluationRunDetail struct {
-	EvalRunUUID              string                   `json:"eval_run_uuid"`
-	Name                     string                   `json:"name"`
-	Status                   ModelEvaluationRunStatus `json:"status"`
-	CandidateModelUUID       string                   `json:"candidate_model_uuid"`
-	CandidateModelName       string                   `json:"candidate_model_name"`
+	EvalRunUUID              string                    `json:"eval_run_uuid"`
+	Name                     string                    `json:"name"`
+	Status                   ModelEvaluationRunStatus  `json:"status"`
+	CandidateModelUUID       string                    `json:"candidate_model_uuid"`
+	CandidateModelName       string                    `json:"candidate_model_name"`
 	CandidateInferenceConfig *CandidateInferenceConfig `json:"candidate_inference_config,omitempty"`
-	JudgeModelUUID           string                   `json:"judge_model_uuid,omitempty"`
-	JudgeModelName           string                   `json:"judge_model_name,omitempty"`
-	DatasetUUID              string                   `json:"dataset_uuid,omitempty"`
-	EvalPresetUUID           string                   `json:"eval_preset_uuid,omitempty"`
-	MetricUUIDs              []string                 `json:"metric_uuids,omitempty"`
-	StarMetric               *StarMetric              `json:"star_metric,omitempty"`
-	StarMetricResult         *EvaluationMetricResult  `json:"star_metric_result,omitempty"`
-	RunLevelMetricResults    []EvaluationMetricResult `json:"run_level_metric_results,omitempty"`
-	PassStatus               *bool                    `json:"pass_status,omitempty"`
-	StartedAt                *time.Time               `json:"started_at,omitempty"`
-	FinishedAt               *time.Time               `json:"finished_at,omitempty"`
-	CreatedAt                *time.Time               `json:"created_at,omitempty"`
-	ErrorDescription         *string                  `json:"error_description,omitempty"`
-	CandidateModelSource     string                   `json:"candidate_model_source,omitempty"`
+	JudgeModelUUID           string                    `json:"judge_model_uuid,omitempty"`
+	JudgeModelName           string                    `json:"judge_model_name,omitempty"`
+	DatasetUUID              string                    `json:"dataset_uuid,omitempty"`
+	EvalPresetUUID           string                    `json:"eval_preset_uuid,omitempty"`
+	MetricUUIDs              []string                  `json:"metric_uuids,omitempty"`
+	StarMetric               *StarMetric               `json:"star_metric,omitempty"`
+	StarMetricResult         *EvaluationMetricResult   `json:"star_metric_result,omitempty"`
+	RunLevelMetricResults    []EvaluationMetricResult  `json:"run_level_metric_results,omitempty"`
+	PassStatus               *bool                     `json:"pass_status,omitempty"`
+	StartedAt                *time.Time                `json:"started_at,omitempty"`
+	FinishedAt               *time.Time                `json:"finished_at,omitempty"`
+	CreatedAt                *time.Time                `json:"created_at,omitempty"`
+	ErrorDescription         *string                   `json:"error_description,omitempty"`
+	CandidateModelSource     string                    `json:"candidate_model_source,omitempty"`
 }
 
 // GetModelEvaluationRunOutput is the response from getting a single model evaluation run.
