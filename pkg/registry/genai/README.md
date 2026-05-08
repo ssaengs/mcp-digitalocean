@@ -20,8 +20,6 @@ The package contains three sets of tools:
 - Download evaluation results
 - Monitor model evaluation run status
 
-**Custom Models** (`genai-custom-models`) — see [genai-custom-models/README.md](../genai-custom-models/README.md)
-
 ## Tools
 
 ### Atomic Tools (One API Call Each)
