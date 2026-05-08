@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/digitalocean/godo"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDropletLifecycle(t *testing.T) {
@@ -16,19 +15,7 @@ func TestDropletLifecycle(t *testing.T) {
 
 	droplet := CreateTestDroplet(t, "mcp-e2e-test")
 
-	type dropletShort struct {
-		ID int `json:"id"`
-	}
-	droplets := callTool[[]dropletShort](t, "droplet-list", map[string]interface{}{"Page": defaultPage, "PerPage": defaultPerPage})
-
-	found := false
-	for _, d := range droplets {
-		if d.ID == droplet.ID {
-			found = true
-			break
-		}
-	}
-	require.True(t, found, "Created droplet not found in list")
+	requireDropletListedViaMCPTool(t, droplet.ID)
 
 	DeleteResource(t, "droplet", droplet.ID)
 
