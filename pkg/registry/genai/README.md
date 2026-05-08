@@ -4,7 +4,7 @@ This package provides MCP tools for DigitalOcean's GenAI platform.
 
 ## Overview
 
-The package contains three sets of tools:
+The package contains two sets of evaluation tools:
 
 **Agent Evaluation** (`genai-evaluation`) — evaluate deployed agents end-to-end:
 - List available evaluation metrics
