@@ -1,6 +1,6 @@
-# GenAI Evaluation Tools
+# GenAI Tools
 
-This package provides MCP tools for managing and running evaluation workflows in DigitalOcean's GenAI platform.
+This package provides MCP tools for DigitalOcean's GenAI platform.
 
 ## Overview
 
@@ -522,3 +522,4 @@ genai-model-eval-run-workflow
 - `FAILED`: Run failed completely
 
 Terminal statuses: `SUCCESSFUL`, `FAILED`, `CANCELLED`, `PARTIALLY_SUCCESSFUL`
+
