@@ -13,11 +13,10 @@ The package contains two sets of evaluation tools:
 - Run evaluations against agent deployments
 - Monitor evaluation run status
 
-**Model Evaluation** (`genai-model-evaluation`) — evaluate raw models directly:
+**Model Evaluation** (under `genai-evaluation`) — evaluate raw models directly:
 - List available model evaluation metrics
-- Manage model evaluation presets (reusable configs)
 - Upload evaluation datasets
-- Create and run model evaluation runs (via preset or inline config)
+- Create and run model evaluation runs
 - Download evaluation results
 - Monitor model evaluation run status
 
@@ -338,8 +337,6 @@ These tools evaluate raw models directly (not full agent deployments). They use 
 
 - **Candidate Model**: The model being evaluated.
 - **Judge Model**: An LLM that scores the candidate model's responses.
-- **Preset**: A reusable evaluation configuration (dataset + judge model + metrics bundled together).
-- **Inline Config**: Provide dataset, judge model, and metrics directly when creating a run (instead of using a preset).
 
 ## Tools
 
@@ -365,36 +362,6 @@ List all available model evaluation metrics.
 }
 ```
 
-#### `genai-model-eval-list-presets`
-List all model evaluation presets.
-
-**Arguments:** None
-
-**Returns:** JSON object with array of presets and count
-
-```json
-{
-  "presets": [
-    {
-      "eval_preset_uuid": "...",
-      "name": "my-preset",
-      "dataset_uuid": "...",
-      "judge_model_uuid": "...",
-      "metrics": [...]
-    }
-  ],
-  "count": 2
-}
-```
-
-#### `genai-model-eval-get-preset`
-Get a single model evaluation preset by UUID.
-
-**Arguments:**
-- `eval_preset_uuid` (string, required): UUID of the preset
-
-**Returns:** JSON object with preset details
-
 #### `genai-model-eval-create-dataset`
 Upload a CSV file as a model evaluation dataset.
 
@@ -414,20 +381,17 @@ Upload a CSV file as a model evaluation dataset.
 ```
 
 #### `genai-model-eval-create-run`
-Create a model evaluation run. Supports both preset-based and inline configuration.
+Create a model evaluation run.
 
 **Arguments:**
 - `name` (string, required): Name for the evaluation run
 - `candidate_model_uuid` (string, required): UUID of the candidate model
 - `candidate_model_name` (string, required): Display name of the candidate model
-- `eval_preset_uuid` (string, optional): UUID of a preset to use
-- `dataset_uuid` (string, optional): Dataset UUID (required if not using a preset)
-- `judge_model_uuid` (string, optional): Judge model UUID (required if not using a preset)
-- `metric_uuids` (array of strings, optional): Metric UUIDs (required if not using a preset)
+- `dataset_uuid` (string, required): Dataset UUID
+- `judge_model_uuid` (string, required): Judge model UUID
+- `metric_uuids` (array of strings, optional): Metric UUIDs to evaluate
 - `star_metric` (object, optional): Primary success metric
 - `candidate_inference_config` (object, optional): Inference params (max_tokens, temperature, top_p)
-- `save_as_preset` (boolean, optional): Save this config as a new preset
-- `preset_name` (string, optional): Name for the new preset
 
 **Returns:** JSON object with the evaluation run UUID
 
@@ -442,8 +406,7 @@ Create a model evaluation run. Supports both preset-based and inline configurati
 List model evaluation runs with optional filters.
 
 **Arguments:**
-- `eval_preset_uuid` (string, optional): Filter by preset UUID
-- `status` (string, optional): Filter by status (SUCCESSFUL, FAILED, QUEUED, etc.)
+- `status` (string, optional): Filter by status (e.g., MODEL_EVALUATION_RUN_SUCCESSFUL, FAILED, QUEUED)
 - `page` (number, optional): Page number
 - `per_page` (number, optional): Results per page
 
@@ -509,29 +472,7 @@ Run a complete model evaluation workflow: upload dataset, create run, and poll f
 
 ## Model Evaluation Workflow Examples
 
-### Using a Preset
-
-```
-1. List presets to find an existing one:
-   genai-model-eval-list-presets
-
-2. Create a run using the preset:
-   genai-model-eval-create-run
-     name: "eval_llama_v1"
-     candidate_model_uuid: "<candidate-uuid>"
-     candidate_model_name: "Llama 3.3 70B"
-     eval_preset_uuid: "<preset-uuid>"
-
-3. Poll for results:
-   genai-model-eval-get-run
-     eval_run_uuid: "<uuid from step 2>"
-
-4. Download full results:
-   genai-model-eval-get-results-download-url
-     eval_run_uuid: "<uuid from step 2>"
-```
-
-### Using Inline Config
+### Using Atomic Tools (Step-by-Step)
 
 ```
 1. Upload dataset:
@@ -542,7 +483,7 @@ Run a complete model evaluation workflow: upload dataset, create run, and poll f
 2. List metrics:
    genai-model-eval-list-metrics
 
-3. Create a run with inline config:
+3. Create a run:
    genai-model-eval-create-run
      name: "eval_run_1"
      candidate_model_uuid: "<candidate-uuid>"
