@@ -18,6 +18,7 @@ import (
 	"mcp-digitalocean/pkg/registry/functions"
 	"mcp-digitalocean/pkg/registry/genai"
 	genaibi "mcp-digitalocean/pkg/registry/genai-batchinference"
+	genaicm "mcp-digitalocean/pkg/registry/genai-custom-models"
 	inferencemodelcatalog "mcp-digitalocean/pkg/registry/inference-modelcatalog"
 	"mcp-digitalocean/pkg/registry/insights"
 	"mcp-digitalocean/pkg/registry/marketplace"
@@ -44,6 +45,7 @@ var supportedServices = map[string]struct{}{
 	"dedicated-inference":    {},
 	"inference-modelcatalog": {},
 	"genai-evaluation":       {},
+	"genai-custom-models":    {},
 	"genai-batchinference":   {},
 	"insights":               {},
 	"doks":                   {},
@@ -144,6 +146,12 @@ func registerModelCatalogTools(s *server.MCPServer, getClient getClientFn) error
 func registerGenAIEvaluationTools(s *server.MCPServer, getClient getClientFn) error {
 	s.AddTools(genai.NewEvaluationTool(getClient).Tools()...)
 	s.AddTools(genai.NewModelEvaluationTool(getClient).Tools()...)
+	return nil
+}
+
+// registerGenAICustomModelsTools registers the GenAI custom models tools with the MCP server.
+func registerGenAICustomModelsTools(s *server.MCPServer, getClient getClientFn) error {
+	s.AddTools(genaicm.NewCustomModelsTool(getClient).Tools()...)
 	return nil
 }
 
@@ -271,6 +279,10 @@ func Register(logger *slog.Logger, s *server.MCPServer, getClient getClientFn, s
 		case "genai-evaluation":
 			if err := registerGenAIEvaluationTools(s, getClient); err != nil {
 				return fmt.Errorf("failed to register genai-evaluation tools: %w", err)
+			}
+		case "genai-custom-models":
+			if err := registerGenAICustomModelsTools(s, getClient); err != nil {
+				return fmt.Errorf("failed to register genai-custom-models tools: %w", err)
 			}
 		case "genai-batchinference":
 			if err := registerGenAIBatchInferenceTools(s, getClient); err != nil {

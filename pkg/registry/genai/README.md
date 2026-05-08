@@ -1,10 +1,10 @@
-# GenAI Evaluation Tools
+# GenAI Tools
 
-This package provides MCP tools for managing and running evaluation workflows in DigitalOcean's GenAI platform.
+This package provides MCP tools for DigitalOcean's GenAI platform.
 
 ## Overview
 
-The package contains two sets of evaluation tools:
+The package contains three sets of tools:
 
 **Agent Evaluation** (`genai-evaluation`) — evaluate deployed agents end-to-end:
 - List available evaluation metrics
@@ -19,6 +19,8 @@ The package contains two sets of evaluation tools:
 - Create and run model evaluation runs
 - Download evaluation results
 - Monitor model evaluation run status
+
+**Custom Models** (`genai-custom-models`) — see [genai-custom-models/README.md](../genai-custom-models/README.md)
 
 ## Tools
 
@@ -522,3 +524,4 @@ genai-model-eval-run-workflow
 - `FAILED`: Run failed completely
 
 Terminal statuses: `SUCCESSFUL`, `FAILED`, `CANCELLED`, `PARTIALLY_SUCCESSFUL`
+
