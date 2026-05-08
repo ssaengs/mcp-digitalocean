@@ -17,29 +17,6 @@ const (
 	ModelEvalRunStatusFailed              ModelEvaluationRunStatus = "FAILED"
 )
 
-// ModelEvaluationPreset represents a reusable model evaluation configuration.
-type ModelEvaluationPreset struct {
-	EvalPresetUUID string              `json:"eval_preset_uuid"`
-	Name           string              `json:"name"`
-	DatasetUUID    string              `json:"dataset_uuid"`
-	DatasetName    string              `json:"dataset_name"`
-	JudgeModelUUID string              `json:"judge_model_uuid"`
-	JudgeModelName string              `json:"judge_model_name"`
-	Metrics        []*EvaluationMetric `json:"metrics,omitempty"`
-	StarMetric     *StarMetric         `json:"star_metric,omitempty"`
-	CreatedAt      *time.Time          `json:"created_at,omitempty"`
-}
-
-// ListModelEvaluationPresetsOutput is the response from listing presets.
-type ListModelEvaluationPresetsOutput struct {
-	Presets []*ModelEvaluationPreset `json:"presets"`
-}
-
-// GetModelEvaluationPresetOutput is the response from getting a single preset.
-type GetModelEvaluationPresetOutput struct {
-	Preset *ModelEvaluationPreset `json:"preset"`
-}
-
 // CandidateInferenceConfig holds inference parameters for the candidate model.
 type CandidateInferenceConfig struct {
 	MaxTokens   *int     `json:"max_tokens,omitempty"`

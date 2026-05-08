@@ -18,7 +18,6 @@ import (
 
 const modelEvalAPIPath = genAIAPIPath + "/model_evaluation"
 const modelEvalRunsAPIPath = genAIAPIPath + "/model_evaluation_runs"
-const modelEvalPresetsAPIPath = genAIAPIPath + "/model_evaluation_presets"
 const modelEvalMetricsAPIPath = genAIAPIPath + "/model_evaluation_metrics"
 
 // ModelEvaluationTool provides model evaluation management tools.
@@ -62,73 +61,6 @@ func (met *ModelEvaluationTool) listMetrics(ctx context.Context, req mcp.CallToo
 	}
 
 	jsonData, err := json.MarshalIndent(response, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
-	}
-
-	return mcp.NewToolResultText(string(jsonData)), nil
-}
-
-// listPresets lists all model evaluation presets.
-func (met *ModelEvaluationTool) listPresets(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	client, err := met.client(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
-	}
-
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalPresetsAPIPath, nil)
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ListModelEvaluationPresetsOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
-		return mcp.NewToolResultErrorFromErr("failed to list model evaluation presets", err), nil
-	}
-
-	type PresetsResponse struct {
-		Presets []*ModelEvaluationPreset `json:"presets"`
-		Count   int                      `json:"count"`
-	}
-
-	response := PresetsResponse{
-		Presets: output.Presets,
-		Count:   len(output.Presets),
-	}
-
-	jsonData, err := json.MarshalIndent(response, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
-	}
-
-	return mcp.NewToolResultText(string(jsonData)), nil
-}
-
-// getPreset gets a single model evaluation preset by UUID.
-func (met *ModelEvaluationTool) getPreset(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	presetUUID, ok := req.GetArguments()["eval_preset_uuid"].(string)
-	if !ok || presetUUID == "" {
-		return mcp.NewToolResultError("eval_preset_uuid is required"), nil
-	}
-
-	client, err := met.client(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
-	}
-
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalPresetsAPIPath+"/"+presetUUID, nil)
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output GetModelEvaluationPresetOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
-		return mcp.NewToolResultErrorFromErr("failed to get model evaluation preset", err), nil
-	}
-
-	jsonData, err := json.MarshalIndent(output.Preset, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -727,21 +659,6 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool(
 				"genai-model-eval-list-metrics",
 				mcp.WithDescription("List all available model evaluation metrics."),
-			),
-		},
-		{
-			Handler: met.listPresets,
-			Tool: mcp.NewTool(
-				"genai-model-eval-list-presets",
-				mcp.WithDescription("List all model evaluation presets. Presets are reusable evaluation configurations containing a dataset, judge model, and metrics."),
-			),
-		},
-		{
-			Handler: met.getPreset,
-			Tool: mcp.NewTool(
-				"genai-model-eval-get-preset",
-				mcp.WithDescription("Get a single model evaluation preset by UUID."),
-				mcp.WithString("eval_preset_uuid", mcp.Required(), mcp.Description("UUID of the evaluation preset")),
 			),
 		},
 		{
