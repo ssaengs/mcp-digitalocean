@@ -36,23 +36,28 @@ const (
 	resourcePollInterval = 3 * time.Second
 
 	// Timeouts
-	defaultActionTimeout     = 5 * time.Minute
-	imageTransferTimeout     = 15 * time.Minute
-	dropletActiveTimeout     = 10 * time.Minute
-	dropletDeleteTimeout     = 2 * time.Minute
-	imageAvailableTimeout    = 5 * time.Minute
-	snapshotDiscoveryTimeout = 2 * time.Minute
-	renameVerifyTimeout      = 30 * time.Second
-	ipv6AssignTimeout        = 1 * time.Minute
-	backupsEnableTimeout     = 1 * time.Minute
-	imageDeleteTimeout       = 1 * time.Minute
-	restoreActionTimeout     = 2 * time.Minute
-	rebuildActionTimeout     = 5 * time.Minute
+	defaultActionTimeout        = 5 * time.Minute
+	imageTransferTimeout        = 15 * time.Minute
+	dropletActiveTimeout        = 10 * time.Minute
+	dropletDeleteTimeout        = 2 * time.Minute
+	imageAvailableTimeout       = 5 * time.Minute
+	snapshotDiscoveryTimeout    = 2 * time.Minute
+	renameVerifyTimeout         = 30 * time.Second
+	ipv6AssignTimeout           = 1 * time.Minute
+	backupsEnableTimeout        = 1 * time.Minute
+	imageDeleteTimeout          = 1 * time.Minute
+	restoreActionTimeout        = 2 * time.Minute
+	rebuildActionTimeout        = 5 * time.Minute
+	dropletListInclusionTimeout = 2 * time.Minute
 
 	// Pagination
 	defaultPerPage   = 50
 	imageListPerPage = 20
 	defaultPage      = 1
+	// dropletListMaxPerPage is the maximum supported by GET /v2/droplets (minimizes pages under parallel E2E load).
+	dropletListMaxPerPage = 200
+	// dropletListMaxPages caps pagination in pathological cases (misbehaving API returning full pages).
+	dropletListMaxPages = 500
 
 	// Test Regions
 	testRegionNYC1 = "nyc1"
@@ -179,6 +184,46 @@ func requireFoundInList[T any](t *testing.T, items []T, match func(T) bool, item
 		}
 	}
 	t.Fatalf("%s not found in list", itemName)
+}
+
+// requireDropletListedViaMCPTool asserts droplet-list eventually returns dropletID when scanning
+// all pages at the maximum page size, with retries. Covers (a) accounts that temporarily exceed
+// one page of droplets during parallel tests and (b) brief list inconsistency after create.
+func requireDropletListedViaMCPTool(t *testing.T, dropletID int) {
+	t.Helper()
+
+	deadline := time.Now().Add(dropletListInclusionTimeout)
+	for time.Now().Before(deadline) {
+		if dropletListedOnAnyMCPPage(t, dropletID) {
+			return
+		}
+		time.Sleep(resourcePollInterval)
+	}
+
+	require.Fail(t, fmt.Sprintf("droplet %d not found in droplet-list after %v (all pages, retries)", dropletID, dropletListInclusionTimeout))
+}
+
+func dropletListedOnAnyMCPPage(t *testing.T, dropletID int) bool {
+	t.Helper()
+
+	type entry struct {
+		ID int `json:"id"`
+	}
+	for page := 1; page <= dropletListMaxPages; page++ {
+		droplets := callTool[[]entry](t, "droplet-list", map[string]any{
+			"Page":    float64(page),
+			"PerPage": float64(dropletListMaxPerPage),
+		})
+		for _, d := range droplets {
+			if d.ID == dropletID {
+				return true
+			}
+		}
+		if len(droplets) < dropletListMaxPerPage {
+			return false
+		}
+	}
+	return false
 }
 
 // --- Resource Lifecycle Helpers ---
