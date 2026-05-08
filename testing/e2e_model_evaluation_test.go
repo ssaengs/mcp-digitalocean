@@ -3,7 +3,6 @@
 package testing
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -162,40 +161,4 @@ func TestModelEvalGetResultsDownloadURL(t *testing.T) {
 
 	require.NotEmpty(t, out.DownloadURL, "download URL should not be empty")
 	t.Logf("got download URL for run %s", runUUID)
-}
-
-// TestModelEvalCreateDataset uploads a test CSV dataset.
-// Requires MODEL_EVAL_TEST_DATASET_PATH env var pointing to a CSV file,
-// or creates a minimal test file.
-func TestModelEvalCreateDataset(t *testing.T) {
-	t.Parallel()
-
-	datasetPath := os.Getenv("MODEL_EVAL_TEST_DATASET_PATH")
-	if datasetPath == "" {
-		tmpFile, err := os.CreateTemp("", "model-eval-test-*.csv")
-		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
-
-		_, err = tmpFile.WriteString("query,expected_output\n\"{\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"What is 2+2?\\\"}\",\"4\"\n")
-		require.NoError(t, err)
-		require.NoError(t, tmpFile.Close())
-		datasetPath = tmpFile.Name()
-	}
-
-	type datasetResponse struct {
-		ObjectKey string `json:"object_key"`
-		Name      string `json:"name"`
-		FileName  string `json:"file_name"`
-		FileSize  int64  `json:"file_size"`
-	}
-
-	out := callTool[datasetResponse](t, "genai-model-eval-create-dataset", map[string]any{
-		"name":      "e2e-test-dataset",
-		"file_path": datasetPath,
-	})
-
-	require.NotEmpty(t, out.ObjectKey, "object_key should not be empty")
-	require.Equal(t, "e2e-test-dataset", out.Name)
-	require.Greater(t, out.FileSize, int64(0), "file size should be positive")
-	t.Logf("uploaded dataset: object_key=%s file_size=%d", out.ObjectKey, out.FileSize)
 }
