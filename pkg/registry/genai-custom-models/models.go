@@ -1,6 +1,9 @@
 package genaicustommodels
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CustomModelStatus represents the status of a custom model.
 type CustomModelStatus string
@@ -73,19 +76,19 @@ type CustomModel struct {
 	Architecture         string                         `json:"architecture,omitempty"`
 	SourceType           CustomModelSourceType          `json:"source_type,omitempty"`
 	SourceRef            *CustomModelSourceRef          `json:"source_ref,omitempty"`
-	TotalSizeBytes       int64                          `json:"total_size_bytes,omitempty"`
-	FileCount            int                            `json:"file_count,omitempty"`
+	TotalSizeBytes       json.Number                    `json:"total_size_bytes,omitempty"`
+	FileCount            json.Number                    `json:"file_count,omitempty"`
 	License              string                         `json:"license,omitempty"`
 	Tags                 *CustomModelTags               `json:"tags,omitempty"`
 	CreatedAt            *time.Time                     `json:"created_at,omitempty"`
 	UpdatedAt            *time.Time                     `json:"updated_at,omitempty"`
 	ActiveDeployments    []*CustomModelActiveDeployment `json:"active_deployments,omitempty"`
-	ContextLength        int                            `json:"context_length,omitempty"`
-	CostEstimatePerMonth float64                        `json:"cost_estimate_per_month,omitempty"`
+	ContextLength        json.Number                    `json:"context_length,omitempty"`
+	CostEstimatePerMonth json.Number                    `json:"cost_estimate_per_month,omitempty"`
 	InputModalities      []string                       `json:"input_modalities,omitempty"`
 	OutputModalities     []string                       `json:"output_modalities,omitempty"`
-	Parameters           int64                          `json:"parameters,omitempty"`
-	TeamID               int64                          `json:"team_id,omitempty"`
+	Parameters           json.Number                    `json:"parameters,omitempty"`
+	TeamID               json.Number                    `json:"team_id,omitempty"`
 }
 
 // PaginationLinks holds pagination links from the API.
@@ -131,10 +134,10 @@ type ImportCustomModelInput struct {
 type ImportJob struct {
 	UUID       string     `json:"uuid"`
 	Status     string     `json:"status"`
-	FilesTotal int        `json:"files_total"`
-	FilesDone  int        `json:"files_done"`
-	BytesTotal int64      `json:"bytes_total"`
-	BytesDone  int64      `json:"bytes_done"`
+	FilesTotal json.Number `json:"files_total"`
+	FilesDone  json.Number `json:"files_done"`
+	BytesTotal json.Number `json:"bytes_total"`
+	BytesDone  json.Number `json:"bytes_done"`
 	CreatedAt  *time.Time `json:"created_at,omitempty"`
 }
 
