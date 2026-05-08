@@ -132,13 +132,13 @@ type ImportCustomModelInput struct {
 
 // ImportJob represents the status of a model import job.
 type ImportJob struct {
-	UUID       string     `json:"uuid"`
-	Status     string     `json:"status"`
+	UUID       string      `json:"uuid"`
+	Status     string      `json:"status"`
 	FilesTotal json.Number `json:"files_total"`
 	FilesDone  json.Number `json:"files_done"`
 	BytesTotal json.Number `json:"bytes_total"`
 	BytesDone  json.Number `json:"bytes_done"`
-	CreatedAt  *time.Time `json:"created_at,omitempty"`
+	CreatedAt  *time.Time  `json:"created_at,omitempty"`
 }
 
 // ValidationStep represents a validation check during import.
