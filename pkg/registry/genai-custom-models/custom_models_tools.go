@@ -131,6 +131,15 @@ func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRe
 	if v, ok := sourceRefRaw["hf_token"].(string); ok {
 		sourceRef.HFToken = v
 	}
+	if v, ok := sourceRefRaw["bucket"].(string); ok {
+		sourceRef.Bucket = v
+	}
+	if v, ok := sourceRefRaw["region"].(string); ok {
+		sourceRef.Region = v
+	}
+	if v, ok := sourceRefRaw["prefix"].(string); ok {
+		sourceRef.Prefix = v
+	}
 
 	acceptTerms, _ := args["accept_terms_and_conditions"].(bool)
 
@@ -244,6 +253,37 @@ func (cmt *CustomModelsTool) updateMetadata(ctx context.Context, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// getModel retrieves a single custom model by UUID (public endpoint).
+func (cmt *CustomModelsTool) getModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	uuid, _ := req.GetArguments()["uuid"].(string)
+	if uuid == "" {
+		return mcp.NewToolResultError("uuid is required"), nil
+	}
+
+	client, err := cmt.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	apiReq, err := newRequestWithContext(ctx, client, "GET", customModelsAPIPath+"/"+uuid, nil)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
+	}
+
+	var output GetCustomModelOutput
+	resp, err := client.Do(ctx, apiReq, &output)
+	if err != nil || resp.StatusCode >= 400 {
+		return mcp.NewToolResultErrorFromErr("failed to get custom model", err), nil
+	}
+
+	jsonData, err := json.MarshalIndent(output.Model, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
 // deleteModel deletes a custom model.
 func (cmt *CustomModelsTool) deleteModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	uuid, _ := req.GetArguments()["uuid"].(string)
@@ -295,7 +335,7 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 				mcp.WithDescription("Import a custom model from an external source (e.g. HuggingFace). Starts an async import job."),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the custom model")),
 				mcp.WithString("source_type", mcp.Required(), mcp.Description("Source type: SOURCE_TYPE_HUGGINGFACE, SOURCE_TYPE_SPACES_BUCKET, SOURCE_TYPE_SDK_UPLOAD, SOURCE_TYPE_FINE_TUNING")),
-				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference: repo_id (string), commit_sha (string, optional), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models)")),
+				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference. For HuggingFace: repo_id (string), commit_sha (string, optional), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models). For Spaces Bucket: bucket (string, required), region (string, optional), prefix (string, optional)")),
 				mcp.WithBoolean("accept_terms_and_conditions", mcp.Description("Accept terms and conditions for importing the model")),
 				mcp.WithString("description", mcp.Description("Description of the model")),
 				mcp.WithString("preferred_gpu_region", mcp.Description("Preferred GPU region for the model (e.g. nyc3)")),
@@ -314,11 +354,27 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			),
 		},
 		{
+			Handler: cmt.getModel,
+			Tool: mcp.NewTool(
+				"genai-custom-models-get",
+				mcp.WithDescription("Get the full catalog card for a custom model, including its status, architecture, source info, size, license, tags, active deployments, and cost estimate."),
+				mcp.WithString("uuid", mcp.Required(), mcp.Description("UUID of the custom model to retrieve")),
+			),
+		},
+		{
 			Handler: cmt.deleteModel,
 			Tool: mcp.NewTool(
 				"genai-custom-models-delete",
 				mcp.WithDescription("Delete a custom model."),
 				mcp.WithString("uuid", mcp.Required(), mcp.Description("UUID of the custom model to delete")),
+			),
+		},
+		{
+			Handler: cmt.unifiedSearch,
+			Tool: mcp.NewTool(
+				"genai-models-unified-search",
+				mcp.WithDescription("Search across both the DigitalOcean model catalog and your custom models in a single call. Returns a merged list of models with a 'source' field indicating whether each result is from the 'catalog' or 'custom' models. When a query is provided, catalog models are searched server-side and custom models are filtered client-side by name, description, architecture, and tags. An empty query returns all models from both sources."),
+				mcp.WithString("query", mcp.Description("Search query string to find models (optional; empty or omitted returns all models from both sources)")),
 			),
 		},
 	}
