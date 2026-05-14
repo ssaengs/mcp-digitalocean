@@ -39,10 +39,15 @@ const (
 
 // CustomModelSourceRef describes where the model files come from.
 type CustomModelSourceRef struct {
+	// HuggingFace fields
 	RepoID     string                `json:"repo_id,omitempty"`
 	CommitSHA  string                `json:"commit_sha,omitempty"`
 	AccessType CustomModelAccessType `json:"access_type,omitempty"`
 	HFToken    string                `json:"hf_token,omitempty"`
+	// Spaces Bucket fields
+	Bucket string `json:"bucket,omitempty"`
+	Region string `json:"region,omitempty"`
+	Prefix string `json:"prefix,omitempty"`
 }
 
 // CustomModelTags wraps a list of tag strings.

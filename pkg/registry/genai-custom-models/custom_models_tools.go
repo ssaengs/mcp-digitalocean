@@ -131,6 +131,15 @@ func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRe
 	if v, ok := sourceRefRaw["hf_token"].(string); ok {
 		sourceRef.HFToken = v
 	}
+	if v, ok := sourceRefRaw["bucket"].(string); ok {
+		sourceRef.Bucket = v
+	}
+	if v, ok := sourceRefRaw["region"].(string); ok {
+		sourceRef.Region = v
+	}
+	if v, ok := sourceRefRaw["prefix"].(string); ok {
+		sourceRef.Prefix = v
+	}
 
 	acceptTerms, _ := args["accept_terms_and_conditions"].(bool)
 
@@ -326,7 +335,7 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 				mcp.WithDescription("Import a custom model from an external source (e.g. HuggingFace). Starts an async import job."),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the custom model")),
 				mcp.WithString("source_type", mcp.Required(), mcp.Description("Source type: SOURCE_TYPE_HUGGINGFACE, SOURCE_TYPE_SPACES_BUCKET, SOURCE_TYPE_SDK_UPLOAD, SOURCE_TYPE_FINE_TUNING")),
-				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference: repo_id (string), commit_sha (string, optional), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models)")),
+				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference. For HuggingFace: repo_id (string), commit_sha (string, optional), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models). For Spaces Bucket: bucket (string, required), region (string, optional), prefix (string, optional)")),
 				mcp.WithBoolean("accept_terms_and_conditions", mcp.Description("Accept terms and conditions for importing the model")),
 				mcp.WithString("description", mcp.Description("Description of the model")),
 				mcp.WithString("preferred_gpu_region", mcp.Description("Preferred GPU region for the model (e.g. nyc3)")),

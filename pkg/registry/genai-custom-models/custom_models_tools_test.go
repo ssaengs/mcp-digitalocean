@@ -84,6 +84,22 @@ func TestCustomModelsTool_importModel_validation(t *testing.T) {
 	}
 }
 
+func TestCustomModelsTool_importModel_spacesSourceRef(t *testing.T) {
+	tool := setupCustomModelsToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"name":        "my-spaces-model",
+		"source_type": "SOURCE_TYPE_SPACES_BUCKET",
+		"source_ref": map[string]interface{}{
+			"bucket": "my-bucket",
+			"region": "nyc3",
+			"prefix": "models/mistral/",
+		},
+		"accept_terms_and_conditions": true,
+	}}}
+	_, err := tool.importModel(context.Background(), req)
+	require.Error(t, err, "should fail due to client error, not validation")
+}
+
 func TestCustomModelsTool_importModel_clientError(t *testing.T) {
 	tool := setupCustomModelsToolWithFailingClient()
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
@@ -204,6 +220,13 @@ func TestCustomModelsTool_unifiedSearch_clientError(t *testing.T) {
 	}}}
 	_, err := tool.unifiedSearch(context.Background(), req)
 	require.Error(t, err)
+}
+
+func TestCustomModelsTool_unifiedSearch_emptyQuery_clientError(t *testing.T) {
+	tool := setupCustomModelsToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}
+	_, err := tool.unifiedSearch(context.Background(), req)
+	require.Error(t, err, "empty query should still attempt API call and fail on client error")
 }
 
 func TestCustomModelMatchesQuery(t *testing.T) {
