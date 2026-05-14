@@ -22,13 +22,15 @@ func TestCustomModelsTool_Tools(t *testing.T) {
 	})
 
 	tools := tool.Tools()
-	require.Len(t, tools, 4, "should have 4 custom models tools")
+	require.Len(t, tools, 6, "should have 6 custom models tools")
 
 	expectedTools := map[string]bool{
 		"genai-custom-models-list":            false,
 		"genai-custom-models-import":          false,
 		"genai-custom-models-update-metadata": false,
+		"genai-custom-models-get":             false,
 		"genai-custom-models-delete":          false,
+		"genai-models-unified-search":         false,
 	}
 
 	for _, st := range tools {
@@ -133,6 +135,37 @@ func TestCustomModelsTool_updateMetadata_clientError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCustomModelsTool_getModel_validation(t *testing.T) {
+	tool := setupCustomModelsToolWithFailingClient()
+
+	tests := []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "missing uuid", args: map[string]any{}},
+		{name: "empty uuid", args: map[string]any{"uuid": ""}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+			resp, err := tool.getModel(context.Background(), req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.True(t, resp.IsError)
+		})
+	}
+}
+
+func TestCustomModelsTool_getModel_clientError(t *testing.T) {
+	tool := setupCustomModelsToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"uuid": "test-uuid",
+	}}}
+	_, err := tool.getModel(context.Background(), req)
+	require.Error(t, err)
+}
+
 func TestCustomModelsTool_deleteModel_validation(t *testing.T) {
 	tool := setupCustomModelsToolWithFailingClient()
 
@@ -162,4 +195,66 @@ func TestCustomModelsTool_deleteModel_clientError(t *testing.T) {
 	}}}
 	_, err := tool.deleteModel(context.Background(), req)
 	require.Error(t, err)
+}
+
+func TestCustomModelsTool_unifiedSearch_clientError(t *testing.T) {
+	tool := setupCustomModelsToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"query": "llama",
+	}}}
+	_, err := tool.unifiedSearch(context.Background(), req)
+	require.Error(t, err)
+}
+
+func TestCustomModelMatchesQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    *CustomModel
+		query    string
+		expected bool
+	}{
+		{
+			name:     "match by name",
+			model:    &CustomModel{Name: "my-llama-model"},
+			query:    "llama",
+			expected: true,
+		},
+		{
+			name:     "match by description",
+			model:    &CustomModel{Name: "some-model", Description: "A fine-tuned Llama variant"},
+			query:    "llama",
+			expected: true,
+		},
+		{
+			name:     "match by tag",
+			model:    &CustomModel{Name: "some-model", Tags: &CustomModelTags{Tags: []string{"llm", "llama"}}},
+			query:    "llama",
+			expected: true,
+		},
+		{
+			name:     "match by architecture",
+			model:    &CustomModel{Name: "some-model", Architecture: "LlamaForCausalLM"},
+			query:    "llama",
+			expected: true,
+		},
+		{
+			name:     "no match",
+			model:    &CustomModel{Name: "my-gpt-model", Description: "A GPT variant"},
+			query:    "llama",
+			expected: false,
+		},
+		{
+			name:     "case insensitive",
+			model:    &CustomModel{Name: "My-LLAMA-Model"},
+			query:    "llama",
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := customModelMatchesQuery(tc.model, tc.query)
+			require.Equal(t, tc.expected, result)
+		})
+	}
 }

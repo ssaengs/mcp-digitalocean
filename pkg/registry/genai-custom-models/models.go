@@ -89,6 +89,8 @@ type CustomModel struct {
 	OutputModalities     []string                       `json:"output_modalities,omitempty"`
 	Parameters           json.Number                    `json:"parameters,omitempty"`
 	TeamID               json.Number                    `json:"team_id,omitempty"`
+	ConfigJSON           map[string]interface{}         `json:"config_json,omitempty"`
+	StorageRegion        string                         `json:"storage_region,omitempty"`
 }
 
 // PaginationLinks holds pagination links from the API.
@@ -172,4 +174,37 @@ type UpdateCustomModelMetadataOutput struct {
 type DeleteCustomModelOutput struct {
 	Status string `json:"status"`
 	Error  string `json:"error,omitempty"`
+}
+
+// GetCustomModelOutput is the response from getting a single custom model.
+type GetCustomModelOutput struct {
+	Model *CustomModel `json:"model"`
+}
+
+// UnifiedModel is a normalized representation that can hold either a catalog model
+// or a custom model, identified by the Source field.
+type UnifiedModel struct {
+	UUID             string   `json:"uuid"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description,omitempty"`
+	Source           string   `json:"source"`
+	Status           string   `json:"status,omitempty"`
+	Provider         string   `json:"provider,omitempty"`
+	Type             string   `json:"type,omitempty"`
+	Architecture     string   `json:"architecture,omitempty"`
+	ContextWindow    string   `json:"context_window,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty"`
+	InputModalities  []string `json:"input_modalities,omitempty"`
+	OutputModalities []string `json:"output_modalities,omitempty"`
+}
+
+// UnifiedSearchResponse is the response from the unified model search tool.
+type UnifiedSearchResponse struct {
+	Query   string          `json:"query"`
+	Results []*UnifiedModel `json:"results"`
+	Counts  struct {
+		Catalog int `json:"catalog"`
+		Custom  int `json:"custom"`
+		Total   int `json:"total"`
+	} `json:"counts"`
 }

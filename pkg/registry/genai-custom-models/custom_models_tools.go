@@ -244,6 +244,37 @@ func (cmt *CustomModelsTool) updateMetadata(ctx context.Context, req mcp.CallToo
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// getModel retrieves a single custom model by UUID (public endpoint).
+func (cmt *CustomModelsTool) getModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	uuid, _ := req.GetArguments()["uuid"].(string)
+	if uuid == "" {
+		return mcp.NewToolResultError("uuid is required"), nil
+	}
+
+	client, err := cmt.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	apiReq, err := newRequestWithContext(ctx, client, "GET", customModelsAPIPath+"/"+uuid, nil)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
+	}
+
+	var output GetCustomModelOutput
+	resp, err := client.Do(ctx, apiReq, &output)
+	if err != nil || resp.StatusCode >= 400 {
+		return mcp.NewToolResultErrorFromErr("failed to get custom model", err), nil
+	}
+
+	jsonData, err := json.MarshalIndent(output.Model, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
 // deleteModel deletes a custom model.
 func (cmt *CustomModelsTool) deleteModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	uuid, _ := req.GetArguments()["uuid"].(string)
@@ -314,11 +345,27 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			),
 		},
 		{
+			Handler: cmt.getModel,
+			Tool: mcp.NewTool(
+				"genai-custom-models-get",
+				mcp.WithDescription("Get the full catalog card for a custom model, including its status, architecture, source info, size, license, tags, active deployments, and cost estimate."),
+				mcp.WithString("uuid", mcp.Required(), mcp.Description("UUID of the custom model to retrieve")),
+			),
+		},
+		{
 			Handler: cmt.deleteModel,
 			Tool: mcp.NewTool(
 				"genai-custom-models-delete",
 				mcp.WithDescription("Delete a custom model."),
 				mcp.WithString("uuid", mcp.Required(), mcp.Description("UUID of the custom model to delete")),
+			),
+		},
+		{
+			Handler: cmt.unifiedSearch,
+			Tool: mcp.NewTool(
+				"genai-models-unified-search",
+				mcp.WithDescription("Search across both the DigitalOcean model catalog and your custom models in a single call. Returns a merged list of models with a 'source' field indicating whether each result is from the 'catalog' or 'custom' models. When a query is provided, catalog models are searched server-side and custom models are filtered client-side by name, description, architecture, and tags. An empty query returns all models from both sources."),
+				mcp.WithString("query", mcp.Description("Search query string to find models (optional; empty or omitted returns all models from both sources)")),
 			),
 		},
 	}
