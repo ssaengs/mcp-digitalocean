@@ -24,7 +24,7 @@ var dbaasEngines = []struct {
 	nodeCount int
 }{
 	{"postgres", "pg", "18", "nyc3", "db-s-1vcpu-1gb", 1},
-	{"mysql", "mysql", "8", "nyc3", "db-s-1vcpu-1gb", 1},
+	{"mysql", "mysql", "8.0", "nyc3", "db-s-1vcpu-1gb", 1},
 	{"mongodb", "mongodb", "8", "nyc3", "db-s-1vcpu-1gb", 1},
 	{"valkey", "valkey", "8", "nyc3", "db-s-1vcpu-1gb", 1},
 	{"kafka", "kafka", "3.8", "nyc3", "db-s-2vcpu-4gb", 3},
