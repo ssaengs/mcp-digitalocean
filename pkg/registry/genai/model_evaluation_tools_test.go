@@ -22,10 +22,12 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 	})
 
 	tools := tool.Tools()
-	require.Len(t, tools, 7, "should have 7 model evaluation tools")
+	require.Len(t, tools, 9, "should have 9 model evaluation tools")
 
 	expectedTools := map[string]bool{
 		"genai-model-eval-list-metrics":             false,
+		"genai-model-eval-list-presets":             false,
+		"genai-model-eval-get-preset":               false,
 		"genai-model-eval-create-dataset":           false,
 		"genai-model-eval-create-run":               false,
 		"genai-model-eval-list-runs":                false,
@@ -50,6 +52,44 @@ func TestModelEvaluationTool_listMetrics_clientError(t *testing.T) {
 	tool := setupModelEvalToolWithFailingClient()
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}
 	_, err := tool.listMetrics(context.Background(), req)
+	require.Error(t, err)
+}
+
+func TestModelEvaluationTool_listPresets_clientError(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}
+	_, err := tool.listPresets(context.Background(), req)
+	require.Error(t, err)
+}
+
+func TestModelEvaluationTool_getPreset_missingUUID(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+
+	tests := []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "missing eval_preset_uuid", args: map[string]any{}},
+		{name: "empty eval_preset_uuid", args: map[string]any{"eval_preset_uuid": ""}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+			resp, err := tool.getPreset(context.Background(), req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.True(t, resp.IsError)
+		})
+	}
+}
+
+func TestModelEvaluationTool_getPreset_clientError(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"eval_preset_uuid": "test-uuid",
+	}}}
+	_, err := tool.getPreset(context.Background(), req)
 	require.Error(t, err)
 }
 
