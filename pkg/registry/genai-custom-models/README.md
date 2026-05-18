@@ -41,11 +41,13 @@ List custom models with optional status filter and pagination.
 ### `genai-custom-models-import`
 Import a custom model from an external source (e.g. HuggingFace). Starts an async import job.
 
+**Consent (required every import):** Before calling this tool, the assistant must present import terms to the user and obtain explicit consent (yes) in the conversation. Set `accept_terms_and_conditions` to `true` only after the user agrees. This applies to every import, including re-imports of the same model. The tool rejects omitted or `false` values.
+
 **Arguments:**
 - `name` (string, required): Name for the custom model
 - `source_type` (string, required): `SOURCE_TYPE_HUGGINGFACE`, `SOURCE_TYPE_SPACES_BUCKET`, `SOURCE_TYPE_SDK_UPLOAD`, `SOURCE_TYPE_FINE_TUNING`
-- `source_ref` (object, required): Source reference with `repo_id`, `commit_sha` (optional), `access_type`, `hf_token` (for private/gated)
-- `accept_terms_and_conditions` (boolean): Accept terms for importing
+- `source_ref` (object, required): Source reference with `repo_id`, `commit_sha` (optional for HuggingFace; if omitted, fetched from Hugging Face Hub before the import API is called), `access_type`, `hf_token` (for private/gated)
+- `accept_terms_and_conditions` (boolean, required): Must be `true` after explicit user consent in chat
 - `description` (string, optional): Model description
 - `preferred_gpu_region` (string, optional): Preferred GPU region (e.g. `nyc3`)
 - `tags` (object, optional): Tags object with a `tags` array of strings
@@ -112,24 +114,26 @@ Delete a custom model.
 ## Workflow Example
 
 ```
-1. Import a model from HuggingFace:
+1. Ask the user to accept import terms (storage cost, license, source). Wait for explicit yes.
+
+2. Import a model from HuggingFace:
    genai-custom-models-import
      name: "my-mistral-7b"
      source_type: "SOURCE_TYPE_HUGGINGFACE"
      source_ref: { "repo_id": "mistralai/Mistral-7B-v0.1", "access_type": "ACCESS_TYPE_PUBLIC" }
      accept_terms_and_conditions: true
 
-2. Check import status by listing models:
+3. Check import status by listing models:
    genai-custom-models-list
      status: "STATUS_IMPORTING"
 
-3. Once ready, update metadata:
+4. Once ready, update metadata:
    genai-custom-models-update-metadata
-     uuid: "<uuid from step 1>"
+     uuid: "<uuid from step 2>"
      description: "Production model for customer support"
      tags: { "tags": ["production", "v1"] }
 
-4. When no longer needed, delete:
+5. When no longer needed, delete:
    genai-custom-models-delete
      uuid: "<uuid>"
 ```

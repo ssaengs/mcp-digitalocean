@@ -14,6 +14,18 @@ import (
 
 const customModelsAPIPath = "v2/gen-ai/custom_models"
 
+const (
+	importConsentRequiredMsg = "accept_terms_and_conditions must be true. Before importing, present the import terms to the user and obtain explicit consent (yes) in this conversation. Consent is required for every import, including re-imports of the same model."
+
+	genaiCustomModelsImportToolDescription = "Import a custom model from an external source (e.g. HuggingFace). Starts an async import job.\n\n" +
+		"CONSENT REQUIRED (every import): Do not call this tool until the user has explicitly agreed to the import terms in the current conversation. " +
+		"Present the terms (storage cost, license, source) and ask for yes/no. This applies to every import request, even if the same model was imported before. " +
+		"Only pass accept_terms_and_conditions: true after the user says yes."
+
+	genaiCustomModelsImportAcceptTermsDescription = "Must be true only after the end user has explicitly agreed in conversation to the import terms (yes/no in chat). " +
+		"Omitted or false is rejected. Required on every import, including re-imports."
+)
+
 // CustomModelsTool provides custom model management tools.
 type CustomModelsTool struct {
 	client func(ctx context.Context) (*godo.Client, error)
@@ -142,6 +154,15 @@ func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRe
 	}
 
 	acceptTerms, _ := args["accept_terms_and_conditions"].(bool)
+	if !acceptTerms {
+		return mcp.NewToolResultError(importConsentRequiredMsg), nil
+	}
+
+	if CustomModelSourceType(sourceType) == CustomModelSourceTypeHuggingFace {
+		if err := ensureHuggingFaceCommitSHA(ctx, &sourceRef); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to resolve Hugging Face commit_sha: %v", err)), nil
+		}
+	}
 
 	input := &ImportCustomModelInput{
 		Name:                     name,
@@ -332,11 +353,11 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			Handler: cmt.importModel,
 			Tool: mcp.NewTool(
 				"genai-custom-models-import",
-				mcp.WithDescription("Import a custom model from an external source (e.g. HuggingFace). Starts an async import job."),
+				mcp.WithDescription(genaiCustomModelsImportToolDescription),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the custom model")),
 				mcp.WithString("source_type", mcp.Required(), mcp.Description("Source type: SOURCE_TYPE_HUGGINGFACE, SOURCE_TYPE_SPACES_BUCKET, SOURCE_TYPE_SDK_UPLOAD, SOURCE_TYPE_FINE_TUNING")),
-				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference. For HuggingFace: repo_id (string), commit_sha (string, optional), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models). For Spaces Bucket: bucket (string, required), region (string, optional), prefix (string, optional)")),
-				mcp.WithBoolean("accept_terms_and_conditions", mcp.Description("Accept terms and conditions for importing the model")),
+				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference. For HuggingFace: repo_id (string, required), commit_sha (string, optional; if omitted, resolved from Hugging Face Hub before import), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models). For Spaces Bucket: bucket (string, required), region (string, optional), prefix (string, optional)")),
+				mcp.WithBoolean("accept_terms_and_conditions", mcp.Required(), mcp.Description(genaiCustomModelsImportAcceptTermsDescription)),
 				mcp.WithString("description", mcp.Description("Description of the model")),
 				mcp.WithString("preferred_gpu_region", mcp.Description("Preferred GPU region for the model (e.g. nyc3)")),
 				mcp.WithObject("tags", mcp.Description("Tags object with a 'tags' array of strings")),

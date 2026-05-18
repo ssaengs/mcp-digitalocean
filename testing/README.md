@@ -16,5 +16,8 @@ DIGITALOCEAN_API_TOKEN=your_token_here  DIGITALOCEAN_API_URL=https://api.digital
 
 Optional environment variables:
 
+- `MCP_SERVER_URL` — use an existing MCP server instead of starting a testcontainer (e.g. `https://genai-custom-models.mcp.digitalocean.com/mcp` for custom-models-only E2E).
 - `GENAI_EVALUATION_TEST_AGENT_WORKSPACE_NAME` — when set, enables `TestGenAIListEvaluationTestCases` in [e2e_genai_evaluation_test.go](e2e_genai_evaluation_test.go) against that agent workspace.
+
+GenAI custom models Hugging Face commit resolution and import behavior are covered in [e2e_custom_models_test.go](e2e_custom_models_test.go) and [e2e_custom_models_huggingface_test.go](e2e_custom_models_huggingface_test.go).
 
