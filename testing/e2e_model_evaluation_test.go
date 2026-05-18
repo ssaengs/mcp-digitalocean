@@ -30,6 +30,62 @@ func TestModelEvalListMetrics(t *testing.T) {
 	t.Logf("listed %d model evaluation metric(s)", out.Count)
 }
 
+// TestModelEvalListPresets calls genai-model-eval-list-presets against the live GenAI API.
+func TestModelEvalListPresets(t *testing.T) {
+	t.Parallel()
+
+	type presetSummary struct {
+		EvalPresetUUID string `json:"eval_preset_uuid"`
+		Name           string `json:"name"`
+	}
+	type listPresetsResponse struct {
+		Presets []presetSummary `json:"presets"`
+		Count   int             `json:"count"`
+	}
+
+	out := callTool[listPresetsResponse](t, "genai-model-eval-list-presets", map[string]any{})
+
+	require.GreaterOrEqual(t, out.Count, 0)
+	require.Len(t, out.Presets, out.Count)
+	t.Logf("listed %d model evaluation preset(s)", out.Count)
+}
+
+// TestModelEvalGetPreset gets a single preset using a UUID from list-presets.
+// Skipped if no presets exist.
+func TestModelEvalGetPreset(t *testing.T) {
+	t.Parallel()
+
+	type presetSummary struct {
+		EvalPresetUUID string `json:"eval_preset_uuid"`
+		Name           string `json:"name"`
+	}
+	type listPresetsResponse struct {
+		Presets []presetSummary `json:"presets"`
+		Count   int             `json:"count"`
+	}
+
+	listOut := callTool[listPresetsResponse](t, "genai-model-eval-list-presets", map[string]any{})
+	if listOut.Count == 0 {
+		t.Skip("no model evaluation presets available to test get-preset")
+	}
+
+	presetUUID := listOut.Presets[0].EvalPresetUUID
+	require.NotEmpty(t, presetUUID)
+
+	type presetDetail struct {
+		EvalPresetUUID string `json:"eval_preset_uuid"`
+		Name           string `json:"name"`
+	}
+
+	out := callTool[presetDetail](t, "genai-model-eval-get-preset", map[string]any{
+		"eval_preset_uuid": presetUUID,
+	})
+
+	require.Equal(t, presetUUID, out.EvalPresetUUID)
+	require.NotEmpty(t, out.Name)
+	t.Logf("got preset %s (%s)", out.Name, out.EvalPresetUUID)
+}
+
 // TestModelEvalListRuns calls genai-model-eval-list-runs against the live GenAI API.
 func TestModelEvalListRuns(t *testing.T) {
 	t.Parallel()
