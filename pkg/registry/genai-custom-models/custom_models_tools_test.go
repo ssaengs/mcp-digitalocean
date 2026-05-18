@@ -71,6 +71,17 @@ func TestCustomModelsTool_importModel_validation(t *testing.T) {
 			"name":        "my-model",
 			"source_type": "SOURCE_TYPE_HUGGINGFACE",
 		}},
+		{name: "missing accept_terms_and_conditions", args: map[string]any{
+			"name":        "my-model",
+			"source_type": "SOURCE_TYPE_HUGGINGFACE",
+			"source_ref":  map[string]interface{}{"repo_id": "test/model"},
+		}},
+		{name: "accept_terms_and_conditions false", args: map[string]any{
+			"name":                        "my-model",
+			"source_type":                 "SOURCE_TYPE_HUGGINGFACE",
+			"source_ref":                  map[string]interface{}{"repo_id": "test/model"},
+			"accept_terms_and_conditions": false,
+		}},
 	}
 
 	for _, tc := range tests {
@@ -101,11 +112,18 @@ func TestCustomModelsTool_importModel_spacesSourceRef(t *testing.T) {
 }
 
 func TestCustomModelsTool_importModel_clientError(t *testing.T) {
+	oldFetch := fetchHuggingFaceCommitSHA
+	fetchHuggingFaceCommitSHA = func(ctx context.Context, repoID, hfToken string) (string, error) {
+		return "abc123def456", nil
+	}
+	t.Cleanup(func() { fetchHuggingFaceCommitSHA = oldFetch })
+
 	tool := setupCustomModelsToolWithFailingClient()
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-		"name":        "my-model",
-		"source_type": "SOURCE_TYPE_HUGGINGFACE",
-		"source_ref":  map[string]interface{}{"repo_id": "test/model"},
+		"name":                        "my-model",
+		"source_type":                 "SOURCE_TYPE_HUGGINGFACE",
+		"source_ref":                  map[string]interface{}{"repo_id": "test/model"},
+		"accept_terms_and_conditions": true,
 	}}}
 	_, err := tool.importModel(context.Background(), req)
 	require.Error(t, err)
