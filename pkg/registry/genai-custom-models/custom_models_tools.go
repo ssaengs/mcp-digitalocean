@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -15,9 +16,14 @@ import (
 const customModelsAPIPath = "v2/gen-ai/custom_models"
 
 const (
+	importModelNameRequiredMsg = "name is required: ask the user for a non-empty model name before importing or calling this tool. Name is validated first; source checks (such as resolving Hugging Face commit_sha) and the API request do not run until name is valid."
+
+	importModelNameTypeMsg = "name must be a non-empty string supplied by the user; do not use numbers or other types."
+
 	importConsentRequiredMsg = "accept_terms_and_conditions must be true. Before importing, present the import terms to the user and obtain explicit consent (yes) in this conversation. Consent is required for every import, including re-imports of the same model."
 
 	genaiCustomModelsImportToolDescription = "Import a custom model from an external source (e.g. HuggingFace). Starts an async import job.\n\n" +
+		"MODEL NAME REQUIRED: Do not call this tool until the user has supplied a non-empty model name string. Name is checked before anything else — no Hugging Face resolution, consent validation of other arguments, or API calls occur until name is valid.\n\n" +
 		"CONSENT REQUIRED (every import): Do not call this tool until the user has explicitly agreed to the import terms in the current conversation. " +
 		"Present the terms (storage cost, license, source) and ask for yes/no. This applies to every import request, even if the same model was imported before. " +
 		"Only pass accept_terms_and_conditions: true after the user says yes."
@@ -115,9 +121,17 @@ func (cmt *CustomModelsTool) listModels(ctx context.Context, req mcp.CallToolReq
 func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
-	name, _ := args["name"].(string)
+	nameRaw, hasName := args["name"]
+	if !hasName || nameRaw == nil {
+		return mcp.NewToolResultError(importModelNameRequiredMsg), nil
+	}
+	name, ok := nameRaw.(string)
+	if !ok {
+		return mcp.NewToolResultError(importModelNameTypeMsg), nil
+	}
+	name = strings.TrimSpace(name)
 	if name == "" {
-		return mcp.NewToolResultError("name is required"), nil
+		return mcp.NewToolResultError(importModelNameRequiredMsg), nil
 	}
 
 	sourceType, _ := args["source_type"].(string)
@@ -305,11 +319,24 @@ func (cmt *CustomModelsTool) getModel(ctx context.Context, req mcp.CallToolReque
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-// deleteModel deletes a custom model.
+// deleteModel deletes a custom model by exact uuid or exact name (partial identifiers return candidates only).
 func (cmt *CustomModelsTool) deleteModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	uuid, _ := req.GetArguments()["uuid"].(string)
-	if uuid == "" {
-		return mcp.NewToolResultError("uuid is required"), nil
+	args := req.GetArguments()
+	uuid, _ := args["uuid"].(string)
+	uuid = strings.TrimSpace(uuid)
+
+	name := ""
+	if nameRaw, hasName := args["name"]; hasName && nameRaw != nil {
+		var ok bool
+		name, ok = nameRaw.(string)
+		if !ok {
+			return mcp.NewToolResultError(deleteModelNameTypeMsg), nil
+		}
+		name = strings.TrimSpace(name)
+	}
+
+	if uuid == "" && name == "" {
+		return mcp.NewToolResultError(deleteModelIdentifierRequiredMsg), nil
 	}
 
 	client, err := cmt.client(ctx)
@@ -317,6 +344,40 @@ func (cmt *CustomModelsTool) deleteModel(ctx context.Context, req mcp.CallToolRe
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
+	models, err := listAllCustomModels(ctx, client)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to list custom models for delete resolution", err), nil
+	}
+
+	target, unresolved, err := resolveDeleteTarget(uuid, name, models)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if unresolved != nil {
+		text, err := marshalDeleteUnresolvedResult(unresolved)
+		if err != nil {
+			return nil, err
+		}
+		return mcp.NewToolResultError(text), nil
+	}
+
+	confirmDeletion, _ := args["confirm_deletion"].(bool)
+	if !confirmDeletion {
+		return mcp.NewToolResultError(deleteConsentRequiredMsg), nil
+	}
+
+	model, err := getCustomModelByUUID(ctx, client, target.UUID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to verify custom model before delete", err), nil
+	}
+	if model.Name != target.Name {
+		return mcp.NewToolResultError(fmt.Sprintf("model name mismatch: resolved %q but API returned %q", target.Name, model.Name)), nil
+	}
+
+	return cmt.deleteModelByUUID(ctx, client, target.UUID, target.Name)
+}
+
+func (cmt *CustomModelsTool) deleteModelByUUID(ctx context.Context, client *godo.Client, uuid, name string) (*mcp.CallToolResult, error) {
 	apiReq, err := newRequestWithContext(ctx, client, "DELETE", customModelsAPIPath+"/"+uuid, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
@@ -324,8 +385,16 @@ func (cmt *CustomModelsTool) deleteModel(ctx context.Context, req mcp.CallToolRe
 
 	var output DeleteCustomModelOutput
 	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return mcp.NewToolResultError(fmt.Sprintf(
+				"DELETE returned 404 for model %q (%s) but the model still exists. Deletion may be blocked (for example active deployments) or the delete API may be unavailable in this environment — verify in the control panel or remove deployments first.",
+				name, uuid)), nil
+		}
 		return mcp.NewToolResultErrorFromErr("failed to delete custom model", err), nil
+	}
+	if resp.StatusCode >= 400 {
+		return mcp.NewToolResultErrorFromErr("failed to delete custom model", fmt.Errorf("status %d", resp.StatusCode)), nil
 	}
 
 	jsonData, err := json.MarshalIndent(output, "", "  ")
@@ -354,7 +423,7 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool(
 				"genai-custom-models-import",
 				mcp.WithDescription(genaiCustomModelsImportToolDescription),
-				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the custom model")),
+				mcp.WithString("name", mcp.Required(), mcp.Description("Non-empty name for the custom model (leading/trailing whitespace is rejected). Obtain this from the user before calling — it is validated before any import checks.")),
 				mcp.WithString("source_type", mcp.Required(), mcp.Description("Source type: SOURCE_TYPE_HUGGINGFACE, SOURCE_TYPE_SPACES_BUCKET, SOURCE_TYPE_SDK_UPLOAD, SOURCE_TYPE_FINE_TUNING")),
 				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference. For HuggingFace: repo_id (string, required), commit_sha (string, optional; if omitted, resolved from Hugging Face Hub before import), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models). For Spaces Bucket: bucket (string, required), region (string, optional), prefix (string, optional)")),
 				mcp.WithBoolean("accept_terms_and_conditions", mcp.Required(), mcp.Description(genaiCustomModelsImportAcceptTermsDescription)),
@@ -386,8 +455,10 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			Handler: cmt.deleteModel,
 			Tool: mcp.NewTool(
 				"genai-custom-models-delete",
-				mcp.WithDescription("Delete a custom model."),
-				mcp.WithString("uuid", mcp.Required(), mcp.Description("UUID of the custom model to delete")),
+				mcp.WithDescription(genaiCustomModelsDeleteToolDescription),
+				mcp.WithString("name", mcp.Description("Exact custom model name the user provided or confirmed (character-for-character, whitespace trimmed). Use this OR uuid. Partial names return candidates only.")),
+				mcp.WithString("uuid", mcp.Description("Exact full custom model UUID (8-4-4-4-12 hex). Use this OR name. Partial uuids return candidates only; never delete on a partial uuid even if one match.")),
+				mcp.WithBoolean("confirm_deletion", mcp.Description(genaiCustomModelsDeleteConfirmDescription)),
 			),
 		},
 		{
