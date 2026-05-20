@@ -51,7 +51,7 @@ type DeleteModelUnresolvedOutput struct {
 	Query                   string                      `json:"query"`
 	QueryField              string                      `json:"query_field"`
 	Matches                 []DeleteModelMatchCandidate `json:"matches"`
-	RequiresExactMatch        bool                        `json:"requires_exact_match"`
+	RequiresExactMatch      bool                        `json:"requires_exact_match"`
 	DoNotSubstituteFromList bool                        `json:"do_not_substitute_name_or_uuid_from_matches"`
 }
 

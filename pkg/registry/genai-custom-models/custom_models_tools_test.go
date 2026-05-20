@@ -412,7 +412,7 @@ func TestCustomModelsTool_deleteModel_consentRequired(t *testing.T) {
 		{name: "missing confirm_deletion by name", args: map[string]any{"name": "my-model"}},
 		{name: "missing confirm_deletion by uuid", args: map[string]any{"uuid": modelUUID}},
 		{name: "confirm_deletion false", args: map[string]any{
-			"name":               "my-model",
+			"name":             "my-model",
 			"confirm_deletion": false,
 		}},
 	}
@@ -446,7 +446,7 @@ func TestCustomModelsTool_deleteModel_partialNameWithoutConsent(t *testing.T) {
 func TestCustomModelsTool_deleteModel_clientError(t *testing.T) {
 	tool := setupCustomModelsToolWithFailingClient()
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-		"uuid":               "123e4567-e89b-12d3-a456-426614174000",
+		"uuid":             "123e4567-e89b-12d3-a456-426614174000",
 		"confirm_deletion": true,
 	}}}
 	_, err := tool.deleteModel(context.Background(), req)

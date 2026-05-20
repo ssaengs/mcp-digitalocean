@@ -164,8 +164,8 @@ func TestCustomModelsImportHuggingFaceResolvesCommitSHA(t *testing.T) {
 
 	t.Cleanup(func() {
 		callTool[map[string]any](t, "genai-custom-models-delete", map[string]any{
-			"name":               out.Model.Name,
-			"uuid":               out.Model.UUID,
+			"name":             out.Model.Name,
+			"uuid":             out.Model.UUID,
 			"confirm_deletion": true,
 		})
 	})
