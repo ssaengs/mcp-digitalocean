@@ -20,7 +20,7 @@ const (
 
 	genaiCustomModelsImportToolDescription = "Import a custom model from an external source (e.g. HuggingFace). Starts an async import job.\n\n" +
 		"CONSENT REQUIRED (every import): Do not call this tool until the user has explicitly agreed to the import terms in the current conversation. " +
-		"Consent is checked before any Hugging Face resolution or API calls. " +
+		"Consent is checked before any import related API calls " +
 		"Present the terms (storage cost, license, source) and ask for yes/no. This applies to every import request, even if the same model was imported before. " +
 		"Only pass accept_terms_and_conditions: true after the user says yes."
 
