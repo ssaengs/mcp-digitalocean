@@ -148,7 +148,6 @@ func TestModelEvaluationTool_createRun_validation(t *testing.T) {
 	}
 }
 
-
 func TestModelEvaluationTool_listRuns_clientError(t *testing.T) {
 	tool := setupModelEvalToolWithFailingClient()
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}
@@ -227,11 +226,11 @@ func TestModelEvaluationTool_runWorkflow_validation(t *testing.T) {
 	}{
 		{name: "missing all required", args: map[string]any{}},
 		{name: "missing dataset_file_path", args: map[string]any{
-			"name": "run1",
+			"name":                 "run1",
 			"candidate_model_name": "model", "judge_model_name": "judge",
 		}},
 		{name: "missing name", args: map[string]any{
-			"dataset_file_path": "/tmp/test.csv",
+			"dataset_file_path":    "/tmp/test.csv",
 			"candidate_model_name": "model", "judge_model_name": "judge",
 		}},
 		{name: "missing candidate_model_name", args: map[string]any{

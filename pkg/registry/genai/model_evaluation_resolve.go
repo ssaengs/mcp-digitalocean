@@ -88,21 +88,21 @@ type ModelEvalModelsResolveOutput struct {
 
 // ModelEvalConsentPreviewOutput is returned before the user types yes in chat.
 type ModelEvalConsentPreviewOutput struct {
-	Status                string                   `json:"status"`
-	Message               string                   `json:"message"`
-	PromptForUser         string                   `json:"prompt_for_user"`
-	RunName               string                   `json:"run_name"`
-	DatasetUUID           string                   `json:"dataset_uuid,omitempty"`
-	DatasetFilePath       string                   `json:"dataset_file_path,omitempty"`
-	EvalPresetUUID        string                   `json:"eval_preset_uuid,omitempty"`
-	MetricUUIDs           []string                 `json:"metric_uuids,omitempty"`
-	StarMetric            *StarMetric              `json:"star_metric,omitempty"`
-	CandidateModel        ModelEvalMatchCandidate  `json:"candidate_model"`
-	JudgeModel            *ModelEvalMatchCandidate `json:"judge_model,omitempty"`
-	StopAndAskUser              bool   `json:"stop_and_ask_user"`
-	DoNotRetryUntilUserOK       bool   `json:"do_not_retry_until_user_confirms"`
-	RequireUserMessageFromChat  bool   `json:"require_user_message_from_chat"`
-	InstructionForAgent         string `json:"instruction_for_agent"`
+	Status                     string                   `json:"status"`
+	Message                    string                   `json:"message"`
+	PromptForUser              string                   `json:"prompt_for_user"`
+	RunName                    string                   `json:"run_name"`
+	DatasetUUID                string                   `json:"dataset_uuid,omitempty"`
+	DatasetFilePath            string                   `json:"dataset_file_path,omitempty"`
+	EvalPresetUUID             string                   `json:"eval_preset_uuid,omitempty"`
+	MetricUUIDs                []string                 `json:"metric_uuids,omitempty"`
+	StarMetric                 *StarMetric              `json:"star_metric,omitempty"`
+	CandidateModel             ModelEvalMatchCandidate  `json:"candidate_model"`
+	JudgeModel                 *ModelEvalMatchCandidate `json:"judge_model,omitempty"`
+	StopAndAskUser             bool                     `json:"stop_and_ask_user"`
+	DoNotRetryUntilUserOK      bool                     `json:"do_not_retry_until_user_confirms"`
+	RequireUserMessageFromChat bool                     `json:"require_user_message_from_chat"`
+	InstructionForAgent        string                   `json:"instruction_for_agent"`
 }
 
 // modelEvalRunConfig holds run parameters shown in the consent prompt.

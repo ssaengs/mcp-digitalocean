@@ -1,8 +1,8 @@
 package genai
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
