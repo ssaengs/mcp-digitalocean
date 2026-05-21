@@ -65,10 +65,6 @@ func TestCustomModelsTool_importModel_validation(t *testing.T) {
 		name string
 		args map[string]any
 	}{
-		{name: "missing name", args: map[string]any{
-			"source_type": "SOURCE_TYPE_HUGGINGFACE",
-			"source_ref":  map[string]interface{}{"repo_id": "test/model"},
-		}},
 		{name: "missing source_type", args: map[string]any{
 			"name":       "my-model",
 			"source_ref": map[string]interface{}{"repo_id": "test/model"},
@@ -88,17 +84,6 @@ func TestCustomModelsTool_importModel_validation(t *testing.T) {
 			"source_ref":                  map[string]interface{}{"repo_id": "test/model"},
 			"accept_terms_and_conditions": false,
 		}},
-		{name: "name whitespace only", args: map[string]any{
-			"name":        " \t ",
-			"source_type": "SOURCE_TYPE_HUGGINGFACE",
-			"source_ref":  map[string]interface{}{"repo_id": "test/model"},
-		}},
-		{name: "name wrong type", args: map[string]any{
-			"name":                        float64(42),
-			"source_type":                 "SOURCE_TYPE_HUGGINGFACE",
-			"source_ref":                  map[string]interface{}{"repo_id": "test/model"},
-			"accept_terms_and_conditions": true,
-		}},
 	}
 
 	for _, tc := range tests {
@@ -112,43 +97,25 @@ func TestCustomModelsTool_importModel_validation(t *testing.T) {
 	}
 }
 
-func TestImportModel_invalidNameDoesNotResolveHuggingFace(t *testing.T) {
+func TestImportModel_missingConsentDoesNotResolveHuggingFace(t *testing.T) {
 	oldFetch := fetchHuggingFaceCommitSHA
 	hfCalled := false
 	fetchHuggingFaceCommitSHA = func(ctx context.Context, repoID, hfToken string) (string, error) {
 		hfCalled = true
-		return "", errors.New("Hugging Face resolution should not run without a valid name")
+		return "", errors.New("Hugging Face resolution should not run without consent")
 	}
 	t.Cleanup(func() { fetchHuggingFaceCommitSHA = oldFetch })
 
 	tool := setupCustomModelsToolWithFailingClient()
 
-	t.Run("missing name", func(t *testing.T) {
-		hfCalled = false
-		req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-			"source_type":                 "SOURCE_TYPE_HUGGINGFACE",
-			"source_ref":                  map[string]interface{}{"repo_id": "test/model"},
-			"accept_terms_and_conditions": true,
-		}}}
-		resp, err := tool.importModel(context.Background(), req)
-		require.NoError(t, err)
-		require.True(t, resp.IsError)
-		require.False(t, hfCalled)
-	})
-
-	t.Run("whitespace name", func(t *testing.T) {
-		hfCalled = false
-		req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-			"name":                        " ",
-			"source_type":                 "SOURCE_TYPE_HUGGINGFACE",
-			"source_ref":                  map[string]interface{}{"repo_id": "test/model"},
-			"accept_terms_and_conditions": true,
-		}}}
-		resp, err := tool.importModel(context.Background(), req)
-		require.NoError(t, err)
-		require.True(t, resp.IsError)
-		require.False(t, hfCalled)
-	})
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"source_type": "SOURCE_TYPE_HUGGINGFACE",
+		"source_ref":  map[string]interface{}{"repo_id": "test/model"},
+	}}}
+	resp, err := tool.importModel(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.False(t, hfCalled)
 }
 
 func TestCustomModelsTool_importModel_spacesSourceRef(t *testing.T) {

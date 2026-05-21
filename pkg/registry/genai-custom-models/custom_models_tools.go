@@ -16,15 +16,11 @@ import (
 const customModelsAPIPath = "v2/gen-ai/custom_models"
 
 const (
-	importModelNameRequiredMsg = "name is required: ask the user for a non-empty model name before importing or calling this tool. Name is validated first; source checks (such as resolving Hugging Face commit_sha) and the API request do not run until name is valid."
-
-	importModelNameTypeMsg = "name must be a non-empty string supplied by the user; do not use numbers or other types."
-
 	importConsentRequiredMsg = "accept_terms_and_conditions must be true. Before importing, present the import terms to the user and obtain explicit consent (yes) in this conversation. Consent is required for every import, including re-imports of the same model."
 
 	genaiCustomModelsImportToolDescription = "Import a custom model from an external source (e.g. HuggingFace). Starts an async import job.\n\n" +
-		"MODEL NAME REQUIRED: Do not call this tool until the user has supplied a non-empty model name string. Name is checked before anything else — no Hugging Face resolution, consent validation of other arguments, or API calls occur until name is valid.\n\n" +
 		"CONSENT REQUIRED (every import): Do not call this tool until the user has explicitly agreed to the import terms in the current conversation. " +
+		"Consent is checked before any Hugging Face resolution or API calls. " +
 		"Present the terms (storage cost, license, source) and ask for yes/no. This applies to every import request, even if the same model was imported before. " +
 		"Only pass accept_terms_and_conditions: true after the user says yes."
 
@@ -121,17 +117,16 @@ func (cmt *CustomModelsTool) listModels(ctx context.Context, req mcp.CallToolReq
 func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
-	nameRaw, hasName := args["name"]
-	if !hasName || nameRaw == nil {
-		return mcp.NewToolResultError(importModelNameRequiredMsg), nil
+	acceptTerms, _ := args["accept_terms_and_conditions"].(bool)
+	if !acceptTerms {
+		return mcp.NewToolResultError(importConsentRequiredMsg), nil
 	}
-	name, ok := nameRaw.(string)
-	if !ok {
-		return mcp.NewToolResultError(importModelNameTypeMsg), nil
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return mcp.NewToolResultError(importModelNameRequiredMsg), nil
+
+	var name string
+	if nameRaw, ok := args["name"]; ok && nameRaw != nil {
+		if s, ok := nameRaw.(string); ok {
+			name = strings.TrimSpace(s)
+		}
 	}
 
 	sourceType, _ := args["source_type"].(string)
@@ -165,11 +160,6 @@ func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRe
 	}
 	if v, ok := sourceRefRaw["prefix"].(string); ok {
 		sourceRef.Prefix = v
-	}
-
-	acceptTerms, _ := args["accept_terms_and_conditions"].(bool)
-	if !acceptTerms {
-		return mcp.NewToolResultError(importConsentRequiredMsg), nil
 	}
 
 	if CustomModelSourceType(sourceType) == CustomModelSourceTypeHuggingFace {
@@ -423,7 +413,7 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool(
 				"genai-custom-models-import",
 				mcp.WithDescription(genaiCustomModelsImportToolDescription),
-				mcp.WithString("name", mcp.Required(), mcp.Description("Non-empty name for the custom model (leading/trailing whitespace is rejected). Obtain this from the user before calling — it is validated before any import checks.")),
+				mcp.WithString("name", mcp.Description("Optional display name for the custom model (leading/trailing whitespace is trimmed when provided).")),
 				mcp.WithString("source_type", mcp.Required(), mcp.Description("Source type: SOURCE_TYPE_HUGGINGFACE, SOURCE_TYPE_SPACES_BUCKET, SOURCE_TYPE_SDK_UPLOAD, SOURCE_TYPE_FINE_TUNING")),
 				mcp.WithObject("source_ref", mcp.Required(), mcp.Description("Source reference. For HuggingFace: repo_id (string, required), commit_sha (string, optional; if omitted, resolved from Hugging Face Hub before import), access_type (ACCESS_TYPE_PUBLIC, ACCESS_TYPE_PRIVATE, ACCESS_TYPE_GATED), hf_token (string, for private/gated models). For Spaces Bucket: bucket (string, required), region (string, optional), prefix (string, optional)")),
 				mcp.WithBoolean("accept_terms_and_conditions", mcp.Required(), mcp.Description(genaiCustomModelsImportAcceptTermsDescription)),
