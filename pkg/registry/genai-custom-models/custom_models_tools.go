@@ -58,16 +58,29 @@ func newRequestWithContext(ctx context.Context, client *godo.Client, method, url
 	return req, nil
 }
 
-// listModels lists custom models with optional filters.
+// listModels lists custom models with optional filters. Returns one markdown table with
+// every model on its own row (including STATUS_FAILED with UUID). For catalog + custom
+// together, use genai-models-unified-search.
 func (cmt *CustomModelsTool) listModels(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
 	client, err := cmt.client(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	args := req.GetArguments()
+	if !listModelsHasFilters(args) {
+		rows, err := fetchCustomModels(ctx, client, "")
+		if err != nil {
+			return mcp.NewToolResultErrorFromErr("failed to list custom models", err), nil
+		}
+		return mcp.NewToolResultText(formatCustomModelsList("", rows)), nil
+	}
+
 	q := url.Values{}
+	statusFilter := ""
 	if status, ok := args["status"].(string); ok && status != "" {
+		statusFilter = status
 		q.Set("status", status)
 	}
 	if page, ok := args["page"].(float64); ok {
@@ -93,24 +106,25 @@ func (cmt *CustomModelsTool) listModels(ctx context.Context, req mcp.CallToolReq
 		return mcp.NewToolResultErrorFromErr("failed to list custom models", err), nil
 	}
 
-	type ListResponse struct {
-		Models       []*CustomModel `json:"models"`
-		Count        int            `json:"count"`
-		MaxThreshold int            `json:"max_threshold,omitempty"`
+	rows := make([]CustomSearchRow, 0, len(output.Models))
+	for _, cm := range output.Models {
+		rows = append(rows, toCustomSearchRow(cm))
 	}
 
-	response := ListResponse{
-		Models:       output.Models,
-		Count:        len(output.Models),
-		MaxThreshold: output.MaxThreshold,
-	}
+	return mcp.NewToolResultText(formatCustomModelsList(statusFilter, rows)), nil
+}
 
-	jsonData, err := json.MarshalIndent(response, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("marshal error: %w", err)
+func listModelsHasFilters(args map[string]any) bool {
+	if status, ok := args["status"].(string); ok && strings.TrimSpace(status) != "" {
+		return true
 	}
-
-	return mcp.NewToolResultText(string(jsonData)), nil
+	if page, ok := args["page"].(float64); ok && int(page) > 0 {
+		return true
+	}
+	if perPage, ok := args["per_page"].(float64); ok && int(perPage) > 0 {
+		return true
+	}
+	return false
 }
 
 // importModel imports a custom model from an external source.
@@ -399,10 +413,18 @@ func (cmt *CustomModelsTool) deleteModelByUUID(ctx context.Context, client *godo
 func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 	return []server.ServerTool{
 		{
+			Handler: cmt.unifiedSearch,
+			Tool: mcp.NewTool(
+				"genai-models-unified-search",
+				mcp.WithDescription("PRIMARY tool for listing or searching models. Use when the user asks to list all models, show available models, or search by partial name. Returns two markdown tables (Model Catalog and Custom Models) with one row per model: custom columns are UUID, Name, Source, Status, Architecture, Input Modalities, Output Modalities; catalog columns include Provider, Type, Context Window, Capabilities, and modalities. Empty query lists everything; partial query returns nearest matches."),
+				mcp.WithString("query", mcp.Description("Partial model name or search string (optional). Empty returns all models in both tables.")),
+			),
+		},
+		{
 			Handler: cmt.listModels,
 			Tool: mcp.NewTool(
 				"genai-custom-models-list",
-				mcp.WithDescription("List custom models with optional status filter and pagination."),
+				mcp.WithDescription("List all custom models in one markdown table (one row per model, every UUID shown including STATUS_FAILED). Columns: UUID, Name, Source, Status, Architecture, Input Modalities, Output Modalities. Do not summarize the table in the response. For catalog + custom together use genai-models-unified-search. Optional status/page/per_page filters."),
 				mcp.WithString("status", mcp.Description("Filter by status: STATUS_IMPORTING, STATUS_READY, STATUS_FAILED, STATUS_DELETED")),
 				mcp.WithNumber("page", mcp.Description("Page number for pagination (default: 1)")),
 				mcp.WithNumber("per_page", mcp.Description("Results per page (default: 20)")),
@@ -449,14 +471,6 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 				mcp.WithString("name", mcp.Description("Exact custom model name the user provided or confirmed (character-for-character, whitespace trimmed). Use this OR uuid. Partial names return candidates only.")),
 				mcp.WithString("uuid", mcp.Description("Exact full custom model UUID (8-4-4-4-12 hex). Use this OR name. Partial uuids return candidates only; never delete on a partial uuid even if one match.")),
 				mcp.WithBoolean("confirm_deletion", mcp.Description(genaiCustomModelsDeleteConfirmDescription)),
-			),
-		},
-		{
-			Handler: cmt.unifiedSearch,
-			Tool: mcp.NewTool(
-				"genai-models-unified-search",
-				mcp.WithDescription("Search across both the DigitalOcean model catalog and your custom models in a single call. Returns a merged list of models with a 'source' field indicating whether each result is from the 'catalog' or 'custom' models. When a query is provided, catalog models are searched server-side and custom models are filtered client-side by name, description, architecture, and tags. An empty query returns all models from both sources."),
-				mcp.WithString("query", mcp.Description("Search query string to find models (optional; empty or omitted returns all models from both sources)")),
 			),
 		},
 	}

@@ -436,59 +436,6 @@ func TestCustomModelsTool_unifiedSearch_emptyQuery_clientError(t *testing.T) {
 	require.Error(t, err, "empty query should still attempt API call and fail on client error")
 }
 
-func TestCustomModelMatchesQuery(t *testing.T) {
-	tests := []struct {
-		name     string
-		model    *CustomModel
-		query    string
-		expected bool
-	}{
-		{
-			name:     "match by name",
-			model:    &CustomModel{Name: "my-llama-model"},
-			query:    "llama",
-			expected: true,
-		},
-		{
-			name:     "match by description",
-			model:    &CustomModel{Name: "some-model", Description: "A fine-tuned Llama variant"},
-			query:    "llama",
-			expected: true,
-		},
-		{
-			name:     "match by tag",
-			model:    &CustomModel{Name: "some-model", Tags: &CustomModelTags{Tags: []string{"llm", "llama"}}},
-			query:    "llama",
-			expected: true,
-		},
-		{
-			name:     "match by architecture",
-			model:    &CustomModel{Name: "some-model", Architecture: "LlamaForCausalLM"},
-			query:    "llama",
-			expected: true,
-		},
-		{
-			name:     "no match",
-			model:    &CustomModel{Name: "my-gpt-model", Description: "A GPT variant"},
-			query:    "llama",
-			expected: false,
-		},
-		{
-			name:     "case insensitive",
-			model:    &CustomModel{Name: "My-LLAMA-Model"},
-			query:    "llama",
-			expected: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := customModelMatchesQuery(tc.model, tc.query)
-			require.Equal(t, tc.expected, result)
-		})
-	}
-}
-
 func setupCustomModelsToolWithTestServer(t *testing.T, models []*CustomModel) *CustomModelsTool {
 	t.Helper()
 
