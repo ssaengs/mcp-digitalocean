@@ -126,16 +126,14 @@ func TestModelEvaluationTool_createRun_validation(t *testing.T) {
 		args map[string]any
 	}{
 		{name: "missing name", args: map[string]any{
-			"candidate_model_uuid": "uuid",
-			"candidate_model_name": "model",
-		}},
-		{name: "missing candidate_model_uuid", args: map[string]any{
-			"name":                 "run1",
 			"candidate_model_name": "model",
 		}},
 		{name: "missing candidate_model_name", args: map[string]any{
+			"name": "run1",
+		}},
+		{name: "empty candidate_model_name", args: map[string]any{
 			"name":                 "run1",
-			"candidate_model_uuid": "uuid",
+			"candidate_model_name": "",
 		}},
 	}
 
@@ -150,16 +148,6 @@ func TestModelEvaluationTool_createRun_validation(t *testing.T) {
 	}
 }
 
-func TestModelEvaluationTool_createRun_clientError(t *testing.T) {
-	tool := setupModelEvalToolWithFailingClient()
-	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
-		"name":                 "run1",
-		"candidate_model_uuid": "uuid",
-		"candidate_model_name": "model",
-	}}}
-	_, err := tool.createRun(context.Background(), req)
-	require.Error(t, err)
-}
 
 func TestModelEvaluationTool_listRuns_clientError(t *testing.T) {
 	tool := setupModelEvalToolWithFailingClient()
@@ -239,20 +227,16 @@ func TestModelEvaluationTool_runWorkflow_validation(t *testing.T) {
 	}{
 		{name: "missing all required", args: map[string]any{}},
 		{name: "missing dataset_file_path", args: map[string]any{
-			"name": "run1", "candidate_model_uuid": "uuid",
-			"candidate_model_name": "model", "judge_model_uuid": "judge",
+			"name": "run1",
+			"candidate_model_name": "model", "judge_model_name": "judge",
 		}},
 		{name: "missing name", args: map[string]any{
-			"dataset_file_path": "/tmp/test.csv", "candidate_model_uuid": "uuid",
-			"candidate_model_name": "model", "judge_model_uuid": "judge",
+			"dataset_file_path": "/tmp/test.csv",
+			"candidate_model_name": "model", "judge_model_name": "judge",
 		}},
-		{name: "missing candidate_model_uuid", args: map[string]any{
+		{name: "missing candidate_model_name", args: map[string]any{
 			"dataset_file_path": "/tmp/test.csv", "name": "run1",
-			"candidate_model_name": "model", "judge_model_uuid": "judge",
-		}},
-		{name: "missing judge_model_uuid", args: map[string]any{
-			"dataset_file_path": "/tmp/test.csv", "name": "run1",
-			"candidate_model_uuid": "uuid", "candidate_model_name": "model",
+			"judge_model_name": "judge",
 		}},
 	}
 

@@ -1,14 +1,12 @@
 package genai
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/digitalocean/godo"
@@ -136,7 +134,7 @@ func (met *ModelEvaluationTool) getPreset(ctx context.Context, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-// createDataset uploads a CSV file and returns presigned URL info for model evaluation.
+// createDataset uploads a CSV to Spaces and registers it as a model evaluation dataset.
 func (met *ModelEvaluationTool) createDataset(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
@@ -150,8 +148,8 @@ func (met *ModelEvaluationTool) createDataset(ctx context.Context, req mcp.CallT
 		return mcp.NewToolResultError("file_path is required"), nil
 	}
 
-	if !isCSVFile(filePath) {
-		return mcp.NewToolResultError("file must have .csv extension"), nil
+	if err := validateModelEvaluationDataset(filePath); err != nil {
+		return mcp.NewToolResultErrorFromErr("dataset validation failed", err), nil
 	}
 
 	fileData, err := os.ReadFile(filePath)
@@ -164,68 +162,12 @@ func (met *ModelEvaluationTool) createDataset(ctx context.Context, req mcp.CallT
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	fileSize := int64(len(fileData))
-	fileName := getFileName(filePath)
-
-	presignedInput := &ModelEvalDatasetPresignedUrlsInput{
-		Files: []PresignedUrlFile{
-			{
-				FileName: fileName,
-				FileSize: fileSize,
-			},
-		},
-	}
-
-	presignedReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalAPIPath+"/datasets/file_upload_presigned_urls", presignedInput)
+	result, err := uploadAndRegisterModelEvaluationDataset(ctx, client, name, fileData, getFileName(filePath))
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create presigned URL request", err), nil
+		return mcp.NewToolResultErrorFromErr("failed to create model evaluation dataset", err), nil
 	}
 
-	var presignedOutput ModelEvalDatasetPresignedUrlsOutput
-	resp, err := client.Do(ctx, presignedReq, &presignedOutput)
-	if err != nil || resp.StatusCode >= 400 {
-		return mcp.NewToolResultErrorFromErr("failed to create presigned URL", err), nil
-	}
-
-	if len(presignedOutput.Uploads) == 0 {
-		return mcp.NewToolResultError("no presigned URL returned"), nil
-	}
-
-	upload := presignedOutput.Uploads[0]
-
-	uploadReq, err := http.NewRequestWithContext(ctx, "PUT", upload.PresignedURL, bytes.NewReader(fileData))
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create upload request", err), nil
-	}
-	uploadReq.ContentLength = fileSize
-	uploadReq.Header.Set("Content-Type", "text/csv")
-
-	httpResp, err := presignedUploadHTTPClient.Do(uploadReq)
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to upload file", err), nil
-	}
-	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(httpResp.Body)
-		return mcp.NewToolResultError(fmt.Sprintf("file upload failed with status %d: %s", httpResp.StatusCode, string(bodyBytes))), nil
-	}
-
-	type DatasetUploadResponse struct {
-		ObjectKey string `json:"object_key"`
-		Name      string `json:"name"`
-		FileName  string `json:"file_name"`
-		FileSize  int64  `json:"file_size"`
-	}
-
-	response := DatasetUploadResponse{
-		ObjectKey: upload.ObjectKey,
-		Name:      name,
-		FileName:  fileName,
-		FileSize:  fileSize,
-	}
-
-	jsonData, err := json.MarshalIndent(response, "", "  ")
+	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -233,31 +175,93 @@ func (met *ModelEvaluationTool) createDataset(ctx context.Context, req mcp.CallT
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// resolveEvalModelsOnly resolves candidate and judge models before chat-based user consent.
+func (met *ModelEvaluationTool) resolveEvalModelsOnly(
+	ctx context.Context,
+	args map[string]any,
+	requireJudge bool,
+) (*modelEvalRunModels, *mcp.CallToolResult, error) {
+	candidateModelName := strings.TrimSpace(stringArg(args, "candidate_model_name"))
+	if candidateModelName == "" {
+		return nil, mcp.NewToolResultError(modelEvalCandidateNameRequiredMsg), nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	models, err := listAllEvalModels(ctx, client)
+	if err != nil {
+		return nil, mcp.NewToolResultErrorFromErr("failed to list models for evaluation run resolution", err), nil
+	}
+
+	resolved, unresolved, err := resolveEvalModelsForRun(
+		ctx,
+		client,
+		strings.TrimSpace(stringArg(args, "candidate_model_uuid")),
+		candidateModelName,
+		strings.TrimSpace(stringArg(args, "judge_model_uuid")),
+		strings.TrimSpace(stringArg(args, "judge_model_name")),
+		requireJudge,
+		models,
+	)
+	if err != nil {
+		return nil, mcp.NewToolResultError(err.Error()), nil
+	}
+	if unresolved != nil {
+		result, err := modelEvalUserActionResult(unresolved)
+		return nil, result, err
+	}
+
+	hydrated, err := hydrateResolvedEvalModelsFromAPI(ctx, client, resolved)
+	if err != nil {
+		return nil, mcp.NewToolResultErrorFromErr("failed to fetch catalog UUIDs for candidate/judge models", err), nil
+	}
+	if err := validateModelEvalResolvedUUIDs(hydrated, requireJudge); err != nil {
+		return nil, mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return hydrated, nil, nil
+}
+
 // createRun creates a new model evaluation run.
 func (met *ModelEvaluationTool) createRun(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
 	name, _ := args["name"].(string)
-	candidateModelUUID, _ := args["candidate_model_uuid"].(string)
-	candidateModelName, _ := args["candidate_model_name"].(string)
-
 	if name == "" {
 		return mcp.NewToolResultError("name is required"), nil
 	}
-	if candidateModelUUID == "" {
-		return mcp.NewToolResultError("candidate_model_uuid is required"), nil
+	presetUUID, _ := args["eval_preset_uuid"].(string)
+	requireJudge := presetUUID == ""
+
+	runCfg, err := parseModelEvalRunConfig(args, requireJudge)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
-	if candidateModelName == "" {
-		return mcp.NewToolResultError("candidate_model_name is required"), nil
+
+	resolved, selectionResult, err := met.resolveEvalModelsOnly(ctx, args, requireJudge)
+	if selectionResult != nil || err != nil {
+		return selectionResult, err
+	}
+
+	if consentResult, ok := checkModelEvalUserMessage(args, resolved, runCfg); !ok {
+		return consentResult, nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
 	input := &CreateModelEvalRunInput{
 		Name:               name,
-		CandidateModelUUID: candidateModelUUID,
-		CandidateModelName: candidateModelName,
+		CandidateModelUUID: resolved.Candidate.UUID,
+		CandidateModelName: resolved.Candidate.APIName,
 	}
 
-	if presetUUID, ok := args["eval_preset_uuid"].(string); ok && presetUUID != "" {
+	if presetUUID != "" {
 		input.EvalPresetUUID = &presetUUID
 	}
 
@@ -265,8 +269,8 @@ func (met *ModelEvaluationTool) createRun(ctx context.Context, req mcp.CallToolR
 		input.DatasetUUID = datasetUUID
 	}
 
-	if judgeModelUUID, ok := args["judge_model_uuid"].(string); ok && judgeModelUUID != "" {
-		input.JudgeModelUUID = judgeModelUUID
+	if resolved.Judge != nil {
+		input.JudgeModelUUID = resolved.Judge.UUID
 	}
 
 	if metricUUIDsRaw, ok := args["metric_uuids"].([]interface{}); ok {
@@ -308,11 +312,6 @@ func (met *ModelEvaluationTool) createRun(ctx context.Context, req mcp.CallToolR
 			config.TopP = &topP
 		}
 		input.CandidateInferenceConfig = config
-	}
-
-	client, err := met.client(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
 	apiReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalRunsAPIPath, input)
@@ -497,12 +496,15 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 
 	datasetFilePath, _ := args["dataset_file_path"].(string)
 	runName, _ := args["name"].(string)
-	candidateModelUUID, _ := args["candidate_model_uuid"].(string)
-	candidateModelName, _ := args["candidate_model_name"].(string)
-	judgeModelUUID, _ := args["judge_model_uuid"].(string)
 
-	if datasetFilePath == "" || runName == "" || candidateModelUUID == "" || candidateModelName == "" || judgeModelUUID == "" {
-		return mcp.NewToolResultError("dataset_file_path, name, candidate_model_uuid, candidate_model_name, and judge_model_uuid are required"), nil
+	if datasetFilePath == "" || runName == "" {
+		return mcp.NewToolResultError("dataset_file_path and name are required"), nil
+	}
+	if strings.TrimSpace(stringArg(args, "candidate_model_name")) == "" {
+		return mcp.NewToolResultError(modelEvalCandidateNameRequiredMsg), nil
+	}
+	if strings.TrimSpace(stringArg(args, "judge_model_name")) == "" {
+		return mcp.NewToolResultError(modelEvalJudgeNameRequiredMsg), nil
 	}
 
 	timeoutSec := int64(300)
@@ -524,6 +526,25 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 		}
 	}
 
+	resolved, selectionResult, err := met.resolveEvalModelsOnly(ctx, args, true)
+	if selectionResult != nil || err != nil {
+		return selectionResult, err
+	}
+
+	workflowCfg := &modelEvalRunConfig{
+		RunName:         runName,
+		DatasetFilePath: datasetFilePath,
+		MetricUUIDs:     append([]string(nil), metricUUIDs...),
+		StarMetric:      parseStarMetricArg(args),
+	}
+	if workflowCfg.StarMetric == nil && len(metricUUIDs) > 0 {
+		workflowCfg.StarMetric = defaultStarMetric(metricUUIDs)
+	}
+
+	if consentResult, ok := checkModelEvalUserMessage(args, resolved, workflowCfg); !ok {
+		return consentResult, nil
+	}
+
 	client, err := met.client(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
@@ -531,9 +552,8 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 
 	startTime := time.Now()
 
-	// Step 1: Validate dataset
-	if !isCSVFile(datasetFilePath) {
-		return mcp.NewToolResultError("step 1: file must have .csv extension"), nil
+	if err := validateModelEvaluationDataset(datasetFilePath); err != nil {
+		return mcp.NewToolResultErrorFromErr("step 1: dataset validation failed", err), nil
 	}
 
 	fileData, err := os.ReadFile(datasetFilePath)
@@ -541,65 +561,26 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 		return mcp.NewToolResultErrorFromErr("step 1: failed to read dataset file", err), nil
 	}
 
-	fileSize := int64(len(fileData))
 	fileName := getFileName(datasetFilePath)
+	datasetName := runName + "-dataset"
 
-	// Step 2: Get presigned URL and upload dataset
-	presignedInput := &ModelEvalDatasetPresignedUrlsInput{
-		Files: []PresignedUrlFile{
-			{
-				FileName: fileName,
-				FileSize: fileSize,
-			},
-		},
-	}
-
-	presignedReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalAPIPath+"/datasets/file_upload_presigned_urls", presignedInput)
+	// Steps 2–4: presign, upload to Spaces, register dataset record.
+	datasetResult, err := uploadAndRegisterModelEvaluationDataset(ctx, client, datasetName, fileData, fileName)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("step 2: failed to create presigned URL request", err), nil
+		return mcp.NewToolResultErrorFromErr("step 2: failed to upload and register dataset", err), nil
 	}
 
-	var presignedOutput ModelEvalDatasetPresignedUrlsOutput
-	resp, err := client.Do(ctx, presignedReq, &presignedOutput)
-	if err != nil || resp.StatusCode >= 400 {
-		return mcp.NewToolResultErrorFromErr("step 2: failed to create presigned URL", err), nil
-	}
-
-	if len(presignedOutput.Uploads) == 0 {
-		return mcp.NewToolResultError("step 2: no presigned URL returned"), nil
-	}
-
-	upload := presignedOutput.Uploads[0]
-
-	uploadReq, err := http.NewRequestWithContext(ctx, "PUT", upload.PresignedURL, bytes.NewReader(fileData))
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("step 2: failed to create upload request", err), nil
-	}
-	uploadReq.ContentLength = fileSize
-	uploadReq.Header.Set("Content-Type", "text/csv")
-
-	httpResp, err := presignedUploadHTTPClient.Do(uploadReq)
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("step 2: failed to upload file", err), nil
-	}
-	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(httpResp.Body)
-		return mcp.NewToolResultError(fmt.Sprintf("step 2: file upload failed with status %d: %s", httpResp.StatusCode, string(bodyBytes))), nil
-	}
-
-	// Step 3: List metrics if none provided
+	// Step 5: List metrics if none provided
 	if len(metricUUIDs) == 0 {
 		metricsReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalMetricsAPIPath, nil)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("step 3: failed to create request", err), nil
+			return mcp.NewToolResultErrorFromErr("step 5: failed to create request", err), nil
 		}
 
 		var metricsOutput ListModelEvaluationMetricsOutput
-		resp, err = client.Do(ctx, metricsReq, &metricsOutput)
+		resp, err := client.Do(ctx, metricsReq, &metricsOutput)
 		if err != nil || resp.StatusCode >= 400 {
-			return mcp.NewToolResultErrorFromErr("step 3: failed to list metrics", err), nil
+			return mcp.NewToolResultErrorFromErr("step 5: failed to list metrics", err), nil
 		}
 
 		for _, m := range metricsOutput.Metrics {
@@ -607,13 +588,13 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 		}
 	}
 
-	// Step 4: Create evaluation run
+	// Step 6: Create evaluation run
 	runInput := &CreateModelEvalRunInput{
 		Name:               runName,
-		CandidateModelUUID: candidateModelUUID,
-		CandidateModelName: candidateModelName,
-		DatasetUUID:        upload.ObjectKey,
-		JudgeModelUUID:     judgeModelUUID,
+		CandidateModelUUID: resolved.Candidate.UUID,
+		CandidateModelName: resolved.Candidate.APIName,
+		DatasetUUID:        datasetResult.EvaluationDatasetUUID,
+		JudgeModelUUID:     resolved.Judge.UUID,
 		MetricUUIDs:        metricUUIDs,
 		StarMetric:         defaultStarMetric(metricUUIDs),
 		Source:             "mcp",
@@ -636,18 +617,18 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 
 	runReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalRunsAPIPath, runInput)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("step 4: failed to create request", err), nil
+		return mcp.NewToolResultErrorFromErr("step 6: failed to create request", err), nil
 	}
 
 	var runOutput CreateModelEvalRunOutput
-	resp, err = client.Do(ctx, runReq, &runOutput)
+	resp, err := client.Do(ctx, runReq, &runOutput)
 	if err != nil || resp.StatusCode >= 400 {
-		return mcp.NewToolResultErrorFromErr("step 4: failed to create model evaluation run", err), nil
+		return mcp.NewToolResultErrorFromErr("step 6: failed to create model evaluation run", err), nil
 	}
 
 	evalRunUUID := runOutput.EvalRunUUID
 
-	// Step 5: Poll for completion
+	// Step 7: Poll for completion
 	timeout := time.Duration(timeoutSec) * time.Second
 	pollInterval := time.Duration(pollIntervalSec) * time.Second
 	deadline := time.Now().Add(timeout)
@@ -655,23 +636,23 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 	var finalRun *ModelEvaluationRunDetail
 	for {
 		if time.Now().After(deadline) {
-			return mcp.NewToolResultError("step 5: evaluation polling timed out"), nil
+			return mcp.NewToolResultError("step 7: evaluation polling timed out"), nil
 		}
 
 		getReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalRunsAPIPath+"/"+evalRunUUID, nil)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("step 5: failed to create request", err), nil
+			return mcp.NewToolResultErrorFromErr("step 7: failed to create request", err), nil
 		}
 
 		var output GetModelEvaluationRunOutput
 		resp, err = client.Do(ctx, getReq, &output)
 		if err != nil || resp.StatusCode >= 400 {
-			return mcp.NewToolResultErrorFromErr("step 5: failed to poll evaluation run", err), nil
+			return mcp.NewToolResultErrorFromErr("step 7: failed to poll evaluation run", err), nil
 		}
 
 		finalRun = output.Run
 		if finalRun == nil {
-			return mcp.NewToolResultError("step 5: evaluation run missing from API response"), nil
+			return mcp.NewToolResultError("step 7: evaluation run missing from API response"), nil
 		}
 
 		if isModelEvalTerminalStatus(finalRun.Status) {
@@ -748,7 +729,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Handler: met.createDataset,
 			Tool: mcp.NewTool(
 				"genai-model-eval-create-dataset",
-				mcp.WithDescription("Upload a CSV file as a model evaluation dataset. Returns the uploaded object key for use when creating evaluation runs."),
+				mcp.WithDescription("Upload and register a model evaluation dataset (presign → Spaces upload → database record). CSV must include an 'input' column; 'ground_truth' is optional. Returns evaluation_dataset_uuid for use with genai-model-eval-create-run."),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the dataset")),
 				mcp.WithString("file_path", mcp.Required(), mcp.Description("Path to the CSV file to upload")),
 			),
@@ -757,13 +738,14 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Handler: met.createRun,
 			Tool: mcp.NewTool(
 				"genai-model-eval-create-run",
-				mcp.WithDescription("Create a model evaluation run. Provide either an eval_preset_uuid to use a preset, or provide dataset_uuid, judge_model_uuid, and metric_uuids for inline configuration."),
+				mcp.WithDescription(genaiModelEvalCreateRunToolDescription),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for this evaluation run")),
-				mcp.WithString("candidate_model_uuid", mcp.Required(), mcp.Description("UUID of the candidate model to evaluate")),
-				mcp.WithString("candidate_model_name", mcp.Required(), mcp.Description("Display name of the candidate model")),
+				mcp.WithString("candidate_model_name", mcp.Required(), mcp.Description("Exact candidate model name the user provided or confirmed (character-for-character, whitespace trimmed). Partial names return nearest matches only.")),
+				mcp.WithString("candidate_model_uuid", mcp.Description("Exact full candidate model UUID (8-4-4-4-12 hex). Optional if name is exact; partial uuids return matches only.")),
 				mcp.WithString("eval_preset_uuid", mcp.Description("UUID of a preset to use (optional; if provided, dataset/judge/metrics come from the preset)")),
-				mcp.WithString("dataset_uuid", mcp.Description("UUID of the evaluation dataset (required if not using a preset)")),
-				mcp.WithString("judge_model_uuid", mcp.Description("UUID of the judge model that scores responses (required if not using a preset)")),
+				mcp.WithString("dataset_uuid", mcp.Description("evaluation_dataset_uuid from genai-model-eval-create-dataset (required if not using a preset)")),
+				mcp.WithString("judge_model_name", mcp.Description("Exact judge model name (required for inline configuration without a preset). Partial names return nearest matches only.")),
+				mcp.WithString("judge_model_uuid", mcp.Description("Exact full judge model UUID. Optional if judge_model_name is exact; partial uuids return matches only.")),
 				mcp.WithObject("metric_uuids", mcp.Description("Array of metric UUIDs to evaluate (required if not using a preset)")),
 				mcp.WithObject("star_metric", mcp.Description("Primary success metric: metric_uuid and optional success_threshold_pct")),
 				mcp.WithObject("candidate_inference_config", mcp.Description("Inference parameters: max_tokens (int), temperature (float), top_p (float)")),
@@ -771,6 +753,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				mcp.WithBoolean("save_as_preset", mcp.Description("Whether to save this configuration as a new preset")),
 				mcp.WithString("preset_name", mcp.Description("Name for the new preset (required if save_as_preset is true)")),
 				mcp.WithString("candidate_model_source", mcp.Description("Source of the candidate model")),
+				mcp.WithString("user_message", mcp.Description(genaiModelEvalUserMessageDescription)),
 			),
 		},
 		{
@@ -806,16 +789,18 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Handler: met.runWorkflow,
 			Tool: mcp.NewTool(
 				"genai-model-eval-run-workflow",
-				mcp.WithDescription("Run a complete model evaluation workflow: upload dataset, create evaluation run, and poll for results. This is a convenience tool that handles all steps automatically."),
+				mcp.WithDescription(genaiModelEvalWorkflowToolDescription),
 				mcp.WithString("dataset_file_path", mcp.Required(), mcp.Description("Path to the CSV evaluation dataset")),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the evaluation run")),
-				mcp.WithString("candidate_model_uuid", mcp.Required(), mcp.Description("UUID of the candidate model to evaluate")),
-				mcp.WithString("candidate_model_name", mcp.Required(), mcp.Description("Display name of the candidate model")),
-				mcp.WithString("judge_model_uuid", mcp.Required(), mcp.Description("UUID of the judge model that scores responses")),
+				mcp.WithString("candidate_model_name", mcp.Required(), mcp.Description("Exact candidate model name. Partial names return nearest matches only.")),
+				mcp.WithString("candidate_model_uuid", mcp.Description("Exact full candidate model UUID. Optional if name is exact.")),
+				mcp.WithString("judge_model_name", mcp.Required(), mcp.Description("Exact judge model name. Partial names return nearest matches only.")),
+				mcp.WithString("judge_model_uuid", mcp.Description("Exact full judge model UUID. Optional if judge_model_name is exact.")),
 				mcp.WithObject("metric_uuids", mcp.Description("Array of metric UUIDs to evaluate (if empty, all available metrics are used)")),
 				mcp.WithObject("candidate_inference_config", mcp.Description("Inference parameters: max_tokens (int), temperature (float), top_p (float)")),
 				mcp.WithNumber("timeout_seconds", mcp.Description("Timeout for polling evaluation results in seconds (default: 300)")),
 				mcp.WithNumber("poll_interval_seconds", mcp.Description("Interval between status polls in seconds (default: 5)")),
+				mcp.WithString("user_message", mcp.Description(genaiModelEvalUserMessageDescription)),
 			),
 		},
 	}

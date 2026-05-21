@@ -105,9 +105,15 @@ type FileUploadDataSource struct {
 	SizeInBytes      int64  `json:"size_in_bytes"`
 }
 
+// Evaluation dataset types for POST /evaluation_datasets.
+const (
+	EvaluationDatasetTypeModel = "EVALUATION_DATASET_TYPE_MODEL"
+)
+
 // CreateEvaluationDatasetInput input for creating a dataset
 type CreateEvaluationDatasetInput struct {
 	Name                 string               `json:"name"`
+	DatasetType          string               `json:"dataset_type,omitempty"`
 	FileUploadDataSource FileUploadDataSource `json:"file_upload_dataset"`
 }
 
