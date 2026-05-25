@@ -367,7 +367,7 @@ Upload and register a model evaluation dataset (presign → Spaces upload → da
 
 **Arguments:**
 - `name` (string, required): Name for the dataset
-- `file_path` (string, required): Path to the CSV file to upload (must include an `input` column; `ground_truth` is optional)
+- `file_path` (string, required): Path to a `.csv` or `.jsonl` file to upload. CSV must include an `input` column; JSONL must be one JSON object per line with an `input` field. `ground_truth` is optional in both formats.
 
 **Returns:** JSON object with the registered dataset UUID and upload metadata
 
@@ -452,7 +452,7 @@ Run a complete model evaluation workflow: upload dataset, create run, and poll f
 **User consent:** Same two-step chat confirmation as `genai-model-eval-create-run`.
 
 **Arguments:**
-- `dataset_file_path` (string, required): Path to the CSV evaluation dataset
+- `dataset_file_path` (string, required): Path to the `.csv` or `.jsonl` evaluation dataset
 - `name` (string, required): Name for the evaluation run
 - `candidate_model_name` (string, required): Exact candidate model name
 - `candidate_model_uuid` (string, optional): Exact full candidate UUID
@@ -479,6 +479,25 @@ Run a complete model evaluation workflow: upload dataset, create run, and poll f
   "duration_seconds": 45.3,
   "error_message": ""
 }
+```
+
+## Model Evaluation Dataset Format
+
+Model evaluation datasets accept **CSV** or **JSONL**:
+
+**CSV** — header row with `input` column (and optional `ground_truth`):
+
+```csv
+input,ground_truth
+What is 2+2?,4
+What is the capital of France?,Paris
+```
+
+**JSONL** — one JSON object per line with an `input` field (and optional `ground_truth`):
+
+```jsonl
+{"input":"What is 2+2?","ground_truth":"4"}
+{"input":"What is the capital of France?","ground_truth":"Paris"}
 ```
 
 ## Model Evaluation Workflow Examples

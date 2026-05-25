@@ -1094,6 +1094,10 @@ func isCSVFile(path string) bool {
 	return len(path) > 4 && path[len(path)-4:] == ".csv"
 }
 
+func isJSONLFile(path string) bool {
+	return len(path) > 6 && path[len(path)-6:] == ".jsonl"
+}
+
 func getFileName(path string) string {
 	for i := len(path) - 1; i >= 0; i-- {
 		if path[i] == '/' || path[i] == '\\' {

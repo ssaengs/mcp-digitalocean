@@ -134,7 +134,7 @@ func (met *ModelEvaluationTool) getPreset(ctx context.Context, req mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-// createDataset uploads a CSV to Spaces and registers it as a model evaluation dataset.
+// createDataset uploads a CSV or JSONL file to Spaces and registers it as a model evaluation dataset.
 func (met *ModelEvaluationTool) createDataset(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
@@ -729,9 +729,9 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Handler: met.createDataset,
 			Tool: mcp.NewTool(
 				"genai-model-eval-create-dataset",
-				mcp.WithDescription("Upload and register a model evaluation dataset (presign → Spaces upload → database record). CSV must include an 'input' column; 'ground_truth' is optional. Returns evaluation_dataset_uuid for use with genai-model-eval-create-run."),
+				mcp.WithDescription("Upload and register a model evaluation dataset (presign → Spaces upload → database record). Accepts .csv (with 'input' column) or .jsonl (one JSON object per line with 'input' field); 'ground_truth' is optional. Returns evaluation_dataset_uuid for use with genai-model-eval-create-run."),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the dataset")),
-				mcp.WithString("file_path", mcp.Required(), mcp.Description("Path to the CSV file to upload")),
+				mcp.WithString("file_path", mcp.Required(), mcp.Description("Path to the .csv or .jsonl dataset file to upload")),
 			),
 		},
 		{
@@ -790,7 +790,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool(
 				"genai-model-eval-run-workflow",
 				mcp.WithDescription(genaiModelEvalWorkflowToolDescription),
-				mcp.WithString("dataset_file_path", mcp.Required(), mcp.Description("Path to the CSV evaluation dataset")),
+				mcp.WithString("dataset_file_path", mcp.Required(), mcp.Description("Path to the .csv or .jsonl evaluation dataset")),
 				mcp.WithString("name", mcp.Required(), mcp.Description("Name for the evaluation run")),
 				mcp.WithString("candidate_model_name", mcp.Required(), mcp.Description("Exact candidate model name. Partial names return nearest matches only.")),
 				mcp.WithString("candidate_model_uuid", mcp.Description("Exact full candidate model UUID. Optional if name is exact.")),

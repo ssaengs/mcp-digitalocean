@@ -18,9 +18,20 @@ func TestValidateModelEvaluationDataset(t *testing.T) {
 	noInputPath := filepath.Join(dir, "no_input.csv")
 	require.NoError(t, os.WriteFile(noInputPath, []byte("query,answer\nfoo,bar\n"), 0o600))
 
+	validJSONLPath := filepath.Join(dir, "valid.jsonl")
+	require.NoError(t, os.WriteFile(validJSONLPath, []byte(`{"input":"What is 2+2?","ground_truth":"4"}`+"\n"), 0o600))
+
+	noInputJSONLPath := filepath.Join(dir, "no_input.jsonl")
+	require.NoError(t, os.WriteFile(noInputJSONLPath, []byte(`{"ground_truth":"4"}`+"\n"), 0o600))
+
 	require.NoError(t, validateModelEvaluationDataset(validPath))
+	require.NoError(t, validateModelEvaluationDataset(validJSONLPath))
 
 	err := validateModelEvaluationDataset(noInputPath)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "input")
+
+	err = validateModelEvaluationDataset(noInputJSONLPath)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "input")
 
@@ -30,6 +41,12 @@ func TestValidateModelEvaluationDataset(t *testing.T) {
 	err = validateModelEvaluationDataset(filepath.Join(dir, "bad.json"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), ".csv")
+	require.Contains(t, err.Error(), ".jsonl")
+}
+
+func TestModelEvaluationDatasetContentType(t *testing.T) {
+	require.Equal(t, "text/csv", modelEvaluationDatasetContentType("queries.csv"))
+	require.Equal(t, "application/jsonl", modelEvaluationDatasetContentType("queries.jsonl"))
 }
 
 func TestCreateEvaluationDatasetInput_modelType(t *testing.T) {

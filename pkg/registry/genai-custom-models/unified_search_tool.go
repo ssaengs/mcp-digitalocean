@@ -3,7 +3,6 @@ package genaicustommodels
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 
@@ -137,24 +136,12 @@ func fetchCatalogModels(ctx context.Context, client *godo.Client, query string) 
 
 // fetchCustomModels lists custom models and returns one row per match, ranked by relevance.
 func fetchCustomModels(ctx context.Context, client *godo.Client, query string) ([]CustomSearchRow, error) {
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, customModelsAPIPath, nil)
+	models, _, err := listCustomModels(ctx, client, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, apiReq.Method, apiReq.URL.String(), apiReq.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build http request: %w", err)
-	}
-	httpReq.Header = apiReq.Header.Clone()
-
-	var output ListCustomModelsOutput
-	resp, err := client.Do(ctx, httpReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("failed to list custom models: %w", err)
-	}
-
-	matched := filterAndRankCustomModels(output.Models, query)
+	matched := filterAndRankCustomModels(models, query)
 	rows := make([]CustomSearchRow, 0, len(matched))
 	for _, cm := range matched {
 		rows = append(rows, toCustomSearchRow(cm))

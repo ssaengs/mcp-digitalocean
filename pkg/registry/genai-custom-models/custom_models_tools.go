@@ -4,16 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
-
-const customModelsAPIPath = "v2/gen-ai/custom_models"
 
 const (
 	importConsentRequiredMsg = "accept_terms_and_conditions must be true. Before importing, present the import terms to the user and obtain explicit consent (yes) in this conversation. Consent is required for every import, including re-imports of the same model."
@@ -38,26 +34,6 @@ func NewCustomModelsTool(client func(ctx context.Context) (*godo.Client, error))
 	return &CustomModelsTool{client: client}
 }
 
-// newRequestWithContext builds an authenticated HTTP request via the godo client.
-func newRequestWithContext(ctx context.Context, client *godo.Client, method, urlPath string, body interface{}) (*http.Request, error) {
-	req0, err := client.NewRequest(ctx, method, urlPath, body)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, req0.Method, req0.URL.String(), req0.Body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header = req0.Header.Clone()
-	if req0.ContentLength > 0 {
-		req.ContentLength = req0.ContentLength
-	}
-	if req0.GetBody != nil {
-		req.GetBody = req0.GetBody
-	}
-	return req, nil
-}
-
 // listModels lists custom models with optional filters. Returns one markdown table with
 // every model on its own row (including STATUS_FAILED with UUID). For catalog + custom
 // together, use genai-models-unified-search.
@@ -77,37 +53,26 @@ func (cmt *CustomModelsTool) listModels(ctx context.Context, req mcp.CallToolReq
 		return mcp.NewToolResultText(formatCustomModelsList("", rows)), nil
 	}
 
-	q := url.Values{}
 	statusFilter := ""
+	opt := &godo.CustomModelListOptions{}
 	if status, ok := args["status"].(string); ok && status != "" {
 		statusFilter = status
-		q.Set("status", status)
+		opt.Status = godo.CustomModelStatus(status)
 	}
-	if page, ok := args["page"].(float64); ok {
-		q.Set("page", fmt.Sprintf("%d", int(page)))
+	if page, ok := args["page"].(float64); ok && int(page) > 0 {
+		opt.Page = int(page)
 	}
-	if perPage, ok := args["per_page"].(float64); ok {
-		q.Set("per_page", fmt.Sprintf("%d", int(perPage)))
-	}
-
-	path := customModelsAPIPath
-	if enc := q.Encode(); enc != "" {
-		path += "?" + enc
+	if perPage, ok := args["per_page"].(float64); ok && int(perPage) > 0 {
+		opt.PerPage = int(perPage)
 	}
 
-	apiReq, err := newRequestWithContext(ctx, client, "GET", path, nil)
+	models, _, err := listCustomModels(ctx, client, opt)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ListCustomModelsOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to list custom models", err), nil
 	}
 
-	rows := make([]CustomSearchRow, 0, len(output.Models))
-	for _, cm := range output.Models {
+	rows := make([]CustomSearchRow, 0, len(models))
+	for _, cm := range models {
 		rows = append(rows, toCustomSearchRow(cm))
 	}
 
@@ -207,23 +172,21 @@ func (cmt *CustomModelsTool) importModel(ctx context.Context, req mcp.CallToolRe
 		}
 	}
 
+	if input.Name == "" && input.SourceRef.RepoID != "" {
+		input.Name = input.SourceRef.RepoID
+	}
+
 	client, err := cmt.client(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newRequestWithContext(ctx, client, "POST", customModelsAPIPath+"/import", input)
+	out, _, err := client.GradientAI.ImportCustomModel(ctx, importRequestToGodo(input))
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ImportCustomModelOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to import custom model", err), nil
 	}
 
-	jsonData, err := json.MarshalIndent(output, "", "  ")
+	jsonData, err := json.MarshalIndent(importResponseFromGodo(out), "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -273,18 +236,12 @@ func (cmt *CustomModelsTool) updateMetadata(ctx context.Context, req mcp.CallToo
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newRequestWithContext(ctx, client, "PATCH", customModelsAPIPath+"/"+uuid+"/metadata", input)
+	model, _, err := client.GradientAI.UpdateCustomModelMetadata(ctx, uuid, metadataUpdateToGodo(input))
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output UpdateCustomModelMetadataOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to update custom model metadata", err), nil
 	}
 
-	jsonData, err := json.MarshalIndent(output.Model, "", "  ")
+	jsonData, err := json.MarshalIndent(customModelFromGodo(model), "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -304,18 +261,12 @@ func (cmt *CustomModelsTool) getModel(ctx context.Context, req mcp.CallToolReque
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newRequestWithContext(ctx, client, "GET", customModelsAPIPath+"/"+uuid, nil)
+	model, err := getCustomModelByUUID(ctx, client, uuid)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output GetCustomModelOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to get custom model", err), nil
 	}
 
-	jsonData, err := json.MarshalIndent(output.Model, "", "  ")
+	jsonData, err := json.MarshalIndent(model, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal error: %w", err)
 	}
@@ -382,23 +333,14 @@ func (cmt *CustomModelsTool) deleteModel(ctx context.Context, req mcp.CallToolRe
 }
 
 func (cmt *CustomModelsTool) deleteModelByUUID(ctx context.Context, client *godo.Client, uuid, name string) (*mcp.CallToolResult, error) {
-	apiReq, err := newRequestWithContext(ctx, client, "DELETE", customModelsAPIPath+"/"+uuid, nil)
+	output, resp, err := deleteCustomModelByUUID(ctx, client, uuid)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output DeleteCustomModelOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isNotFoundResponse(resp) {
 			return mcp.NewToolResultError(fmt.Sprintf(
 				"DELETE returned 404 for model %q (%s) but the model still exists. Deletion may be blocked (for example active deployments) or the delete API may be unavailable in this environment — verify in the control panel or remove deployments first.",
 				name, uuid)), nil
 		}
 		return mcp.NewToolResultErrorFromErr("failed to delete custom model", err), nil
-	}
-	if resp.StatusCode >= 400 {
-		return mcp.NewToolResultErrorFromErr("failed to delete custom model", fmt.Errorf("status %d", resp.StatusCode)), nil
 	}
 
 	jsonData, err := json.MarshalIndent(output, "", "  ")

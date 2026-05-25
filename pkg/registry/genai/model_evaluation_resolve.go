@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -12,8 +11,6 @@ import (
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 )
-
-const customModelsAPIPath = "v2/gen-ai/custom_models"
 
 var evalModelUUIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -127,16 +124,6 @@ type modelEvalRunModels struct {
 	Judge     *modelEvalResolvedModel
 }
 
-type evalCustomModelListItem struct {
-	UUID   string `json:"uuid"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
-}
-
-type listEvalCustomModelsOutput struct {
-	Models []*evalCustomModelListItem `json:"models"`
-}
-
 // listAllEvalModels fetches catalog and custom models for evaluation run resolution.
 func listAllEvalModels(ctx context.Context, client *godo.Client) ([]*EvalCatalogModel, error) {
 	type catalogResult struct {
@@ -235,35 +222,46 @@ func fetchEvalCustomModels(ctx context.Context, client *godo.Client) ([]*EvalCat
 	page := 1
 
 	for {
-		path := fmt.Sprintf("%s?page=%d&per_page=%d", customModelsAPIPath, page, perPage)
-		apiReq, err := newGodoRequestWithContext(ctx, client, http.MethodGet, path, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
-		}
-
-		var output listEvalCustomModelsOutput
-		resp, err := client.Do(ctx, apiReq, &output)
+		out, resp, err := client.GradientAI.ListCustomModels(ctx, &godo.CustomModelListOptions{
+			ListOptions: godo.ListOptions{Page: page, PerPage: perPage},
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list custom models: %w", err)
 		}
-		if resp.StatusCode >= 400 {
+		if resp != nil && resp.StatusCode >= 400 {
 			return nil, fmt.Errorf("failed to list custom models: status %d", resp.StatusCode)
 		}
 
-		for _, cm := range output.Models {
-			if cm == nil || cm.Status == "STATUS_DELETED" {
+		var models []*godo.CustomModel
+		var meta *godo.Meta
+		if out != nil {
+			models = out.Models
+			meta = out.Meta
+		}
+		if meta == nil && resp != nil {
+			meta = resp.Meta
+		}
+
+		for _, cm := range models {
+			if cm == nil || cm.Status == godo.CustomModelStatusDeleted {
 				continue
 			}
 			all = append(all, &EvalCatalogModel{
-				UUID:        cm.UUID,
+				UUID:        cm.Uuid,
 				APIName:     cm.Name,
 				DisplayName: cm.Name,
 				Source:      "custom",
-				Status:      cm.Status,
+				Status:      string(cm.Status),
 			})
 		}
 
-		if len(output.Models) == 0 || len(output.Models) < perPage {
+		if len(models) == 0 {
+			break
+		}
+		if meta != nil && meta.Pages > 0 && page >= meta.Pages {
+			break
+		}
+		if len(models) < perPage {
 			break
 		}
 		page++
@@ -696,27 +694,20 @@ func lookupEvalModelByUUID(ctx context.Context, client *godo.Client, uuid string
 		}, nil
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, http.MethodGet, customModelsAPIPath+"/"+uuid, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create custom model request: %w", err)
-	}
-	var output struct {
-		Model *evalCustomModelListItem `json:"model"`
-	}
-	resp, err := client.Do(ctx, apiReq, &output)
+	customModel, _, err := client.GradientAI.GetCustomModel(ctx, uuid)
 	if err != nil {
 		return nil, fmt.Errorf("model %q not found in catalog or custom models: %w", uuid, err)
 	}
-	if resp.StatusCode >= 400 || output.Model == nil {
+	if customModel == nil {
 		return nil, fmt.Errorf("model %q not found in catalog or custom models", uuid)
 	}
-	if output.Model.Status == "STATUS_DELETED" {
+	if customModel.Status == godo.CustomModelStatusDeleted {
 		return nil, fmt.Errorf("model %q is deleted", uuid)
 	}
 	return &modelEvalResolvedModel{
 		UUID:        uuid,
-		APIName:     output.Model.Name,
-		DisplayName: output.Model.Name,
+		APIName:     customModel.Name,
+		DisplayName: customModel.Name,
 		Source:      "custom",
 	}, nil
 }

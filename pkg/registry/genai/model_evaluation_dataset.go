@@ -1,13 +1,16 @@
 package genai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/digitalocean/godo"
 )
@@ -22,12 +25,19 @@ type ModelEvalDatasetResult struct {
 	FileSize              int64  `json:"file_size"`
 }
 
-// validateModelEvaluationDataset checks that a CSV has the required input column for model evaluation.
+// validateModelEvaluationDataset checks that a CSV or JSONL file has the required input field for model evaluation.
 func validateModelEvaluationDataset(filePath string) error {
-	if !isCSVFile(filePath) {
-		return fmt.Errorf("file must have .csv extension")
+	switch {
+	case isCSVFile(filePath):
+		return validateModelEvaluationDatasetCSV(filePath)
+	case isJSONLFile(filePath):
+		return validateModelEvaluationDatasetJSONL(filePath)
+	default:
+		return fmt.Errorf("file must have .csv or .jsonl extension")
 	}
+}
 
+func validateModelEvaluationDatasetCSV(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -67,6 +77,51 @@ func validateModelEvaluationDataset(filePath string) error {
 	}
 
 	return nil
+}
+
+func validateModelEvaluationDatasetJSONL(filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+	recordCount := 0
+
+	for scanner.Scan() {
+		lineNum++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var record map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			return fmt.Errorf("line %d: invalid JSON: %w", lineNum, err)
+		}
+		if _, ok := record["input"]; !ok {
+			return fmt.Errorf("line %d: JSON object must contain an 'input' field", lineNum)
+		}
+		recordCount++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to read JSONL file: %w", err)
+	}
+	if recordCount == 0 {
+		return fmt.Errorf("JSONL file must contain at least one record with an 'input' field")
+	}
+
+	return nil
+}
+
+func modelEvaluationDatasetContentType(fileName string) string {
+	if isJSONLFile(fileName) {
+		return "application/jsonl"
+	}
+	return "text/csv"
 }
 
 // uploadAndRegisterModelEvaluationDataset presigns, uploads to Spaces, and registers the dataset record.
@@ -113,7 +168,7 @@ func uploadAndRegisterModelEvaluationDataset(
 		return nil, fmt.Errorf("failed to create upload request: %w", err)
 	}
 	uploadReq.ContentLength = fileSize
-	uploadReq.Header.Set("Content-Type", "text/csv")
+	uploadReq.Header.Set("Content-Type", modelEvaluationDatasetContentType(fileName))
 
 	httpResp, err := presignedUploadHTTPClient.Do(uploadReq)
 	if err != nil {
