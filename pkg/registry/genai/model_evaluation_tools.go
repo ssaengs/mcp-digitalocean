@@ -478,6 +478,131 @@ func (met *ModelEvaluationTool) getResultsDownloadURL(ctx context.Context, req m
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+const (
+	modelEvalDeleteRunConsentMsg = "confirm_deletion must be true. Before deleting an evaluation run, present the run UUID and that deletion is permanent (results cannot be recovered) and obtain explicit consent (yes) in this conversation. Consent is required for every delete."
+
+	modelEvalDeletePresetConsentMsg = "confirm_deletion must be true. Before deleting an evaluation preset, present the preset UUID and that deletion is permanent and obtain explicit consent (yes) in this conversation. Consent is required for every delete."
+
+	modelEvalCancelRunConsentMsg = "confirm_cancel must be true. Before cancelling an evaluation run, present the run UUID and explain that any partial results may be lost, then obtain explicit consent (yes) in this conversation."
+
+	modelEvalDeleteRunConfirmDescription = "Must be true only after the end user has explicitly confirmed the deletion in conversation (yes/no in chat). Omitted or false is rejected."
+
+	modelEvalDeletePresetConfirmDescription = "Must be true only after the end user has explicitly confirmed the preset deletion in conversation (yes/no in chat). Omitted or false is rejected."
+
+	modelEvalCancelRunConfirmDescription = "Must be true only after the end user has explicitly confirmed the cancellation in conversation (yes/no in chat). Omitted or false is rejected."
+)
+
+// deleteRun deletes a model evaluation run by UUID.
+func (met *ModelEvaluationTool) deleteRun(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	runUUID, _ := args["eval_run_uuid"].(string)
+	runUUID = strings.TrimSpace(runUUID)
+	if runUUID == "" {
+		return mcp.NewToolResultError("eval_run_uuid is required"), nil
+	}
+
+	if confirm, _ := args["confirm_deletion"].(bool); !confirm {
+		return mcp.NewToolResultError(modelEvalDeleteRunConsentMsg), nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	output, resp, err := client.GradientAI.DeleteModelEvaluationRun(ctx, runUUID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to delete model evaluation run", err), nil
+	}
+	if resp != nil && resp.StatusCode >= 400 {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to delete model evaluation run: status %d", resp.StatusCode)), nil
+	}
+
+	jsonData, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// cancelRun cancels an in-progress model evaluation run by UUID.
+func (met *ModelEvaluationTool) cancelRun(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	runUUID, _ := args["eval_run_uuid"].(string)
+	runUUID = strings.TrimSpace(runUUID)
+	if runUUID == "" {
+		return mcp.NewToolResultError("eval_run_uuid is required"), nil
+	}
+
+	if confirm, _ := args["confirm_cancel"].(bool); !confirm {
+		return mcp.NewToolResultError(modelEvalCancelRunConsentMsg), nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	output, resp, err := client.GradientAI.CancelModelEvaluationRun(ctx, runUUID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to cancel model evaluation run", err), nil
+	}
+	if resp != nil && resp.StatusCode >= 400 {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to cancel model evaluation run: status %d", resp.StatusCode)), nil
+	}
+
+	jsonData, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// deletePreset deletes a saved model evaluation preset by UUID.
+func (met *ModelEvaluationTool) deletePreset(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	presetUUID, _ := args["eval_preset_uuid"].(string)
+	presetUUID = strings.TrimSpace(presetUUID)
+	if presetUUID == "" {
+		return mcp.NewToolResultError("eval_preset_uuid is required"), nil
+	}
+
+	if confirm, _ := args["confirm_deletion"].(bool); !confirm {
+		return mcp.NewToolResultError(modelEvalDeletePresetConsentMsg), nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	output, resp, err := client.GradientAI.DeleteModelEvaluationPreset(ctx, presetUUID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to delete model evaluation preset", err), nil
+	}
+	if resp != nil && resp.StatusCode >= 400 {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to delete model evaluation preset: status %d", resp.StatusCode)), nil
+	}
+
+	type DeletePresetResponse struct {
+		EvalPresetUUID string `json:"eval_preset_uuid"`
+		Status         string `json:"status"`
+	}
+	response := DeletePresetResponse{
+		EvalPresetUUID: presetUUID,
+		Status:         "deleted",
+	}
+	_ = output
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
 // isModelEvalTerminalStatus checks if a model evaluation run status is terminal.
 func isModelEvalTerminalStatus(status ModelEvaluationRunStatus) bool {
 	switch status {
@@ -784,6 +909,39 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				"genai-model-eval-get-results-download-url",
 				mcp.WithDescription("Get a presigned download URL for the full results of a model evaluation run."),
 				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run")),
+			),
+		},
+		{
+			Handler: met.deleteRun,
+			Tool: mcp.NewTool(
+				"genai-model-eval-delete-run",
+				mcp.WithDescription("Delete a model evaluation run by UUID. Deletion is permanent: the run record and its results cannot be recovered.\n\n"+
+					"CONSENT REQUIRED (every delete): Do not call with confirm_deletion: true until the user has explicitly agreed in chat. "+
+					"Present the eval_run_uuid and that deletion is permanent; ask for yes/no."),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run to delete")),
+				mcp.WithBoolean("confirm_deletion", mcp.Required(), mcp.Description(modelEvalDeleteRunConfirmDescription)),
+			),
+		},
+		{
+			Handler: met.cancelRun,
+			Tool: mcp.NewTool(
+				"genai-model-eval-cancel-run",
+				mcp.WithDescription("Cancel an in-progress model evaluation run by UUID. The run transitions to MODEL_EVALUATION_RUN_CANCELLING and then MODEL_EVALUATION_RUN_CANCELLED. Any partial results may be lost.\n\n"+
+					"CONSENT REQUIRED (every cancel): Do not call with confirm_cancel: true until the user has explicitly agreed in chat. "+
+					"Present the eval_run_uuid and that any partial results may be lost; ask for yes/no."),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run to cancel")),
+				mcp.WithBoolean("confirm_cancel", mcp.Required(), mcp.Description(modelEvalCancelRunConfirmDescription)),
+			),
+		},
+		{
+			Handler: met.deletePreset,
+			Tool: mcp.NewTool(
+				"genai-model-eval-delete-preset",
+				mcp.WithDescription("Delete a saved model evaluation preset by UUID. Deletion is permanent and existing runs that referenced the preset are not affected.\n\n"+
+					"CONSENT REQUIRED (every delete): Do not call with confirm_deletion: true until the user has explicitly agreed in chat. "+
+					"Present the eval_preset_uuid and that deletion is permanent; ask for yes/no."),
+				mcp.WithString("eval_preset_uuid", mcp.Required(), mcp.Description("UUID of the evaluation preset to delete")),
+				mcp.WithBoolean("confirm_deletion", mcp.Required(), mcp.Description(modelEvalDeletePresetConfirmDescription)),
 			),
 		},
 		{

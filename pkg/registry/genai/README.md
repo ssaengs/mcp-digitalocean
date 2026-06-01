@@ -444,6 +444,39 @@ Get a presigned download URL for the full results of an evaluation run.
 }
 ```
 
+#### `genai-model-eval-delete-run`
+Delete a model evaluation run by UUID. Deletion is permanent: the run record and its results cannot be recovered.
+
+**User consent:** `confirm_deletion` must be `true`. Present `eval_run_uuid` and that deletion is permanent, then ask for yes/no in chat. Only set `confirm_deletion: true` after the user explicitly agrees.
+
+**Arguments:**
+- `eval_run_uuid` (string, required): UUID of the run to delete
+- `confirm_deletion` (boolean, required): Must be true; only after the user has agreed in chat
+
+**Returns:** JSON status from the delete API.
+
+#### `genai-model-eval-cancel-run`
+Cancel an in-progress model evaluation run by UUID. The run transitions to `MODEL_EVALUATION_RUN_CANCELLING` and then `MODEL_EVALUATION_RUN_CANCELLED`. Any partial results may be lost.
+
+**User consent:** `confirm_cancel` must be `true`. Present `eval_run_uuid` and that partial results may be lost, then ask for yes/no in chat. Only set `confirm_cancel: true` after the user explicitly agrees.
+
+**Arguments:**
+- `eval_run_uuid` (string, required): UUID of the run to cancel
+- `confirm_cancel` (boolean, required): Must be true; only after the user has agreed in chat
+
+**Returns:** JSON object with the cancelled run summary.
+
+#### `genai-model-eval-delete-preset`
+Delete a saved model evaluation preset by UUID. Existing runs that referenced the preset are not affected.
+
+**User consent:** `confirm_deletion` must be `true`. Present `eval_preset_uuid` and that deletion is permanent, then ask for yes/no in chat. Only set `confirm_deletion: true` after the user explicitly agrees.
+
+**Arguments:**
+- `eval_preset_uuid` (string, required): UUID of the preset to delete
+- `confirm_deletion` (boolean, required): Must be true; only after the user has agreed in chat
+
+**Returns:** JSON object confirming the deletion.
+
 ### Orchestrated Workflow Tool
 
 #### `genai-model-eval-run-workflow`
