@@ -143,7 +143,7 @@ func uploadAndRegisterModelEvaluationDataset(
 		},
 	}
 
-	presignedReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalAPIPath+"/datasets/file_upload_presigned_urls", presignedInput)
+	presignedReq, err := client.NewRequest(ctx, http.MethodPost, modelEvalAPIPath+"/datasets/file_upload_presigned_urls", presignedInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create presigned URL request: %w", err)
 	}
@@ -191,7 +191,7 @@ func uploadAndRegisterModelEvaluationDataset(
 		},
 	}
 
-	datasetReq, err := newGodoRequestWithContext(ctx, client, "POST", genAIAPIPath+"/evaluation_datasets", datasetInput)
+	datasetReq, err := client.NewRequest(ctx, http.MethodPost, genAIAPIPath+"/evaluation_datasets", datasetInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dataset request: %w", err)
 	}

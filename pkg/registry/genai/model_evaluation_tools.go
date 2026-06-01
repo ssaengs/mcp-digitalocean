@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -38,7 +39,7 @@ func (met *ModelEvaluationTool) listMetrics(ctx context.Context, req mcp.CallToo
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalMetricsAPIPath, nil)
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalMetricsAPIPath, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -74,7 +75,7 @@ func (met *ModelEvaluationTool) listPresets(ctx context.Context, req mcp.CallToo
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalPresetsAPIPath, nil)
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalPresetsAPIPath, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -115,7 +116,7 @@ func (met *ModelEvaluationTool) getPreset(ctx context.Context, req mcp.CallToolR
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalPresetsAPIPath+"/"+presetUUID, nil)
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalPresetsAPIPath+"/"+presetUUID, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -314,7 +315,7 @@ func (met *ModelEvaluationTool) createRun(ctx context.Context, req mcp.CallToolR
 		input.CandidateInferenceConfig = config
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalRunsAPIPath, input)
+	apiReq, err := client.NewRequest(ctx, http.MethodPost, modelEvalRunsAPIPath, input)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -371,7 +372,7 @@ func (met *ModelEvaluationTool) listRuns(ctx context.Context, req mcp.CallToolRe
 		path += "?" + enc
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", path, nil)
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -427,7 +428,7 @@ func (met *ModelEvaluationTool) getRun(ctx context.Context, req mcp.CallToolRequ
 		path += "?" + enc
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", path, nil)
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -458,7 +459,7 @@ func (met *ModelEvaluationTool) getResultsDownloadURL(ctx context.Context, req m
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalRunsAPIPath+"/"+runUUID+"/results/download_url", nil)
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalRunsAPIPath+"/"+runUUID+"/results/download_url", nil)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
 	}
@@ -572,7 +573,7 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 
 	// Step 5: List metrics if none provided
 	if len(metricUUIDs) == 0 {
-		metricsReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalMetricsAPIPath, nil)
+		metricsReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalMetricsAPIPath, nil)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("step 5: failed to create request", err), nil
 		}
@@ -615,7 +616,7 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 		runInput.CandidateInferenceConfig = config
 	}
 
-	runReq, err := newGodoRequestWithContext(ctx, client, "POST", modelEvalRunsAPIPath, runInput)
+	runReq, err := client.NewRequest(ctx, http.MethodPost, modelEvalRunsAPIPath, runInput)
 	if err != nil {
 		return mcp.NewToolResultErrorFromErr("step 6: failed to create request", err), nil
 	}
@@ -639,7 +640,7 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 			return mcp.NewToolResultError("step 7: evaluation polling timed out"), nil
 		}
 
-		getReq, err := newGodoRequestWithContext(ctx, client, "GET", modelEvalRunsAPIPath+"/"+evalRunUUID, nil)
+		getReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalRunsAPIPath+"/"+evalRunUUID, nil)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("step 7: failed to create request", err), nil
 		}
