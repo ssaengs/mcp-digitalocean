@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/digitalocean/godo"
@@ -134,30 +135,21 @@ func uploadAndRegisterModelEvaluationDataset(
 ) (*ModelEvalDatasetResult, error) {
 	fileSize := int64(len(fileData))
 
-	presignedInput := &ModelEvalDatasetPresignedUrlsInput{
-		Files: []PresignedUrlFile{
+	presignedInput := &godo.CreateModelEvalDatasetUploadPresignedURLsRequest{
+		Files: []*godo.PresignedUrlFile{
 			{
 				FileName: fileName,
-				FileSize: fileSize,
+				FileSize: strconv.FormatInt(fileSize, 10),
 			},
 		},
 	}
 
-	presignedReq, err := client.NewRequest(ctx, http.MethodPost, modelEvalAPIPath+"/datasets/file_upload_presigned_urls", presignedInput)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create presigned URL request: %w", err)
-	}
-
-	var presignedOutput ModelEvalDatasetPresignedUrlsOutput
-	resp, err := client.Do(ctx, presignedReq, &presignedOutput)
+	presignedOutput, _, err := client.GradientAI.CreateModelEvalDatasetUploadPresignedURLs(ctx, presignedInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create presigned URL: %w", err)
 	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("failed to create presigned URL: status %d", resp.StatusCode)
-	}
 
-	if len(presignedOutput.Uploads) == 0 {
+	if presignedOutput == nil || len(presignedOutput.Uploads) == 0 {
 		return nil, fmt.Errorf("no presigned URL returned")
 	}
 
@@ -197,7 +189,7 @@ func uploadAndRegisterModelEvaluationDataset(
 	}
 
 	var datasetOutput CreateEvaluationDatasetOutput
-	resp, err = client.Do(ctx, datasetReq, &datasetOutput)
+	resp, err := client.Do(ctx, datasetReq, &datasetOutput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register evaluation dataset: %w", err)
 	}

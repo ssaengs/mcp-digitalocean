@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -15,10 +13,54 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const modelEvalAPIPath = genAIAPIPath + "/model_evaluation"
-const modelEvalRunsAPIPath = genAIAPIPath + "/model_evaluation_runs"
-const modelEvalPresetsAPIPath = genAIAPIPath + "/model_evaluation_presets"
-const modelEvalMetricsAPIPath = genAIAPIPath + "/model_evaluation_metrics"
+// toGodoStarMetric converts the locally parsed star metric into the godo SDK type.
+func toGodoStarMetric(sm *StarMetric) *godo.StarMetric {
+	if sm == nil {
+		return nil
+	}
+	g := &godo.StarMetric{MetricUUID: sm.MetricUUID}
+	if sm.Name != nil {
+		g.Name = *sm.Name
+	}
+	if sm.SuccessThreshold != nil {
+		v := float32(*sm.SuccessThreshold)
+		g.SuccessThreshold = &v
+	}
+	if sm.SuccessThresholdPct != nil {
+		v := int32(*sm.SuccessThresholdPct)
+		g.SuccessThresholdPct = &v
+	}
+	return g
+}
+
+// godoInferenceConfigFromArgs builds a godo CandidateInferenceConfig from raw tool args.
+func godoInferenceConfigFromArgs(args map[string]interface{}) *godo.CandidateInferenceConfig {
+	raw, ok := args["candidate_inference_config"].(map[string]interface{})
+	if !ok || raw == nil {
+		return nil
+	}
+	config := &godo.CandidateInferenceConfig{}
+	if maxTokens, ok := raw["max_tokens"].(float64); ok {
+		config.MaxTokens = int64(maxTokens)
+	}
+	if temp, ok := raw["temperature"].(float64); ok {
+		config.Temperature = float32(temp)
+	}
+	return config
+}
+
+// isGodoModelEvalRunTerminal reports whether a godo run status is terminal.
+func isGodoModelEvalRunTerminal(status godo.ModelEvaluationRunStatus) bool {
+	switch status {
+	case godo.ModelEvaluationRunSuccessful,
+		godo.ModelEvaluationRunFailed,
+		godo.ModelEvaluationRunCancelled,
+		godo.ModelEvaluationRunPartiallySuccessful:
+		return true
+	default:
+		return false
+	}
+}
 
 // ModelEvaluationTool provides model evaluation management tools.
 type ModelEvaluationTool struct {
@@ -39,20 +81,14 @@ func (met *ModelEvaluationTool) listMetrics(ctx context.Context, req mcp.CallToo
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalMetricsAPIPath, nil)
+	output, _, err := client.GradientAI.ListModelEvaluationMetrics(ctx)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ListModelEvaluationMetricsOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to list model evaluation metrics", err), nil
 	}
 
 	type MetricsResponse struct {
-		Metrics []*EvaluationMetric `json:"metrics"`
-		Count   int                 `json:"count"`
+		Metrics []*godo.EvaluationMetric `json:"metrics"`
+		Count   int                      `json:"count"`
 	}
 
 	response := MetricsResponse{
@@ -75,20 +111,14 @@ func (met *ModelEvaluationTool) listPresets(ctx context.Context, req mcp.CallToo
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalPresetsAPIPath, nil)
+	output, _, err := client.GradientAI.ListModelEvaluationPresets(ctx)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ListModelEvaluationPresetsOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to list model evaluation presets", err), nil
 	}
 
 	type PresetsResponse struct {
-		Presets []*ModelEvaluationPreset `json:"presets"`
-		Count   int                      `json:"count"`
+		Presets []*godo.ModelEvaluationPreset `json:"presets"`
+		Count   int                           `json:"count"`
 	}
 
 	response := PresetsResponse{
@@ -116,14 +146,8 @@ func (met *ModelEvaluationTool) getPreset(ctx context.Context, req mcp.CallToolR
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalPresetsAPIPath+"/"+presetUUID, nil)
+	output, _, err := client.GradientAI.GetModelEvaluationPreset(ctx, presetUUID)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output GetModelEvaluationPresetOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to get model evaluation preset", err), nil
 	}
 
@@ -256,73 +280,54 @@ func (met *ModelEvaluationTool) createRun(ctx context.Context, req mcp.CallToolR
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	input := &CreateModelEvalRunInput{
+	createReq := &godo.CreateModelEvaluationRunRequest{
 		Name:               name,
 		CandidateModelUUID: resolved.Candidate.UUID,
 		CandidateModelName: resolved.Candidate.APIName,
 	}
 
 	if presetUUID != "" {
-		input.EvalPresetUUID = &presetUUID
+		createReq.EvalPresetUUID = presetUUID
 	}
 
 	if datasetUUID, ok := args["dataset_uuid"].(string); ok && datasetUUID != "" {
-		input.DatasetUUID = datasetUUID
+		createReq.DatasetUUID = datasetUUID
 	}
 
 	if resolved.Judge != nil {
-		input.JudgeModelUUID = resolved.Judge.UUID
+		createReq.JudgeModelUUID = resolved.Judge.UUID
 	}
 
 	if metricUUIDsRaw, ok := args["metric_uuids"].([]interface{}); ok {
 		for _, m := range metricUUIDsRaw {
 			if s, ok := m.(string); ok {
-				input.MetricUUIDs = append(input.MetricUUIDs, s)
+				createReq.MetricUUIDs = append(createReq.MetricUUIDs, s)
 			}
 		}
 	}
 
-	input.StarMetric = parseStarMetricArg(args)
+	createReq.StarMetric = toGodoStarMetric(parseStarMetricArg(args))
 
 	if source, ok := args["source"].(string); ok && source != "" {
-		input.Source = source
+		createReq.Source = source
 	}
 
 	if saveAsPreset, ok := args["save_as_preset"].(bool); ok {
-		input.SaveAsPreset = saveAsPreset
+		createReq.SaveAsPreset = saveAsPreset
 	}
 
 	if presetName, ok := args["preset_name"].(string); ok && presetName != "" {
-		input.PresetName = presetName
+		createReq.PresetName = presetName
 	}
 
 	if candidateModelSource, ok := args["candidate_model_source"].(string); ok && candidateModelSource != "" {
-		input.CandidateModelSource = candidateModelSource
+		createReq.CandidateModelSource = godo.CandidateModelSource(candidateModelSource)
 	}
 
-	if inferenceConfigRaw, ok := args["candidate_inference_config"].(map[string]interface{}); ok {
-		config := &CandidateInferenceConfig{}
-		if maxTokens, ok := inferenceConfigRaw["max_tokens"].(float64); ok {
-			v := int(maxTokens)
-			config.MaxTokens = &v
-		}
-		if temp, ok := inferenceConfigRaw["temperature"].(float64); ok {
-			config.Temperature = &temp
-		}
-		if topP, ok := inferenceConfigRaw["top_p"].(float64); ok {
-			config.TopP = &topP
-		}
-		input.CandidateInferenceConfig = config
-	}
+	createReq.CandidateInferenceConfig = godoInferenceConfigFromArgs(args)
 
-	apiReq, err := client.NewRequest(ctx, http.MethodPost, modelEvalRunsAPIPath, input)
+	output, _, err := client.GradientAI.CreateModelEvaluationRun(ctx, createReq)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output CreateModelEvalRunOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to create model evaluation run", err), nil
 	}
 
@@ -332,7 +337,7 @@ func (met *ModelEvaluationTool) createRun(ctx context.Context, req mcp.CallToolR
 	}
 
 	response := RunCreatedResponse{
-		EvalRunUUID: output.EvalRunUUID,
+		EvalRunUUID: output.EvalRunUuid,
 		Name:        name,
 	}
 
@@ -353,39 +358,28 @@ func (met *ModelEvaluationTool) listRuns(ctx context.Context, req mcp.CallToolRe
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	q := url.Values{}
+	opt := &godo.ModelEvaluationRunListOptions{}
 	if presetUUID, ok := args["eval_preset_uuid"].(string); ok && presetUUID != "" {
-		q.Set("eval_preset_uuid", presetUUID)
+		opt.EvalPresetUUID = presetUUID
 	}
 	if status, ok := args["status"].(string); ok && status != "" {
-		q.Set("status", status)
+		opt.Status = godo.ModelEvaluationRunStatus(status)
 	}
 	if page, ok := args["page"].(float64); ok {
-		q.Set("page", fmt.Sprintf("%d", int(page)))
+		opt.Page = int(page)
 	}
 	if perPage, ok := args["per_page"].(float64); ok {
-		q.Set("per_page", fmt.Sprintf("%d", int(perPage)))
+		opt.PerPage = int(perPage)
 	}
 
-	path := modelEvalRunsAPIPath
-	if enc := q.Encode(); enc != "" {
-		path += "?" + enc
-	}
-
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, path, nil)
+	output, _, err := client.GradientAI.ListModelEvaluationRuns(ctx, opt)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ListModelEvaluationRunsOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to list model evaluation runs", err), nil
 	}
 
 	type RunsListResponse struct {
-		Runs  []*ModelEvaluationRunSummary `json:"runs"`
-		Count int                          `json:"count"`
+		Runs  []*godo.ModelEvaluationRunSummary `json:"runs"`
+		Count int                               `json:"count"`
 	}
 
 	response := RunsListResponse{
@@ -415,27 +409,16 @@ func (met *ModelEvaluationTool) getRun(ctx context.Context, req mcp.CallToolRequ
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	q := url.Values{}
+	opt := &godo.ModelEvaluationRunGetOptions{}
 	if page, ok := args["page"].(float64); ok {
-		q.Set("page", fmt.Sprintf("%d", int(page)))
+		opt.Page = int(page)
 	}
 	if perPage, ok := args["per_page"].(float64); ok {
-		q.Set("per_page", fmt.Sprintf("%d", int(perPage)))
+		opt.PerPage = int(perPage)
 	}
 
-	path := modelEvalRunsAPIPath + "/" + runUUID
-	if enc := q.Encode(); enc != "" {
-		path += "?" + enc
-	}
-
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, path, nil)
+	output, _, err := client.GradientAI.GetModelEvaluationRun(ctx, runUUID, opt)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output GetModelEvaluationRunOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to get model evaluation run", err), nil
 	}
 
@@ -459,14 +442,8 @@ func (met *ModelEvaluationTool) getResultsDownloadURL(ctx context.Context, req m
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	apiReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalRunsAPIPath+"/"+runUUID+"/results/download_url", nil)
+	output, _, err := client.GradientAI.GetModelEvaluationRunResultsDownloadURL(ctx, runUUID)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output ModelEvalResultsDownloadURLOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to get results download URL", err), nil
 	}
 
@@ -698,14 +675,8 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 
 	// Step 5: List metrics if none provided
 	if len(metricUUIDs) == 0 {
-		metricsReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalMetricsAPIPath, nil)
+		metricsOutput, _, err := client.GradientAI.ListModelEvaluationMetrics(ctx)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("step 5: failed to create request", err), nil
-		}
-
-		var metricsOutput ListModelEvaluationMetricsOutput
-		resp, err := client.Do(ctx, metricsReq, &metricsOutput)
-		if err != nil || resp.StatusCode >= 400 {
 			return mcp.NewToolResultErrorFromErr("step 5: failed to list metrics", err), nil
 		}
 
@@ -715,64 +686,39 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 	}
 
 	// Step 6: Create evaluation run
-	runInput := &CreateModelEvalRunInput{
+	createReq := &godo.CreateModelEvaluationRunRequest{
 		Name:               runName,
 		CandidateModelUUID: resolved.Candidate.UUID,
 		CandidateModelName: resolved.Candidate.APIName,
 		DatasetUUID:        datasetResult.EvaluationDatasetUUID,
 		JudgeModelUUID:     resolved.Judge.UUID,
 		MetricUUIDs:        metricUUIDs,
-		StarMetric:         defaultStarMetric(metricUUIDs),
+		StarMetric:         toGodoStarMetric(defaultStarMetric(metricUUIDs)),
 		Source:             "mcp",
 	}
 
-	if inferenceConfigRaw, ok := args["candidate_inference_config"].(map[string]interface{}); ok {
-		config := &CandidateInferenceConfig{}
-		if maxTokens, ok := inferenceConfigRaw["max_tokens"].(float64); ok {
-			v := int(maxTokens)
-			config.MaxTokens = &v
-		}
-		if temp, ok := inferenceConfigRaw["temperature"].(float64); ok {
-			config.Temperature = &temp
-		}
-		if topP, ok := inferenceConfigRaw["top_p"].(float64); ok {
-			config.TopP = &topP
-		}
-		runInput.CandidateInferenceConfig = config
-	}
+	createReq.CandidateInferenceConfig = godoInferenceConfigFromArgs(args)
 
-	runReq, err := client.NewRequest(ctx, http.MethodPost, modelEvalRunsAPIPath, runInput)
+	runOutput, _, err := client.GradientAI.CreateModelEvaluationRun(ctx, createReq)
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("step 6: failed to create request", err), nil
-	}
-
-	var runOutput CreateModelEvalRunOutput
-	resp, err := client.Do(ctx, runReq, &runOutput)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("step 6: failed to create model evaluation run", err), nil
 	}
 
-	evalRunUUID := runOutput.EvalRunUUID
+	evalRunUUID := runOutput.EvalRunUuid
 
 	// Step 7: Poll for completion
 	timeout := time.Duration(timeoutSec) * time.Second
 	pollInterval := time.Duration(pollIntervalSec) * time.Second
 	deadline := time.Now().Add(timeout)
 
-	var finalRun *ModelEvaluationRunDetail
+	var finalRun *godo.ModelEvaluationRunDetail
 	for {
 		if time.Now().After(deadline) {
 			return mcp.NewToolResultError("step 7: evaluation polling timed out"), nil
 		}
 
-		getReq, err := client.NewRequest(ctx, http.MethodGet, modelEvalRunsAPIPath+"/"+evalRunUUID, nil)
+		output, _, err := client.GradientAI.GetModelEvaluationRun(ctx, evalRunUUID, nil)
 		if err != nil {
-			return mcp.NewToolResultErrorFromErr("step 7: failed to create request", err), nil
-		}
-
-		var output GetModelEvaluationRunOutput
-		resp, err = client.Do(ctx, getReq, &output)
-		if err != nil || resp.StatusCode >= 400 {
 			return mcp.NewToolResultErrorFromErr("step 7: failed to poll evaluation run", err), nil
 		}
 
@@ -781,7 +727,7 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 			return mcp.NewToolResultError("step 7: evaluation run missing from API response"), nil
 		}
 
-		if isModelEvalTerminalStatus(finalRun.Status) {
+		if isGodoModelEvalRunTerminal(finalRun.Status) {
 			break
 		}
 
@@ -795,27 +741,19 @@ func (met *ModelEvaluationTool) runWorkflow(ctx context.Context, req mcp.CallToo
 	duration := time.Since(startTime).Seconds()
 
 	type WorkflowResponse struct {
-		EvalRunUUID     string                   `json:"eval_run_uuid"`
-		Status          string                   `json:"status"`
-		MetricResults   []map[string]interface{} `json:"metric_results"`
-		DurationSeconds float64                  `json:"duration_seconds"`
-		ErrorMessage    string                   `json:"error_message,omitempty"`
-	}
-
-	metricResults := []map[string]interface{}{}
-	if finalRun.StarMetricResult != nil {
-		metricResults = append(metricResults, metricResultToMap(finalRun.StarMetricResult))
-	}
-	for i := range finalRun.RunLevelMetricResults {
-		metricResults = append(metricResults, metricResultToMap(&finalRun.RunLevelMetricResults[i]))
+		EvalRunUUID     string                                `json:"eval_run_uuid"`
+		Status          string                                `json:"status"`
+		ResultSummary   *godo.ModelEvaluationRunResultSummary `json:"result_summary,omitempty"`
+		DurationSeconds float64                               `json:"duration_seconds"`
+		ErrorMessage    string                                `json:"error_message,omitempty"`
 	}
 
 	response := WorkflowResponse{
 		EvalRunUUID:     evalRunUUID,
 		Status:          string(finalRun.Status),
-		MetricResults:   metricResults,
+		ResultSummary:   finalRun.ResultSummary,
 		DurationSeconds: duration,
-		ErrorMessage:    derefString(finalRun.ErrorDescription),
+		ErrorMessage:    finalRun.ErrorDescription,
 	}
 
 	jsonData, err := json.MarshalIndent(response, "", "  ")
