@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -94,6 +96,59 @@ func (met *ModelEvaluationTool) listMetrics(ctx context.Context, req mcp.CallToo
 	response := MetricsResponse{
 		Metrics: output.Metrics,
 		Count:   len(output.Metrics),
+	}
+
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// listDatasets lists evaluation datasets (defaults to model-evaluation datasets) so a
+// previously uploaded dataset's UUID can be reused in a model evaluation run.
+func (met *ModelEvaluationTool) listDatasets(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	datasetType := EvaluationDatasetTypeModel
+	if v, ok := args["dataset_type"].(string); ok && strings.TrimSpace(v) != "" {
+		datasetType = strings.TrimSpace(v)
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	path := genAIAPIPath + "/evaluation_datasets"
+	q := url.Values{}
+	if datasetType != "" {
+		q.Set("dataset_type", datasetType)
+	}
+	if enc := q.Encode(); enc != "" {
+		path += "?" + enc
+	}
+
+	apiReq, err := client.NewRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
+	}
+
+	var output ListEvaluationDatasetsOutput
+	resp, err := client.Do(ctx, apiReq, &output)
+	if err != nil || (resp != nil && resp.StatusCode >= 400) {
+		return mcp.NewToolResultErrorFromErr("failed to list evaluation datasets", err), nil
+	}
+
+	type DatasetsResponse struct {
+		Datasets []*ModelEvalDatasetListItem `json:"datasets"`
+		Count    int                         `json:"count"`
+	}
+
+	response := DatasetsResponse{
+		Datasets: output.EvaluationDatasets,
+		Count:    len(output.EvaluationDatasets),
 	}
 
 	jsonData, err := json.MarshalIndent(response, "", "  ")
@@ -775,6 +830,14 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			),
 		},
 		{
+			Handler: met.listDatasets,
+			Tool: mcp.NewTool(
+				"genai-model-eval-list-datasets",
+				mcp.WithDescription("List previously uploaded evaluation datasets so you can reuse an existing dataset's UUID in genai-model-eval-create-run. Defaults to model-evaluation datasets. Each item includes dataset_uuid, dataset_name, created_at, row_count, file_size, and has_ground_truth. Use this to find the dataset_uuid for a dataset the user already uploaded (instead of uploading a new one)."),
+				mcp.WithString("dataset_type", mcp.Description("Filter by dataset type. Defaults to EVALUATION_DATASET_TYPE_MODEL (datasets usable for model evaluation). Other values: EVALUATION_DATASET_TYPE_UNKNOWN, EVALUATION_DATASET_TYPE_ADK, EVALUATION_DATASET_TYPE_NON_ADK.")),
+			),
+		},
+		{
 			Handler: met.listPresets,
 			Tool: mcp.NewTool(
 				"genai-model-eval-list-presets",
@@ -807,10 +870,10 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				mcp.WithString("candidate_model_name", mcp.Required(), mcp.Description("Exact candidate model name the user provided or confirmed (character-for-character, whitespace trimmed). Partial names return nearest matches only.")),
 				mcp.WithString("candidate_model_uuid", mcp.Description("Exact full candidate model UUID (8-4-4-4-12 hex). Optional if name is exact; partial uuids return matches only.")),
 				mcp.WithString("eval_preset_uuid", mcp.Description("UUID of a preset to use (optional; if provided, dataset/judge/metrics come from the preset)")),
-				mcp.WithString("dataset_uuid", mcp.Description("evaluation_dataset_uuid from genai-model-eval-create-dataset (required if not using a preset)")),
+				mcp.WithString("dataset_uuid", mcp.Description("Dataset UUID to evaluate against (required if not using a preset). Get it from genai-model-eval-create-dataset (returns evaluation_dataset_uuid) or, for an already-uploaded dataset, from genai-model-eval-list-datasets.")),
 				mcp.WithString("judge_model_name", mcp.Description("Exact judge model name (required for inline configuration without a preset). Partial names return nearest matches only.")),
 				mcp.WithString("judge_model_uuid", mcp.Description("Exact full judge model UUID. Optional if judge_model_name is exact; partial uuids return matches only.")),
-				mcp.WithObject("metric_uuids", mcp.Description("Array of metric UUIDs to evaluate (required if not using a preset)")),
+				mcp.WithArray("metric_uuids", mcp.Description("Array of metric UUID strings to evaluate (required if not using a preset). Get UUIDs from genai-model-eval-list-metrics. Pass plain UUID strings, e.g. [\"<metric-uuid-1>\", \"<metric-uuid-2>\"], not metric objects."), mcp.Items(map[string]any{"type": "string"})),
 				mcp.WithObject("star_metric", mcp.Description("Primary success metric: metric_uuid and optional success_threshold_pct")),
 				mcp.WithObject("candidate_inference_config", mcp.Description("Inference parameters: max_tokens (int), temperature (float), top_p (float)")),
 				mcp.WithString("source", mcp.Description("Source identifier for this run (e.g., 'mcp')")),
@@ -824,9 +887,9 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Handler: met.listRuns,
 			Tool: mcp.NewTool(
 				"genai-model-eval-list-runs",
-				mcp.WithDescription("List model evaluation runs with optional filters."),
+				mcp.WithDescription("List model evaluation runs with optional filters. Each run includes its eval_run_uuid (use it with genai-model-eval-get-run / cancel-run / delete-run), name, status, and the candidate/judge model and dataset it used."),
 				mcp.WithString("eval_preset_uuid", mcp.Description("Filter by preset UUID")),
-				mcp.WithString("status", mcp.Description("Filter by run status (e.g., SUCCESSFUL, FAILED, QUEUED)")),
+				mcp.WithString("status", mcp.Description("Filter by run status. Accepts the full enum values: MODEL_EVALUATION_RUN_QUEUED, MODEL_EVALUATION_RUN_RUNNING_DATASET, MODEL_EVALUATION_RUN_EVALUATING_RESULTS, MODEL_EVALUATION_RUN_CANCELLING, MODEL_EVALUATION_RUN_CANCELLED, MODEL_EVALUATION_RUN_SUCCESSFUL, MODEL_EVALUATION_RUN_PARTIALLY_SUCCESSFUL (some rows scored, others failed), MODEL_EVALUATION_RUN_FAILED.")),
 				mcp.WithNumber("page", mcp.Description("Page number for pagination (default: 1)")),
 				mcp.WithNumber("per_page", mcp.Description("Results per page for pagination (default: 20)")),
 			),
@@ -836,7 +899,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Tool: mcp.NewTool(
 				"genai-model-eval-get-run",
 				mcp.WithDescription("Get the status, details, and per-prompt results of a model evaluation run."),
-				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run")),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run (the eval_run_uuid returned by genai-model-eval-list-runs or genai-model-eval-create-run)")),
 				mcp.WithNumber("page", mcp.Description("Page number for per-prompt results pagination")),
 				mcp.WithNumber("per_page", mcp.Description("Results per page for per-prompt results pagination")),
 			),
@@ -845,8 +908,8 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 			Handler: met.getResultsDownloadURL,
 			Tool: mcp.NewTool(
 				"genai-model-eval-get-results-download-url",
-				mcp.WithDescription("Get a presigned download URL for the full results of a model evaluation run."),
-				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run")),
+				mcp.WithDescription("Get a presigned download URL for the full results of a model evaluation run. The returned URL is short-lived (expires in ~15 minutes) and points to a gzip-compressed JSON (.json.gz) file, so use it promptly."),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run (the eval_run_uuid returned by genai-model-eval-list-runs)")),
 			),
 		},
 		{
@@ -856,7 +919,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				mcp.WithDescription("Delete a model evaluation run by UUID. Deletion is permanent: the run record and its results cannot be recovered.\n\n"+
 					"CONSENT REQUIRED (every delete): Do not call with confirm_deletion: true until the user has explicitly agreed in chat. "+
 					"Present the eval_run_uuid and that deletion is permanent; ask for yes/no."),
-				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run to delete")),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run to delete (the eval_run_uuid returned by genai-model-eval-list-runs)")),
 				mcp.WithBoolean("confirm_deletion", mcp.Required(), mcp.Description(modelEvalDeleteRunConfirmDescription)),
 			),
 		},
@@ -867,7 +930,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				mcp.WithDescription("Cancel an in-progress model evaluation run by UUID. The run transitions to MODEL_EVALUATION_RUN_CANCELLING and then MODEL_EVALUATION_RUN_CANCELLED. Any partial results may be lost.\n\n"+
 					"CONSENT REQUIRED (every cancel): Do not call with confirm_cancel: true until the user has explicitly agreed in chat. "+
 					"Present the eval_run_uuid and that any partial results may be lost; ask for yes/no."),
-				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run to cancel")),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run to cancel (the eval_run_uuid returned by genai-model-eval-list-runs)")),
 				mcp.WithBoolean("confirm_cancel", mcp.Required(), mcp.Description(modelEvalCancelRunConfirmDescription)),
 			),
 		},
@@ -893,7 +956,7 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				mcp.WithString("candidate_model_uuid", mcp.Description("Exact full candidate model UUID. Optional if name is exact.")),
 				mcp.WithString("judge_model_name", mcp.Required(), mcp.Description("Exact judge model name. Partial names return nearest matches only.")),
 				mcp.WithString("judge_model_uuid", mcp.Description("Exact full judge model UUID. Optional if judge_model_name is exact.")),
-				mcp.WithObject("metric_uuids", mcp.Description("Array of metric UUIDs to evaluate (if empty, all available metrics are used)")),
+				mcp.WithArray("metric_uuids", mcp.Description("Array of metric UUID strings to evaluate (if empty, all available metrics are used). Get UUIDs from genai-model-eval-list-metrics. Pass plain UUID strings, not metric objects."), mcp.Items(map[string]any{"type": "string"})),
 				mcp.WithObject("candidate_inference_config", mcp.Description("Inference parameters: max_tokens (int), temperature (float), top_p (float)")),
 				mcp.WithNumber("timeout_seconds", mcp.Description("Timeout for polling evaluation results in seconds (default: 300)")),
 				mcp.WithNumber("poll_interval_seconds", mcp.Description("Interval between status polls in seconds (default: 5)")),

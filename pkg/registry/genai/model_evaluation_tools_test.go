@@ -22,10 +22,11 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 	})
 
 	tools := tool.Tools()
-	require.Len(t, tools, 12, "should have 12 model evaluation tools")
+	require.Len(t, tools, 13, "should have 13 model evaluation tools")
 
 	expectedTools := map[string]bool{
 		"genai-model-eval-list-metrics":             false,
+		"genai-model-eval-list-datasets":            false,
 		"genai-model-eval-list-presets":             false,
 		"genai-model-eval-get-preset":               false,
 		"genai-model-eval-create-dataset":           false,

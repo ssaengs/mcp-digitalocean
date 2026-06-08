@@ -15,7 +15,7 @@ import (
 var evalModelUUIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 const (
-	modelEvalCandidateNameRequiredMsg = "candidate_model_name is required: ask the user for the exact model name before creating an evaluation run."
+	modelEvalCandidateNameRequiredMsg = "candidate_model_name is required: pass the candidate model in the 'candidate_model_name' field (it accepts the display name, the API/inference name, or the model UUID). If you don't know the exact name, ask the user before creating an evaluation run."
 
 	modelEvalJudgeNameRequiredMsg = "judge_model_name is required when not using eval_preset_uuid (or pass eval_preset_uuid so the judge comes from the preset)."
 

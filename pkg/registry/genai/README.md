@@ -362,6 +362,31 @@ List all available model evaluation metrics.
 }
 ```
 
+#### `genai-model-eval-list-datasets`
+List previously uploaded evaluation datasets so you can reuse an existing dataset's UUID in `genai-model-eval-create-run` (instead of uploading a new one). Defaults to model-evaluation datasets.
+
+**Arguments:**
+- `dataset_type` (string, optional): Filter by dataset type. Defaults to `EVALUATION_DATASET_TYPE_MODEL`. Other values: `EVALUATION_DATASET_TYPE_UNKNOWN`, `EVALUATION_DATASET_TYPE_ADK`, `EVALUATION_DATASET_TYPE_NON_ADK`.
+
+**Returns:** JSON object with an array of datasets and a count. Each dataset includes `dataset_uuid`, `dataset_name`, `created_at`, `row_count`, `file_size`, and `has_ground_truth`.
+
+```json
+{
+  "datasets": [
+    {
+      "dataset_uuid": "...",
+      "dataset_name": "queries.csv",
+      "row_count": 20,
+      "has_ground_truth": true,
+      "created_at": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+> Backed by `GET /v2/gen-ai/evaluation_datasets`. Use the returned `dataset_uuid` directly as the `dataset_uuid` argument of `genai-model-eval-create-run`.
+
 #### `genai-model-eval-create-dataset`
 Upload and register a model evaluation dataset (presign → Spaces upload → database record).
 
@@ -392,7 +417,7 @@ Create a model evaluation run.
 - `candidate_model_name` (string, required): Exact candidate model name (partial names return match list)
 - `candidate_model_uuid` (string, optional): Exact full candidate UUID (optional when name is exact)
 - `eval_preset_uuid` (string, optional): Preset UUID (dataset/judge/metrics from preset; judge name not required)
-- `dataset_uuid` (string, required without preset): Dataset UUID
+- `dataset_uuid` (string, required without preset): Dataset UUID. Get it from `genai-model-eval-create-dataset` (returns `evaluation_dataset_uuid`) or, for an already-uploaded dataset, from `genai-model-eval-list-datasets`.
 - `judge_model_name` (string, required without preset): Exact judge model name
 - `judge_model_uuid` (string, optional): Exact full judge UUID
 - `metric_uuids` (array of strings, optional): Metric UUIDs to evaluate
