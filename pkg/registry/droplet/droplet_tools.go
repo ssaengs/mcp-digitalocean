@@ -33,9 +33,7 @@ func (d *DropletTool) createDroplet(ctx context.Context, req mcp.CallToolRequest
 
 	imageID, hasID := args["ImageID"].(float64)
 	imageSlug, hasSlug := args["ImageSlug"].(string)
-	if hasSlug {
-		hasSlug = imageSlug != ""
-	}
+	hasSlug = hasSlug && imageSlug != ""
 
 	if !hasID && !hasSlug {
 		return mcp.NewToolResultError("exactly one of ImageID or ImageSlug must be provided"), nil
