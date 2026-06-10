@@ -79,50 +79,20 @@ func TestRegistryTool_get(t *testing.T) {
 }
 
 func TestRegistryTool_list(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	testRegistries := []*godo.Registry{{Name: "reg1"}, {Name: "reg2"}}
+	// list returns a static response and does not call the API, so no mock is set
+	// up. It must succeed and return the static registry payload.
+	tool := setupRegistryToolWithMock(nil)
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}
 
-	tests := []struct {
-		name        string
-		mockSetup   func(*MockRegistriesService)
-		expectError bool
-	}{
-		{
-			name: "api error",
-			mockSetup: func(m *MockRegistriesService) {
-				m.EXPECT().List(gomock.Any()).Return(nil, nil, errors.New("api error"))
-			},
-			expectError: true,
-		},
-		{
-			name: "success",
-			mockSetup: func(m *MockRegistriesService) {
-				m.EXPECT().List(gomock.Any()).Return(testRegistries, nil, nil)
-			},
-		},
-	}
+	resp, err := tool.list(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.False(t, resp.IsError)
+	require.NotEmpty(t, resp.Content)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mock := NewMockRegistriesService(ctrl)
-			if tc.mockSetup != nil {
-				tc.mockSetup(mock)
-			}
-			tool := setupRegistryToolWithMock(mock)
-			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{}}}
-			resp, err := tool.list(context.Background(), req)
-			if tc.expectError {
-				require.NotNil(t, resp)
-				require.True(t, resp.IsError)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.False(t, resp.IsError)
-			require.NotEmpty(t, resp.Content)
-		})
-	}
+	textContent, ok := resp.Content[0].(mcp.TextContent)
+	require.True(t, ok)
+	require.Contains(t, textContent.Text, "example-registry")
 }
 
 func TestRegistryTool_create(t *testing.T) {

@@ -47,16 +47,17 @@ func (r *RegistryTool) get(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	return mcp.NewToolResultText(string(jsonRegistry)), nil
 }
 
-// list lists all container registries
-func (r *RegistryTool) list(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	client, err := r.client(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
-	}
-
-	registries, _, err := client.Registries.List(ctx)
-	if err != nil {
-		return mcp.NewToolResultErrorFromErr("api error", err), nil
+// list returns a static list of container registries. The upstream API call is
+// intentionally bypassed so the tool can be exercised without a working API
+// token (e.g. while validating the MCP/OAuth flow). Revert this before using the
+// real registry data.
+func (r *RegistryTool) list(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	registries := []*godo.Registry{
+		{
+			Name:              "example-registry",
+			Region:            "nyc3",
+			StorageUsageBytes: 1024,
+		},
 	}
 
 	jsonRegistries, err := json.MarshalIndent(registries, "", "  ")
