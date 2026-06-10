@@ -226,9 +226,37 @@ func (cmt *CustomModelsTool) updateMetadata(ctx context.Context, req mcp.CallToo
 			hasUpdate = true
 		}
 	}
+	if inputModalitiesRaw, ok := args["input_modalities"].([]interface{}); ok {
+		var modalities []string
+		for _, m := range inputModalitiesRaw {
+			if s, ok := m.(string); ok {
+				modalities = append(modalities, s)
+			}
+		}
+		input.InputModalities = modalities
+		hasUpdate = true
+	}
+	if outputModalitiesRaw, ok := args["output_modalities"].([]interface{}); ok {
+		var modalities []string
+		for _, m := range outputModalitiesRaw {
+			if s, ok := m.(string); ok {
+				modalities = append(modalities, s)
+			}
+		}
+		input.OutputModalities = modalities
+		hasUpdate = true
+	}
+	if parameters, ok := args["parameters"].(string); ok && parameters != "" {
+		input.Parameters = parameters
+		hasUpdate = true
+	}
+	if license, ok := args["license"].(string); ok && license != "" {
+		input.License = license
+		hasUpdate = true
+	}
 
 	if !hasUpdate {
-		return mcp.NewToolResultError("at least one of name, description, or tags must be provided"), nil
+		return mcp.NewToolResultError("at least one of name, description, tags, input_modalities, output_modalities, parameters, or license must be provided"), nil
 	}
 
 	client, err := cmt.client(ctx)
@@ -390,11 +418,15 @@ func (cmt *CustomModelsTool) Tools() []server.ServerTool {
 			Handler: cmt.updateMetadata,
 			Tool: mcp.NewTool(
 				"genai-custom-models-update-metadata",
-				mcp.WithDescription("Update the name, description, or tags of an existing custom model."),
+				mcp.WithDescription("Update the metadata of an existing custom model. Editable fields include name, description, tags, input/output modalities, parameters, and license."),
 				mcp.WithString("uuid", mcp.Required(), mcp.Description("UUID of the custom model to update")),
 				mcp.WithString("name", mcp.Description("New name for the model")),
 				mcp.WithString("description", mcp.Description("New description for the model")),
 				mcp.WithObject("tags", mcp.Description("New tags object with a 'tags' array of strings")),
+				mcp.WithArray("input_modalities", mcp.Description("List of input modalities supported by the model (e.g. 'text', 'image')"), mcp.Items(map[string]any{"type": "string"})),
+				mcp.WithArray("output_modalities", mcp.Description("List of output modalities supported by the model (e.g. 'text', 'image')"), mcp.Items(map[string]any{"type": "string"})),
+				mcp.WithString("parameters", mcp.Description("Number of model parameters as a string (e.g. '7000000000')")),
+				mcp.WithString("license", mcp.Description("License identifier for the model (e.g. 'apache-2.0')")),
 			),
 		},
 		{
