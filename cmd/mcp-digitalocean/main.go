@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	middleware "mcp-digitalocean/internal"
+	"mcp-digitalocean/internal/oauthmeta"
 	"mcp-digitalocean/internal/wslogging"
 	"mcp-digitalocean/pkg/registry"
 
@@ -25,6 +27,9 @@ const (
 	mcpName                 = "mcp-digitalocean"
 	mcpVersion              = "1.0.59"
 	wsLoggingContextTimeout = 15 * time.Second
+	// mcpEndpointPath is the path the streamable HTTP server serves the MCP
+	// protocol on. It matches mcp-go's default so existing clients are unaffected.
+	mcpEndpointPath = "/mcp"
 )
 
 // getEnv retrieves the value of the environment variable named by the key.
@@ -46,6 +51,8 @@ func main() {
 	wsLoggingURL := flag.String("ws-logging-url", getEnv("WS_LOGGING_URL", ""), "WebSocket URL for WebSocket logging (optional)")
 	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
 	enableToolErrorLogging := flag.Bool("enable-tool-error-logging", getEnv("ENABLE_TOOL_ERROR_LOGGING", "false") == "true", "Enable logging of tool errors")
+	resourceDomain := flag.String("mcp-resource-domain", getEnv("MCP_RESOURCE_DOMAIN", ""), "This server's resource identifier advertised in the OAuth protected resource metadata. When empty, it is derived from each request (remote transport only, optional)")
+	environment := flag.String("environment", getEnv("ENVIRONMENT", ""), "Deployment environment (prod or stage).")
 	userAgent := flag.String("user-agent", getEnv("USER_AGENT", ""), "Indicate this server is running as a remote MCP ")
 	flag.Parse()
 
@@ -131,6 +138,37 @@ func main() {
 
 	svr := server.NewMCPServer(mcpName, mcpVersion, opts...)
 
+	// For remote (non-stdio) transports, serve the OAuth protected resource
+	// metadata document and challenge unauthenticated requests. The resource is
+	// taken from --mcp-resource-domain when set, otherwise derived from each
+	// request's scheme and host; the authorization server issuer is selected by
+	// the deployment environment.
+	var (
+		wellKnownHandler http.HandlerFunc
+		requireAuth      func(http.Handler) http.Handler
+	)
+	if *transport != "stdio" {
+		authServer := oauthmeta.AuthorizationServerForEnvironment(*environment)
+		resource := strings.TrimSpace(*resourceDomain)
+
+		wellKnownHandler = oauthmeta.Handler(oauthmeta.Config{
+			Resource:               resource,
+			AuthorizationServers:   []string{authServer},
+			BearerMethodsSupported: []string{"header"},
+		})
+
+		challengeCfg := oauthmeta.ChallengeConfig{
+			Resource:            resource,
+			AuthorizationServer: authServer,
+			Scopes:              []string{"read", "write"},
+		}
+		requireAuth = func(next http.Handler) http.Handler {
+			return oauthmeta.RequireBearer(next, challengeCfg)
+		}
+
+		logger.Info("serving OAuth protected resource metadata", "path", oauthmeta.WellKnownPath, "authorization_server", authServer)
+	}
+
 	// by default, we create a new client per request.
 	getClientFn := func(ctx context.Context) (*godo.Client, error) {
 		return clientFromContext(ctx, *endpointFlag, *userAgent)
@@ -161,7 +199,7 @@ func main() {
 	}
 
 	// start our server.
-	err = runServer(ctx, svr, logger, *bindAddr, transport)
+	err = runServer(ctx, svr, logger, *bindAddr, transport, wellKnownHandler, requireAuth)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			logger.Info("shutting down mcp server")
@@ -207,13 +245,16 @@ func newGodoClientWithTokenAndEndpoint(ctx context.Context, token string, endpoi
 		mcpUserAgent = fmt.Sprintf("%s/%s", userAgent, mcpVersion)
 	}
 
-	return godo.New(oauthClient,
+	opts := []godo.ClientOpt{
 		godo.WithRetryAndBackoffs(retry),
 		godo.SetBaseURL(endpoint),
-		godo.SetUserAgent(mcpUserAgent))
+		godo.SetUserAgent(mcpUserAgent),
+	}
+
+	return godo.New(oauthClient, opts...)
 }
 
-func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string) error {
+func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string, wellKnownHandler http.HandlerFunc, requireAuth func(http.Handler) http.Handler) error {
 	logger.Info("starting MCP server", "name", mcpName, "version", mcpVersion, "transport", *transport)
 	switch *transport {
 	case "stdio":
@@ -226,10 +267,39 @@ func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bi
 	default:
 		errC := make(chan error, 1)
 		logger.Info("http server started", "bind_addr", bindAddr)
-		httpServer := server.NewStreamableHTTPServer(s,
+
+		// When extra routing is needed (the public OAuth metadata route and/or the
+		// bearer-token guard on the MCP endpoint), we own the mux and hand it to the
+		// streamable server via WithStreamableHTTPServer. The MCP protocol endpoint
+		// is registered explicitly so its behavior is unchanged; the well-known
+		// route is served alongside it and is intentionally left unauthenticated.
+		var streamableOpts []server.StreamableHTTPOption
+		streamableOpts = append(streamableOpts,
 			server.WithHTTPContextFunc(middleware.AuthFromRequest),
 			server.WithStateLess(true),
 		)
+
+		useCustomMux := wellKnownHandler != nil || requireAuth != nil
+		var mux *http.ServeMux
+		if useCustomMux {
+			mux = http.NewServeMux()
+			streamableOpts = append(streamableOpts, server.WithStreamableHTTPServer(&http.Server{Handler: mux}))
+		}
+
+		httpServer := server.NewStreamableHTTPServer(s, streamableOpts...)
+
+		if mux != nil {
+			// We provided a custom *http.Server, so routing is our responsibility.
+			var mcpHandler http.Handler = httpServer
+			if requireAuth != nil {
+				mcpHandler = requireAuth(httpServer)
+			}
+			mux.Handle(mcpEndpointPath, mcpHandler)
+			if wellKnownHandler != nil {
+				mux.HandleFunc(oauthmeta.WellKnownPath, wellKnownHandler)
+			}
+		}
+
 		go func() {
 			errC <- httpServer.Start(bindAddr)
 		}()
