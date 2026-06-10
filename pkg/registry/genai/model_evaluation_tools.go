@@ -466,19 +466,14 @@ func (met *ModelEvaluationTool) updateRun(ctx context.Context, req mcp.CallToolR
 		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
 	}
 
-	input := &UpdateModelEvalRunInput{Name: name}
-	apiReq, err := newGodoRequestWithContext(ctx, client, "PATCH", modelEvalRunsAPIPath+"/"+runUUID, input)
+	output, _, err := client.GradientAI.UpdateModelEvaluationRun(ctx, runUUID, &godo.UpdateModelEvaluationRunRequest{
+		Name: name,
+	})
 	if err != nil {
-		return mcp.NewToolResultErrorFromErr("failed to create request", err), nil
-	}
-
-	var output UpdateModelEvalRunOutput
-	resp, err := client.Do(ctx, apiReq, &output)
-	if err != nil || resp.StatusCode >= 400 {
 		return mcp.NewToolResultErrorFromErr("failed to update model evaluation run", err), nil
 	}
 
-	if output.Run == nil {
+	if output == nil || output.Run == nil {
 		return mcp.NewToolResultError("empty response from update model evaluation run"), nil
 	}
 

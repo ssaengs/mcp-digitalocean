@@ -154,16 +154,6 @@ type GetModelEvaluationRunOutput struct {
 	Meta    *PaginationMeta           `json:"meta,omitempty"`
 }
 
-// UpdateModelEvalRunInput is the request body for updating a model evaluation run.
-type UpdateModelEvalRunInput struct {
-	Name string `json:"name"`
-}
-
-// UpdateModelEvalRunOutput is the response from updating a model evaluation run.
-type UpdateModelEvalRunOutput struct {
-	Run *ModelEvaluationRunSummary `json:"run"`
-}
-
 // ModelEvalResultsDownloadURLOutput is the response with a presigned download URL for results.
 type ModelEvalResultsDownloadURLOutput struct {
 	DownloadURL string     `json:"download_url"`
