@@ -7,7 +7,7 @@ This package provides MCP tools for managing custom (bring-your-own) models on D
 The custom models tools enable users to:
 - List custom models with status filtering and pagination
 - Import models from HuggingFace or other sources
-- Update model metadata (name, description, tags)
+- Update model metadata (name, description, tags, and — for Spaces-imported models — input/output modalities, parameter count, license)
 - Delete custom models
 
 ## Tools
@@ -64,15 +64,25 @@ Import a custom model from an external source (e.g. HuggingFace). Starts an asyn
 ```
 
 ### `genai-custom-models-update-metadata`
-Update the name, description, or tags of an existing custom model.
+Update the metadata of an existing custom model.
 
 **Arguments:**
 - `uuid` (string, required): UUID of the custom model
 - `name` (string, optional): New name
 - `description` (string, optional): New description
 - `tags` (object, optional): New tags object with a `tags` array
+- `input_modalities` (array of strings, optional): Input modalities the model accepts (e.g. `["text", "image"]`). **Spaces-imported models only.**
+- `output_modalities` (array of strings, optional): Output modalities the model produces (e.g. `["text"]`). **Spaces-imported models only.**
+- `parameters` (string, optional): Parameter count as a numeric string (e.g. `"7000000000"` for 7B). **Spaces-imported models only.**
+- `license` (string, optional): License identifier (e.g. `"apache-2.0"`). **Spaces-imported models only.**
 
-At least one of `name`, `description`, or `tags` must be provided.
+At least one updatable field must be provided.
+
+**Spaces-only capability fields.** `input_modalities`, `output_modalities`, `parameters`, and `license` are auto-populated for HuggingFace imports and cannot be edited on those models — the backend rejects such requests with `InvalidArgument`. They are editable only for models with `source_type = SOURCE_TYPE_SPACES_BUCKET`, where the import path leaves them empty.
+
+**Modality semantics.** When `input_modalities` or `output_modalities` is provided, the value **replaces** the existing list wholesale. Passing an empty array (`[]`) is rejected — a model must have at least one input and one output modality. To leave a modality list unchanged, simply omit the field.
+
+**Canonical modality vocabulary.** The HuggingFace importer and existing catalog entries use this lowercase, singular set: `text`, `image`, `audio`, `video`. Prefer these tokens so Spaces-imported models stay aligned with HF-imported ones downstream.
 
 **Returns:** JSON object with the updated model
 
@@ -154,9 +164,18 @@ Delete a custom model by exact UUID or exact name.
      description: "Production model for customer support"
      tags: { "tags": ["production", "v1"] }
 
-5. Confirm deletion with the user (permanent removal). Wait for explicit yes.
+5. For a Spaces-imported model, also fill in the capability fields the importer
+   could not infer:
+   genai-custom-models-update-metadata
+     uuid: "<spaces-model-uuid>"
+     input_modalities: ["text", "image"]
+     output_modalities: ["text"]
+     parameters: "7000000000"
+     license: "apache-2.0"
 
-6. Delete using the exact name or uuid the user confirmed:
+6. Confirm deletion with the user (permanent removal). Wait for explicit yes.
+
+7. Delete using the exact name or uuid the user confirmed:
    genai-custom-models-delete
      name: "my-mistral-7b"
      confirm_deletion: true

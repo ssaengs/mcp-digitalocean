@@ -170,6 +170,14 @@ func TestCustomModelsTool_updateMetadata_validation(t *testing.T) {
 		{name: "no update fields", args: map[string]any{
 			"uuid": "test-uuid",
 		}},
+		{name: "empty input_modalities", args: map[string]any{
+			"uuid":             "test-uuid",
+			"input_modalities": []interface{}{},
+		}},
+		{name: "empty output_modalities", args: map[string]any{
+			"uuid":              "test-uuid",
+			"output_modalities": []interface{}{},
+		}},
 	}
 
 	for _, tc := range tests {

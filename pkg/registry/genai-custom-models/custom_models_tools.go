@@ -227,6 +227,9 @@ func (cmt *CustomModelsTool) updateMetadata(ctx context.Context, req mcp.CallToo
 		}
 	}
 	if inputModalitiesRaw, ok := args["input_modalities"].([]interface{}); ok {
+		if len(inputModalitiesRaw) == 0 {
+			return mcp.NewToolResultError("input_modalities must contain at least one value when provided"), nil
+		}
 		var modalities []string
 		for _, m := range inputModalitiesRaw {
 			if s, ok := m.(string); ok {
@@ -237,6 +240,9 @@ func (cmt *CustomModelsTool) updateMetadata(ctx context.Context, req mcp.CallToo
 		hasUpdate = true
 	}
 	if outputModalitiesRaw, ok := args["output_modalities"].([]interface{}); ok {
+		if len(outputModalitiesRaw) == 0 {
+			return mcp.NewToolResultError("output_modalities must contain at least one value when provided"), nil
+		}
 		var modalities []string
 		for _, m := range outputModalitiesRaw {
 			if s, ok := m.(string); ok {
