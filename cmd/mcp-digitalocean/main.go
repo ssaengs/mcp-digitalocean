@@ -158,9 +158,8 @@ func main() {
 		})
 
 		challengeCfg := oauthmeta.ChallengeConfig{
-			Resource:            resource,
-			AuthorizationServer: authServer,
-			Scopes:              []string{"read", "write"},
+			Resource: resource,
+			Scopes:   []string{"read", "write"},
 		}
 		requireAuth = func(next http.Handler) http.Handler {
 			return oauthmeta.RequireBearer(next, challengeCfg)

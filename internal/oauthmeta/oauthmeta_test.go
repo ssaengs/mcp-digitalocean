@@ -150,20 +150,9 @@ func TestHandler_HeadHasNoBody(t *testing.T) {
 }
 
 func TestAuthorizationServerForEnvironment(t *testing.T) {
-	cases := map[string]string{
-		"":           ProdAuthorizationServer,
-		"prod":       ProdAuthorizationServer,
-		"production": ProdAuthorizationServer,
-		"PROD":       ProdAuthorizationServer,
-		"unknown":    ProdAuthorizationServer,
-		"stage":      StageAuthorizationServer,
-		"staging":    StageAuthorizationServer,
-		"  Stage  ":  StageAuthorizationServer,
-		"s2r1":       StageAuthorizationServer,
-	}
-	for in, want := range cases {
-		if got := AuthorizationServerForEnvironment(in); got != want {
-			t.Fatalf("AuthorizationServerForEnvironment(%q) = %q, want %q", in, got, want)
+	for _, in := range []string{"", "prod", "production", "staging", "stage", "s2r1", "anything"} {
+		if got := AuthorizationServerForEnvironment(in); got != ProdAuthorizationServer {
+			t.Fatalf("AuthorizationServerForEnvironment(%q) = %q, want %q", in, got, ProdAuthorizationServer)
 		}
 	}
 }
@@ -173,9 +162,8 @@ func TestRequireBearer_MissingTokenChallenges(t *testing.T) {
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { nextCalled = true })
 
 	h := RequireBearer(next, ChallengeConfig{
-		Resource:            "https://droplets-mcp-hswwk.ondigitalocean.app",
-		AuthorizationServer: ProdAuthorizationServer,
-		Scopes:              []string{"read", "write"},
+		Resource: "https://droplets-mcp-hswwk.ondigitalocean.app",
+		Scopes:   []string{"read", "write"},
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
@@ -189,7 +177,7 @@ func TestRequireBearer_MissingTokenChallenges(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 	got := rec.Header().Get("WWW-Authenticate")
-	want := `Bearer resource_metadata="https://droplets-mcp-hswwk.ondigitalocean.app/.well-known/oauth-protected-resource", scope="read write", authorization_uri="https://cloud.digitalocean.com"`
+	want := `Bearer resource_metadata="https://droplets-mcp-hswwk.ondigitalocean.app/.well-known/oauth-protected-resource", scope="read write"`
 	if got != want {
 		t.Fatalf("WWW-Authenticate =\n  %q\nwant\n  %q", got, want)
 	}
@@ -197,8 +185,7 @@ func TestRequireBearer_MissingTokenChallenges(t *testing.T) {
 
 func TestRequireBearer_DerivesResourceMetadataFromRequest(t *testing.T) {
 	h := RequireBearer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), ChallengeConfig{
-		AuthorizationServer: StageAuthorizationServer,
-		Scopes:              []string{"read", "write"},
+		Scopes: []string{"read", "write"},
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
@@ -208,7 +195,7 @@ func TestRequireBearer_DerivesResourceMetadataFromRequest(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	got := rec.Header().Get("WWW-Authenticate")
-	want := `Bearer resource_metadata="https://stage-mcp.s2r1.internal.digitalocean.com/.well-known/oauth-protected-resource", scope="read write", authorization_uri="https://cloud.s2r1.internal.digitalocean.com"`
+	want := `Bearer resource_metadata="https://stage-mcp.s2r1.internal.digitalocean.com/.well-known/oauth-protected-resource", scope="read write"`
 	if got != want {
 		t.Fatalf("WWW-Authenticate =\n  %q\nwant\n  %q", got, want)
 	}

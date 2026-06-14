@@ -19,22 +19,14 @@ import (
 // Metadata, as defined by RFC 9728 and required by the MCP authorization spec.
 const WellKnownPath = "/.well-known/oauth-protected-resource"
 
-// Authorization server issuer URLs per deployment environment.
-const (
-	ProdAuthorizationServer  = "https://cloud.digitalocean.com"
-	StageAuthorizationServer = "https://cloud.s2r1.internal.digitalocean.com"
-)
+// ProdAuthorizationServer is the authorization server issuer URL advertised in
+// the OAuth protected resource metadata.
+const ProdAuthorizationServer = "https://cloud.digitalocean.com"
 
-// AuthorizationServerForEnvironment maps a deployment environment name to the
-// matching authorization server issuer URL. Stage-like values map to the stage
-// issuer; everything else (including an empty value) maps to prod.
+// AuthorizationServerForEnvironment returns the authorization server issuer URL
+// advertised in the OAuth protected resource metadata.
 func AuthorizationServerForEnvironment(env string) string {
-	switch strings.ToLower(strings.TrimSpace(env)) {
-	case "stage", "staging", "s2r1":
-		return StageAuthorizationServer
-	default:
-		return ProdAuthorizationServer
-	}
+	return ProdAuthorizationServer
 }
 
 // Config controls the metadata document served by Handler.
@@ -128,10 +120,6 @@ type ChallengeConfig struct {
 	// resource_metadata URL. When empty, it is derived from each request.
 	Resource string
 
-	// AuthorizationServer is the authorization server issuer URL advertised to
-	// the client so it knows where to obtain a token.
-	AuthorizationServer string
-
 	// Scopes are advertised in the challenge's scope parameter (e.g. read write).
 	Scopes []string
 }
@@ -174,9 +162,6 @@ func challenge(r *http.Request, cfg ChallengeConfig) string {
 	parts := []string{fmt.Sprintf("resource_metadata=%q", metadataURL)}
 	if len(cfg.Scopes) > 0 {
 		parts = append(parts, fmt.Sprintf("scope=%q", strings.Join(cfg.Scopes, " ")))
-	}
-	if as := strings.TrimSpace(cfg.AuthorizationServer); as != "" {
-		parts = append(parts, fmt.Sprintf("authorization_uri=%q", as))
 	}
 	return "Bearer " + strings.Join(parts, ", ")
 }
