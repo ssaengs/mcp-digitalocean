@@ -149,14 +149,6 @@ func TestHandler_HeadHasNoBody(t *testing.T) {
 	}
 }
 
-func TestAuthorizationServerForEnvironment(t *testing.T) {
-	for _, in := range []string{"", "prod", "production", "staging", "stage", "s2r1", "anything"} {
-		if got := AuthorizationServerForEnvironment(in); got != ProdAuthorizationServer {
-			t.Fatalf("AuthorizationServerForEnvironment(%q) = %q, want %q", in, got, ProdAuthorizationServer)
-		}
-	}
-}
-
 func TestRequireBearer_MissingTokenChallenges(t *testing.T) {
 	var nextCalled bool
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { nextCalled = true })

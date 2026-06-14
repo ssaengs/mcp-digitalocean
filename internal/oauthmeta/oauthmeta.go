@@ -23,12 +23,6 @@ const WellKnownPath = "/.well-known/oauth-protected-resource"
 // the OAuth protected resource metadata.
 const ProdAuthorizationServer = "https://cloud.digitalocean.com"
 
-// AuthorizationServerForEnvironment returns the authorization server issuer URL
-// advertised in the OAuth protected resource metadata.
-func AuthorizationServerForEnvironment(env string) string {
-	return ProdAuthorizationServer
-}
-
 // Config controls the metadata document served by Handler.
 type Config struct {
 	// Resource, when non-empty, is advertised verbatim as the resource

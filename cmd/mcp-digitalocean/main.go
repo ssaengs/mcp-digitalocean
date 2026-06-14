@@ -52,7 +52,6 @@ func main() {
 	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
 	enableToolErrorLogging := flag.Bool("enable-tool-error-logging", getEnv("ENABLE_TOOL_ERROR_LOGGING", "false") == "true", "Enable logging of tool errors")
 	resourceDomain := flag.String("mcp-resource-domain", getEnv("MCP_RESOURCE_DOMAIN", ""), "This server's resource identifier advertised in the OAuth protected resource metadata. When empty, it is derived from each request (remote transport only, optional)")
-	environment := flag.String("environment", getEnv("ENVIRONMENT", ""), "Deployment environment (prod or stage).")
 	userAgent := flag.String("user-agent", getEnv("USER_AGENT", ""), "Indicate this server is running as a remote MCP ")
 	flag.Parse()
 
@@ -141,14 +140,13 @@ func main() {
 	// For remote (non-stdio) transports, serve the OAuth protected resource
 	// metadata document and challenge unauthenticated requests. The resource is
 	// taken from --mcp-resource-domain when set, otherwise derived from each
-	// request's scheme and host; the authorization server issuer is selected by
-	// the deployment environment.
+	// request's scheme and host.
 	var (
 		wellKnownHandler http.HandlerFunc
 		requireAuth      func(http.Handler) http.Handler
 	)
 	if *transport != "stdio" {
-		authServer := oauthmeta.AuthorizationServerForEnvironment(*environment)
+		authServer := oauthmeta.ProdAuthorizationServer
 		resource := strings.TrimSpace(*resourceDomain)
 
 		wellKnownHandler = oauthmeta.Handler(oauthmeta.Config{
