@@ -165,9 +165,13 @@ type ImportCustomModelOutput struct {
 
 // UpdateCustomModelMetadataInput is the request body for updating model metadata.
 type UpdateCustomModelMetadataInput struct {
-	Name        *string          `json:"name,omitempty"`
-	Description *string          `json:"description,omitempty"`
-	Tags        *CustomModelTags `json:"tags,omitempty"`
+	Name             *string          `json:"name,omitempty"`
+	Description      *string          `json:"description,omitempty"`
+	Tags             *CustomModelTags `json:"tags,omitempty"`
+	InputModalities  []string         `json:"input_modalities,omitempty"`
+	OutputModalities []string         `json:"output_modalities,omitempty"`
+	Parameters       string           `json:"parameters,omitempty"`
+	License          string           `json:"license,omitempty"`
 }
 
 // UpdateCustomModelMetadataOutput is the response from updating model metadata.
