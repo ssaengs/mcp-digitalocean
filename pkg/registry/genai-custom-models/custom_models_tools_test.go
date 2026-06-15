@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -169,6 +170,14 @@ func TestCustomModelsTool_updateMetadata_validation(t *testing.T) {
 		{name: "no update fields", args: map[string]any{
 			"uuid": "test-uuid",
 		}},
+		{name: "empty input_modalities", args: map[string]any{
+			"uuid":             "test-uuid",
+			"input_modalities": []interface{}{},
+		}},
+		{name: "empty output_modalities", args: map[string]any{
+			"uuid":              "test-uuid",
+			"output_modalities": []interface{}{},
+		}},
 	}
 
 	for _, tc := range tests {
@@ -190,6 +199,138 @@ func TestCustomModelsTool_updateMetadata_clientError(t *testing.T) {
 	}}}
 	_, err := tool.updateMetadata(context.Background(), req)
 	require.Error(t, err)
+}
+
+// TestCustomModelsTool_updateMetadata_acceptsNewFields verifies that each of
+// the new editable fields (input_modalities, output_modalities, parameters,
+// license) on its own counts as an update and so passes the "at least one
+// update field" validation, reaching the client (which then fails).
+func TestCustomModelsTool_updateMetadata_acceptsNewFields(t *testing.T) {
+	tool := setupCustomModelsToolWithFailingClient()
+
+	tests := []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "input_modalities only", args: map[string]any{
+			"uuid":             "test-uuid",
+			"input_modalities": []interface{}{"text", "image"},
+		}},
+		{name: "output_modalities only", args: map[string]any{
+			"uuid":              "test-uuid",
+			"output_modalities": []interface{}{"text"},
+		}},
+		{name: "parameters only", args: map[string]any{
+			"uuid":       "test-uuid",
+			"parameters": "7000000000",
+		}},
+		{name: "license only", args: map[string]any{
+			"uuid":    "test-uuid",
+			"license": "apache-2.0",
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+			_, err := tool.updateMetadata(context.Background(), req)
+			require.Error(t, err, "should fail at client (failing client) rather than validation")
+		})
+	}
+}
+
+// TestCustomModelsTool_updateMetadata_sendsSpacesFields verifies the PATCH
+// request body includes the new editable fields when supplied. Mirrors godo's
+// TestUpdateCustomModelMetadataSpacesFields.
+func TestCustomModelsTool_updateMetadata_sendsSpacesFields(t *testing.T) {
+	const modelUUID = "22222222-2222-2222-2222-222222222222"
+
+	tool, gotBody := setupCustomModelsToolForMetadataUpdate(t, modelUUID)
+
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"uuid":              modelUUID,
+		"input_modalities":  []interface{}{"text", "image"},
+		"output_modalities": []interface{}{"text"},
+		"parameters":        "7000000000",
+		"license":           "apache-2.0",
+	}}}
+	resp, err := tool.updateMetadata(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.False(t, resp.IsError, "expected successful tool result, got error: %+v", resp)
+
+	var got UpdateCustomModelMetadataInput
+	require.NoError(t, json.Unmarshal(*gotBody, &got))
+	require.Equal(t, []string{"text", "image"}, got.InputModalities)
+	require.Equal(t, []string{"text"}, got.OutputModalities)
+	require.Equal(t, "7000000000", got.Parameters)
+	require.Equal(t, "apache-2.0", got.License)
+}
+
+// TestCustomModelsTool_updateMetadata_omitsUnsetSpacesFields verifies the
+// new fields are omitted from the request payload when not supplied. Mirrors
+// godo's TestUpdateCustomModelMetadataOmitsUnsetSpacesFields.
+func TestCustomModelsTool_updateMetadata_omitsUnsetSpacesFields(t *testing.T) {
+	const modelUUID = "11111111-1111-1111-1111-111111111111"
+
+	tool, gotBody := setupCustomModelsToolForMetadataUpdate(t, modelUUID)
+
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"uuid":        modelUUID,
+		"description": "Updated description",
+	}}}
+	resp, err := tool.updateMetadata(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.False(t, resp.IsError)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(*gotBody, &raw))
+	_, hasInput := raw["input_modalities"]
+	_, hasOutput := raw["output_modalities"]
+	_, hasParams := raw["parameters"]
+	_, hasLicense := raw["license"]
+	require.False(t, hasInput, "input_modalities should be omitted when unset")
+	require.False(t, hasOutput, "output_modalities should be omitted when unset")
+	require.False(t, hasParams, "parameters should be omitted when unset")
+	require.False(t, hasLicense, "license should be omitted when unset")
+}
+
+// setupCustomModelsToolForMetadataUpdate spins up a test HTTP server that
+// captures the PATCH /v2/gen-ai/custom_models/{uuid}/metadata request body
+// and returns a successful update response. The captured body is exposed via
+// the returned *[]byte pointer.
+func setupCustomModelsToolForMetadataUpdate(t *testing.T, modelUUID string) (*CustomModelsTool, *[]byte) {
+	t.Helper()
+
+	var captured []byte
+	expectedPath := "/v2/gen-ai/custom_models/" + modelUUID + "/metadata"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != expectedPath {
+			http.Error(w, "unexpected request: "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		captured = body
+		_ = json.NewEncoder(w).Encode(UpdateCustomModelMetadataOutput{
+			Model: &CustomModel{UUID: modelUUID, Name: "test-model", Status: CustomModelStatusReady},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	httpClient := oauth2.NewClient(context.Background(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "test-token"}))
+	client, err := godo.New(httpClient, godo.SetBaseURL(srv.URL))
+	require.NoError(t, err)
+
+	tool := NewCustomModelsTool(func(ctx context.Context) (*godo.Client, error) {
+		return client, nil
+	})
+	return tool, &captured
 }
 
 func TestCustomModelsTool_getModel_validation(t *testing.T) {
