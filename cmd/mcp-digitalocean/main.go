@@ -51,7 +51,7 @@ func main() {
 	wsLoggingURL := flag.String("ws-logging-url", getEnv("WS_LOGGING_URL", ""), "WebSocket URL for WebSocket logging (optional)")
 	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
 	enableToolErrorLogging := flag.Bool("enable-tool-error-logging", getEnv("ENABLE_TOOL_ERROR_LOGGING", "false") == "true", "Enable logging of tool errors")
-	resourceDomain := flag.String("mcp-resource-domain", getEnv("MCP_RESOURCE_DOMAIN", ""), "This server's resource identifier advertised in the OAuth protected resource metadata. When empty, it is derived from each request (remote transport only, optional)")
+	serverURLFlag := flag.String("mcp-resource-url", getEnv("MCP_RESOURCE_URL", ""), "This server's public base URL advertised in the OAuth protected resource metadata. When empty, it is derived from each request (remote transport only, optional)")
 	userAgent := flag.String("user-agent", getEnv("USER_AGENT", ""), "Indicate this server is running as a remote MCP ")
 	flag.Parse()
 
@@ -139,7 +139,7 @@ func main() {
 
 	// For remote (non-stdio) transports, serve the OAuth protected resource
 	// metadata document and challenge unauthenticated requests. The resource is
-	// taken from --mcp-resource-domain when set, otherwise derived from each
+	// taken from --mcp-resource-url when set, otherwise derived from each
 	// request's scheme and host.
 	var (
 		wellKnownHandler http.HandlerFunc
@@ -147,16 +147,16 @@ func main() {
 	)
 	if *transport != "stdio" {
 		authServer := oauthmeta.ProdAuthorizationServer
-		resource := strings.TrimSpace(*resourceDomain)
+		serverURL := strings.TrimSpace(*serverURLFlag)
 
 		wellKnownHandler = oauthmeta.Handler(oauthmeta.Config{
-			Resource:               resource,
+			Resource:               serverURL,
 			AuthorizationServers:   []string{authServer},
 			BearerMethodsSupported: []string{"header"},
 		})
 
 		challengeCfg := oauthmeta.ChallengeConfig{
-			Resource: resource,
+			Resource: serverURL,
 			Scopes:   []string{"read", "write"},
 		}
 		requireAuth = func(next http.Handler) http.Handler {
@@ -242,13 +242,10 @@ func newGodoClientWithTokenAndEndpoint(ctx context.Context, token string, endpoi
 		mcpUserAgent = fmt.Sprintf("%s/%s", userAgent, mcpVersion)
 	}
 
-	opts := []godo.ClientOpt{
+	return godo.New(oauthClient,
 		godo.WithRetryAndBackoffs(retry),
 		godo.SetBaseURL(endpoint),
-		godo.SetUserAgent(mcpUserAgent),
-	}
-
-	return godo.New(oauthClient, opts...)
+		godo.SetUserAgent(mcpUserAgent))
 }
 
 func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string, wellKnownHandler http.HandlerFunc, requireAuth func(http.Handler) http.Handler) error {

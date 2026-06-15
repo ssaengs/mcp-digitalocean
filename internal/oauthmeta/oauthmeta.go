@@ -145,7 +145,7 @@ func BearerToken(r *http.Request) string {
 }
 
 // challenge builds the WWW-Authenticate header value, advertising the resource
-// metadata URL, requested scopes, and the authorization server.
+// metadata URL and the requested scopes.
 func challenge(r *http.Request, cfg ChallengeConfig) string {
 	resource := cfg.Resource
 	if strings.TrimSpace(resource) == "" {
