@@ -15,6 +15,7 @@ import (
 
 	middleware "mcp-digitalocean/internal"
 	"mcp-digitalocean/internal/oauthmeta"
+	"mcp-digitalocean/internal/openaichallenge"
 	"mcp-digitalocean/internal/wslogging"
 	"mcp-digitalocean/pkg/registry"
 
@@ -52,6 +53,7 @@ func main() {
 	wsLoggingToken := flag.String("ws-logging-token", getEnv("WS_LOGGING_TOKEN", ""), "Authentication token for WebSocket logging (optional)")
 	enableToolErrorLogging := flag.Bool("enable-tool-error-logging", getEnv("ENABLE_TOOL_ERROR_LOGGING", "false") == "true", "Enable logging of tool errors")
 	serverURLFlag := flag.String("mcp-resource-url", getEnv("MCP_RESOURCE_URL", ""), "This server's public base URL advertised in the OAuth protected resource metadata. When empty, it is derived from each request (remote transport only, optional)")
+	openaiAppsVerificationTokenFlag := flag.String("openai-apps-verification-token", getEnv("OPENAI_APPS_VERIFICATION_TOKEN", ""), "Plain-text token served at /.well-known/openai-apps-challenge for OpenAI ChatGPT app domain verification (remote transport only, optional)")
 	userAgent := flag.String("user-agent", getEnv("USER_AGENT", ""), "Indicate this server is running as a remote MCP ")
 	flag.Parse()
 
@@ -142,8 +144,9 @@ func main() {
 	// taken from --mcp-resource-url when set, otherwise derived from each
 	// request's scheme and host.
 	var (
-		wellKnownHandler http.HandlerFunc
-		requireAuth      func(http.Handler) http.Handler
+		wellKnownHandler       http.HandlerFunc
+		openaiChallengeHandler http.HandlerFunc
+		requireAuth            func(http.Handler) http.Handler
 	)
 	if *transport != "stdio" {
 		authServer := oauthmeta.ProdAuthorizationServer
@@ -164,6 +167,11 @@ func main() {
 		}
 
 		logger.Info("serving OAuth protected resource metadata", "path", oauthmeta.WellKnownPath, "authorization_server", authServer)
+
+		if token := strings.TrimSpace(*openaiAppsVerificationTokenFlag); token != "" && token != "OPENAI_APPS_VERIFICATION_TOKEN" {
+			openaiChallengeHandler = openaichallenge.Handler(token)
+			logger.Info("serving OpenAI app domain verification", "path", openaichallenge.WellKnownPath)
+		}
 	}
 
 	// by default, we create a new client per request.
@@ -196,7 +204,7 @@ func main() {
 	}
 
 	// start our server.
-	err = runServer(ctx, svr, logger, *bindAddr, transport, wellKnownHandler, requireAuth)
+	err = runServer(ctx, svr, logger, *bindAddr, transport, wellKnownHandler, openaiChallengeHandler, requireAuth)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			logger.Info("shutting down mcp server")
@@ -248,7 +256,7 @@ func newGodoClientWithTokenAndEndpoint(ctx context.Context, token string, endpoi
 		godo.SetUserAgent(mcpUserAgent))
 }
 
-func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string, wellKnownHandler http.HandlerFunc, requireAuth func(http.Handler) http.Handler) error {
+func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bindAddr string, transport *string, wellKnownHandler http.HandlerFunc, openaiChallengeHandler http.HandlerFunc, requireAuth func(http.Handler) http.Handler) error {
 	logger.Info("starting MCP server", "name", mcpName, "version", mcpVersion, "transport", *transport)
 	switch *transport {
 	case "stdio":
@@ -273,7 +281,7 @@ func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bi
 			server.WithStateLess(true),
 		)
 
-		useCustomMux := wellKnownHandler != nil || requireAuth != nil
+		useCustomMux := wellKnownHandler != nil || openaiChallengeHandler != nil || requireAuth != nil
 		var mux *http.ServeMux
 		if useCustomMux {
 			mux = http.NewServeMux()
@@ -291,6 +299,9 @@ func runServer(ctx context.Context, s *server.MCPServer, logger *slog.Logger, bi
 			mux.Handle(mcpEndpointPath, mcpHandler)
 			if wellKnownHandler != nil {
 				mux.HandleFunc(oauthmeta.WellKnownPath, wellKnownHandler)
+			}
+			if openaiChallengeHandler != nil {
+				mux.HandleFunc(openaichallenge.WellKnownPath, openaiChallengeHandler)
 			}
 		}
 
