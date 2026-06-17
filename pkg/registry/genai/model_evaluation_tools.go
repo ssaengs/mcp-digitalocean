@@ -485,6 +485,44 @@ func (met *ModelEvaluationTool) getRun(ctx context.Context, req mcp.CallToolRequ
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
+// updateRun updates mutable fields on a model evaluation run (currently name only).
+func (met *ModelEvaluationTool) updateRun(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	runUUID, ok := args["eval_run_uuid"].(string)
+	if !ok || runUUID == "" {
+		return mcp.NewToolResultError("eval_run_uuid is required"), nil
+	}
+
+	name, ok := args["name"].(string)
+	if !ok || name == "" {
+		return mcp.NewToolResultError("name is required"), nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	output, _, err := client.GradientAI.UpdateModelEvaluationRun(ctx, runUUID, &godo.UpdateModelEvaluationRunRequest{
+		Name: name,
+	})
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to update model evaluation run", err), nil
+	}
+
+	if output == nil || output.Run == nil {
+		return mcp.NewToolResultError("empty response from update model evaluation run"), nil
+	}
+
+	jsonData, err := json.MarshalIndent(output.Run, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
 // getResultsDownloadURL gets a presigned download URL for run results.
 func (met *ModelEvaluationTool) getResultsDownloadURL(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	runUUID, ok := req.GetArguments()["eval_run_uuid"].(string)
@@ -902,6 +940,15 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run (the eval_run_uuid returned by genai-model-eval-list-runs or genai-model-eval-create-run)")),
 				mcp.WithNumber("page", mcp.Description("Page number for per-prompt results pagination")),
 				mcp.WithNumber("per_page", mcp.Description("Results per page for per-prompt results pagination")),
+			),
+		},
+		{
+			Handler: met.updateRun,
+			Tool: mcp.NewTool(
+				"genai-model-eval-update-run",
+				mcp.WithDescription("Update a model evaluation run. Currently only the run name can be changed."),
+				mcp.WithString("eval_run_uuid", mcp.Required(), mcp.Description("UUID of the evaluation run")),
+				mcp.WithString("name", mcp.Required(), mcp.Description("New name for the evaluation run")),
 			),
 		},
 		{

@@ -22,7 +22,7 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 	})
 
 	tools := tool.Tools()
-	require.Len(t, tools, 13, "should have 13 model evaluation tools")
+	require.Len(t, tools, 14, "should have 14 model evaluation tools")
 
 	expectedTools := map[string]bool{
 		"genai-model-eval-list-metrics":             false,
@@ -33,6 +33,7 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 		"genai-model-eval-create-run":               false,
 		"genai-model-eval-list-runs":                false,
 		"genai-model-eval-get-run":                  false,
+		"genai-model-eval-update-run":               false,
 		"genai-model-eval-get-results-download-url": false,
 		"genai-model-eval-delete-run":               false,
 		"genai-model-eval-cancel-run":               false,
@@ -187,6 +188,40 @@ func TestModelEvaluationTool_getRun_clientError(t *testing.T) {
 		"eval_run_uuid": "test-uuid",
 	}}}
 	_, err := tool.getRun(context.Background(), req)
+	require.Error(t, err)
+}
+
+func TestModelEvaluationTool_updateRun_validation(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+
+	tests := []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "missing eval_run_uuid", args: map[string]any{"name": "new-name"}},
+		{name: "empty eval_run_uuid", args: map[string]any{"eval_run_uuid": "", "name": "new-name"}},
+		{name: "missing name", args: map[string]any{"eval_run_uuid": "test-uuid"}},
+		{name: "empty name", args: map[string]any{"eval_run_uuid": "test-uuid", "name": ""}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+			resp, err := tool.updateRun(context.Background(), req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.True(t, resp.IsError)
+		})
+	}
+}
+
+func TestModelEvaluationTool_updateRun_clientError(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"eval_run_uuid": "test-uuid",
+		"name":          "new-name",
+	}}}
+	_, err := tool.updateRun(context.Background(), req)
 	require.Error(t, err)
 }
 
