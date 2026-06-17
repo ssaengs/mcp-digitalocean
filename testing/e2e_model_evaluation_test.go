@@ -271,4 +271,3 @@ func TestModelEvalGetResultsDownloadURL(t *testing.T) {
 	require.NotEmpty(t, out.DownloadURL, "download URL should not be empty")
 	t.Logf("got download URL for run %s", runUUID)
 }
-
