@@ -13,6 +13,11 @@ import (
 // changing an annotation in code without updating the row, fails the test.
 //
 // Order: readOnly, destructive, idempotent, openWorld.
+//
+// Delete ops are destructive=true AND idempotent=true: repeating a delete on
+// an already-removed resource returns not-found with no additional side
+// effect. Rebuild/restore are destructive=true but idempotent=false because
+// each call kicks off a fresh action that replaces droplet state.
 var expectedAnnotations = map[string]struct {
 	readOnly, destructive, idempotent, openWorld bool
 }{
