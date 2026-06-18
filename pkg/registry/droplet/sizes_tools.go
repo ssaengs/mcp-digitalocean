@@ -81,6 +81,7 @@ func (s *SizesTool) Tools() []server.ServerTool {
 			Handler: s.listSizes,
 			Tool: mcp.NewTool(
 				"size-list",
+				withHints(true, false, true, true),
 				mcp.WithDescription("List all available droplet sizes. Supports pagination."),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultSizesPage), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultSizesPageSize), mcp.Description("Items per page")),
