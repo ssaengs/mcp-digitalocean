@@ -45,7 +45,7 @@ var expectedAnnotations = map[string]struct {
 	"power-off-droplet":               {false, false, true, true},
 	"shutdown-droplet":                {false, false, true, true},
 	"restore-droplet":                 {false, true, false, true},
-	"resize-droplet":                  {false, false, false, true},
+	"resize-droplet":                  {false, false, true, true},
 	"rebuild-droplet":                 {false, true, false, true},
 	"rename-droplet":                  {false, false, true, true},
 	"change-kernel-droplet":           {false, false, true, true},

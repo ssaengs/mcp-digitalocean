@@ -727,7 +727,7 @@ func (da *DropletActionsTool) Tools() []server.ServerTool {
 		{
 			Handler: da.resizeDroplet,
 			Tool: mcp.NewTool("resize-droplet",
-				withHints(hintsAction),
+				withHints(hintsToggle),
 				mcp.WithDescription("Resize a droplet"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the droplet to resize")),
 				mcp.WithString("Size", mcp.Required(), mcp.Description("Slug of the new size (e.g., s-1vcpu-1gb)")),
