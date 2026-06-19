@@ -28,8 +28,11 @@ func (h hints) apply(t *mcp.Tool) {
 func withHints(h hints) mcp.ToolOption { return h.apply }
 
 // Hint profiles. Every tool in this package falls into one of five
-// categories; openWorld is true on every profile because every tool
-// interacts with the DigitalOcean API.
+// categories; openWorld is false on every profile because every tool only
+// calls the DigitalOcean API and its domain of interaction stays entirely
+// within the DO account (droplets, images, sizes addressed by DO IDs,
+// slugs, tags, and DO-stored SSH keys) — none reach an open world of
+// external entities beyond DO.
 //
 // Delete is destructive AND idempotent: repeating a delete on an
 // already-removed resource returns not-found with no additional side
@@ -38,21 +41,21 @@ func withHints(h hints) mcp.ToolOption { return h.apply }
 var (
 	// hintsRead — read-only list/get/inspect tools. Idempotent because
 	// observing state again returns the same data.
-	hintsRead = hints{readOnly: true, idempotent: true, openWorld: true}
+	hintsRead = hints{readOnly: true, idempotent: true}
 
 	// hintsAction — non-destructive mutation that does not converge on a
 	// target state; each call kicks off a fresh action (reboot, snapshot,
 	// password reset, droplet create).
-	hintsAction = hints{openWorld: true}
+	hintsAction = hints{}
 
 	// hintsToggle — mutation that converges on a target state. Repeated
 	// calls have no additional effect (power-on twice = still on; rename
 	// to the same name = no-op).
-	hintsToggle = hints{idempotent: true, openWorld: true}
+	hintsToggle = hints{idempotent: true}
 
 	// hintsDelete — destructive AND idempotent (see package note above).
-	hintsDelete = hints{destructive: true, idempotent: true, openWorld: true}
+	hintsDelete = hints{destructive: true, idempotent: true}
 
 	// hintsReplace — destructive AND non-idempotent (see package note above).
-	hintsReplace = hints{destructive: true, openWorld: true}
+	hintsReplace = hints{destructive: true}
 )
