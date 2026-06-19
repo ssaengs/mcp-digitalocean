@@ -502,6 +502,17 @@ Delete a saved model evaluation preset by UUID. Existing runs that referenced th
 
 **Returns:** JSON object confirming the deletion.
 
+#### `genai-model-eval-delete-dataset`
+Delete an evaluation dataset by UUID. Works for both model and agent evaluation datasets. Deletion is permanent: the dataset record cannot be recovered.
+
+**User consent:** `confirm_deletion` must be `true`. Present `dataset_uuid` and that deletion is permanent, then ask for yes/no in chat. Only set `confirm_deletion: true` after the user explicitly agrees.
+
+**Arguments:**
+- `dataset_uuid` (string, required): UUID of the dataset to delete. Get it from `genai-model-eval-list-datasets` (`dataset_uuid`) or `genai-model-eval-create-dataset` (`evaluation_dataset_uuid`).
+- `confirm_deletion` (boolean, required): Must be true; only after the user has agreed in chat
+
+**Returns:** JSON object confirming the deletion.
+
 ### Orchestrated Workflow Tool
 
 #### `genai-model-eval-run-workflow`
