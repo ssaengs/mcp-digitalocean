@@ -41,21 +41,21 @@ func withHints(h hints) mcp.ToolOption { return h.apply }
 var (
 	// hintsRead — read-only list/get/inspect tools. Idempotent because
 	// observing state again returns the same data.
-	hintsRead = hints{readOnly: true, idempotent: true}
+	hintsRead = hints{readOnly: true, idempotent: true, openWorld: false}
 
 	// hintsAction — non-destructive mutation that does not converge on a
 	// target state; each call kicks off a fresh action (reboot, snapshot,
 	// password reset, droplet create).
-	hintsAction = hints{}
+	hintsAction = hints{openWorld: false}
 
 	// hintsToggle — mutation that converges on a target state. Repeated
 	// calls have no additional effect (power-on twice = still on; rename
 	// to the same name = no-op).
-	hintsToggle = hints{idempotent: true}
+	hintsToggle = hints{idempotent: true, openWorld: false}
 
 	// hintsDelete — destructive AND idempotent (see package note above).
-	hintsDelete = hints{destructive: true, idempotent: true}
+	hintsDelete = hints{destructive: true, idempotent: true, openWorld: false}
 
 	// hintsReplace — destructive AND non-idempotent (see package note above).
-	hintsReplace = hints{destructive: true}
+	hintsReplace = hints{destructive: true, openWorld: false}
 )
