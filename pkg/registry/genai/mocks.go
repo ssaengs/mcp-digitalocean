@@ -345,6 +345,22 @@ func (mr *MockGradientAIServiceMockRecorder) DeleteCustomModel(ctx, uuid any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomModel", reflect.TypeOf((*MockGradientAIService)(nil).DeleteCustomModel), ctx, uuid)
 }
 
+// DeleteEvaluationDataset mocks base method.
+func (m *MockGradientAIService) DeleteEvaluationDataset(ctx context.Context, datasetUUID string) (*godo.EvaluationDatasetDeleteResponse, *godo.Response, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteEvaluationDataset", ctx, datasetUUID)
+	ret0, _ := ret[0].(*godo.EvaluationDatasetDeleteResponse)
+	ret1, _ := ret[1].(*godo.Response)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DeleteEvaluationDataset indicates an expected call of DeleteEvaluationDataset.
+func (mr *MockGradientAIServiceMockRecorder) DeleteEvaluationDataset(ctx, datasetUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEvaluationDataset", reflect.TypeOf((*MockGradientAIService)(nil).DeleteEvaluationDataset), ctx, datasetUUID)
+}
+
 // DeleteFunctionRoute mocks base method.
 func (m *MockGradientAIService) DeleteFunctionRoute(arg0 context.Context, arg1, arg2 string) (*godo.Agent, *godo.Response, error) {
 	m.ctrl.T.Helper()
