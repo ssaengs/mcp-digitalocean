@@ -254,3 +254,54 @@ func TestModelEvaluationTool_deletePreset_success(t *testing.T) {
 	require.Contains(t, text, "preset-1")
 	require.Contains(t, text, "deleted")
 }
+
+func TestModelEvaluationTool_deleteDataset_success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := NewMockGradientAIService(ctrl)
+	m.EXPECT().DeleteEvaluationDataset(gomock.Any(), "dataset-1").Return(
+		&godo.EvaluationDatasetDeleteResponse{}, okResponse(http.StatusOK), nil)
+
+	resp := callTool(t, setupModelEvalToolWithGradientMock(m).deleteDataset, map[string]any{
+		"dataset_uuid":     "dataset-1",
+		"confirm_deletion": true,
+	})
+
+	require.False(t, resp.IsError)
+	text := resultText(t, resp)
+	require.Contains(t, text, "dataset-1")
+	require.Contains(t, text, "deleted")
+}
+
+func TestModelEvaluationTool_deleteDataset_apiNon2xx(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := NewMockGradientAIService(ctrl)
+	m.EXPECT().DeleteEvaluationDataset(gomock.Any(), "dataset-1").Return(
+		&godo.EvaluationDatasetDeleteResponse{}, okResponse(http.StatusInternalServerError), nil)
+
+	resp := callTool(t, setupModelEvalToolWithGradientMock(m).deleteDataset, map[string]any{
+		"dataset_uuid":     "dataset-1",
+		"confirm_deletion": true,
+	})
+
+	require.True(t, resp.IsError)
+	require.Contains(t, resultText(t, resp), "500")
+}
+
+func TestModelEvaluationTool_deleteDataset_apiError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := NewMockGradientAIService(ctrl)
+	m.EXPECT().DeleteEvaluationDataset(gomock.Any(), "dataset-1").Return(nil, nil, errors.New("boom"))
+
+	resp := callTool(t, setupModelEvalToolWithGradientMock(m).deleteDataset, map[string]any{
+		"dataset_uuid":     "dataset-1",
+		"confirm_deletion": true,
+	})
+
+	require.True(t, resp.IsError)
+}

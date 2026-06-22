@@ -64,8 +64,13 @@ func (r *RegionTools) Tools() []server.ServerTool {
 	return []server.ServerTool{
 		{
 			Handler: r.listRegions,
-			Tool: mcp.NewTool(
-				"region-list",
+			Tool: mcp.NewTool("region-list",
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				// region-list only calls the DO API and stays entirely within
+				// the DO domain, so openWorld is false.
+				mcp.WithOpenWorldHintAnnotation(false),
 				mcp.WithDescription("List all available regions with features and droplet size availability. Supports pagination."),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultRegionsPage), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultRegionsPageSize), mcp.Description("Items per page")),

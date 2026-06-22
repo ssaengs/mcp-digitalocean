@@ -151,6 +151,18 @@ func metadataUpdateToGodo(in *UpdateCustomModelMetadataInput) *godo.CustomModelM
 	if in.Tags != nil {
 		req.Tags = &godo.CustomModelTags{Tags: append([]string(nil), in.Tags.Tags...)}
 	}
+	if in.InputModalities != nil {
+		req.InputModalities = append([]string(nil), in.InputModalities...)
+	}
+	if in.OutputModalities != nil {
+		req.OutputModalities = append([]string(nil), in.OutputModalities...)
+	}
+	if in.Parameters != "" {
+		req.Parameters = in.Parameters
+	}
+	if in.License != "" {
+		req.License = in.License
+	}
 	return req
 }
 
