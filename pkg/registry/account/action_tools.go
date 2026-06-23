@@ -8,6 +8,7 @@ import (
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"mcp-digitalocean/pkg/registry/common"
 )
 
 const (
@@ -81,6 +82,7 @@ func (a *ActionTools) Tools() []server.ServerTool {
 		{
 			Handler: a.getAction,
 			Tool: mcp.NewTool("action-get",
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("Get a specific action by ID"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Action ID")),
 			),
@@ -88,6 +90,7 @@ func (a *ActionTools) Tools() []server.ServerTool {
 		{
 			Handler: a.listActions,
 			Tool: mcp.NewTool("action-list",
+				common.WithHints(common.HintsAction),
 				mcp.WithDescription("List actions with pagination"),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultActionsPage), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultActionsPageSize), mcp.Description("Items per page")),
