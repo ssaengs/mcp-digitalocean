@@ -1,4 +1,4 @@
-package droplet
+package common
 
 import "github.com/mark3labs/mcp-go/mcp"
 
