@@ -1,4 +1,4 @@
-package droplet
+package common
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/server"
+	"mcp-digitalocean/pkg/registry/droplet"
 )
 
 // expectedAnnotations is the per-tool annotation contract enforced by
@@ -76,11 +77,11 @@ func TestToolAnnotations(t *testing.T) {
 	}
 
 	var all []server.ServerTool
-	all = append(all, NewDropletTool(clientFn).Tools()...)
-	all = append(all, NewDropletActionsTool(clientFn).Tools()...)
-	all = append(all, NewImageActionsTool(clientFn).Tools()...)
-	all = append(all, NewImageTool(clientFn).Tools()...)
-	all = append(all, NewSizesTool(clientFn).Tools()...)
+	all = append(all, droplet.NewDropletTool(clientFn).Tools()...)
+	all = append(all, droplet.NewDropletActionsTool(clientFn).Tools()...)
+	all = append(all, droplet.NewImageActionsTool(clientFn).Tools()...)
+	all = append(all, droplet.NewImageTool(clientFn).Tools()...)
+	all = append(all, droplet.NewSizesTool(clientFn).Tools()...)
 
 	if len(all) != len(expectedAnnotations) {
 		t.Fatalf("tool count mismatch: registered=%d, expected=%d (add new tools to expectedAnnotations)", len(all), len(expectedAnnotations))
