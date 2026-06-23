@@ -553,11 +553,15 @@ const (
 
 	modelEvalDeletePresetConsentMsg = "confirm_deletion must be true. Before deleting an evaluation preset, present the preset UUID and that deletion is permanent and obtain explicit consent (yes) in this conversation. Consent is required for every delete."
 
+	modelEvalDeleteDatasetConsentMsg = "confirm_deletion must be true. Before deleting an evaluation dataset, present the dataset UUID and that deletion is permanent and obtain explicit consent (yes) in this conversation. Consent is required for every delete."
+
 	modelEvalCancelRunConsentMsg = "confirm_cancel must be true. Before cancelling an evaluation run, present the run UUID and explain that any partial results may be lost, then obtain explicit consent (yes) in this conversation."
 
 	modelEvalDeleteRunConfirmDescription = "Must be true only after the end user has explicitly confirmed the deletion in conversation (yes/no in chat). Omitted or false is rejected."
 
 	modelEvalDeletePresetConfirmDescription = "Must be true only after the end user has explicitly confirmed the preset deletion in conversation (yes/no in chat). Omitted or false is rejected."
+
+	modelEvalDeleteDatasetConfirmDescription = "Must be true only after the end user has explicitly confirmed the dataset deletion in conversation (yes/no in chat). Omitted or false is rejected."
 
 	modelEvalCancelRunConfirmDescription = "Must be true only after the end user has explicitly confirmed the cancellation in conversation (yes/no in chat). Omitted or false is rejected."
 )
@@ -664,6 +668,50 @@ func (met *ModelEvaluationTool) deletePreset(ctx context.Context, req mcp.CallTo
 	response := DeletePresetResponse{
 		EvalPresetUUID: presetUUID,
 		Status:         "deleted",
+	}
+	_ = output
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal error: %w", err)
+	}
+	return mcp.NewToolResultText(string(jsonData)), nil
+}
+
+// deleteDataset deletes an evaluation dataset by UUID. This works for both model
+// and agent evaluation datasets.
+func (met *ModelEvaluationTool) deleteDataset(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	datasetUUID, _ := args["dataset_uuid"].(string)
+	datasetUUID = strings.TrimSpace(datasetUUID)
+	if datasetUUID == "" {
+		return mcp.NewToolResultError("dataset_uuid is required"), nil
+	}
+
+	if confirm, _ := args["confirm_deletion"].(bool); !confirm {
+		return mcp.NewToolResultError(modelEvalDeleteDatasetConsentMsg), nil
+	}
+
+	client, err := met.client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DigitalOcean client: %w", err)
+	}
+
+	output, resp, err := client.GradientAI.DeleteEvaluationDataset(ctx, datasetUUID)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to delete evaluation dataset", err), nil
+	}
+	if resp != nil && resp.StatusCode >= 400 {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to delete evaluation dataset: status %d", resp.StatusCode)), nil
+	}
+
+	type DeleteDatasetResponse struct {
+		DatasetUUID string `json:"dataset_uuid"`
+		Status      string `json:"status"`
+	}
+	response := DeleteDatasetResponse{
+		DatasetUUID: datasetUUID,
+		Status:      "deleted",
 	}
 	_ = output
 	jsonData, err := json.MarshalIndent(response, "", "  ")
@@ -990,6 +1038,17 @@ func (met *ModelEvaluationTool) Tools() []server.ServerTool {
 					"Present the eval_preset_uuid and that deletion is permanent; ask for yes/no."),
 				mcp.WithString("eval_preset_uuid", mcp.Required(), mcp.Description("UUID of the evaluation preset to delete")),
 				mcp.WithBoolean("confirm_deletion", mcp.Required(), mcp.Description(modelEvalDeletePresetConfirmDescription)),
+			),
+		},
+		{
+			Handler: met.deleteDataset,
+			Tool: mcp.NewTool(
+				"genai-model-eval-delete-dataset",
+				mcp.WithDescription("Delete an evaluation dataset by UUID. Works for both model and agent evaluation datasets. Deletion is permanent: the dataset record cannot be recovered.\n\n"+
+					"CONSENT REQUIRED (every delete): Do not call with confirm_deletion: true until the user has explicitly agreed in chat. "+
+					"Present the dataset_uuid and that deletion is permanent; ask for yes/no."),
+				mcp.WithString("dataset_uuid", mcp.Required(), mcp.Description("UUID of the evaluation dataset to delete (the dataset_uuid returned by genai-model-eval-list-datasets, or evaluation_dataset_uuid from genai-model-eval-create-dataset)")),
+				mcp.WithBoolean("confirm_deletion", mcp.Required(), mcp.Description(modelEvalDeleteDatasetConfirmDescription)),
 			),
 		},
 		{

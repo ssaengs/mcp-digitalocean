@@ -22,7 +22,7 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 	})
 
 	tools := tool.Tools()
-	require.Len(t, tools, 14, "should have 14 model evaluation tools")
+	require.Len(t, tools, 15, "should have 15 model evaluation tools")
 
 	expectedTools := map[string]bool{
 		"genai-model-eval-list-metrics":             false,
@@ -38,6 +38,7 @@ func TestModelEvaluationTool_Tools(t *testing.T) {
 		"genai-model-eval-delete-run":               false,
 		"genai-model-eval-cancel-run":               false,
 		"genai-model-eval-delete-preset":            false,
+		"genai-model-eval-delete-dataset":           false,
 		"genai-model-eval-run-workflow":             false,
 	}
 
@@ -361,6 +362,30 @@ func TestModelEvaluationTool_deletePreset_validation(t *testing.T) {
 	}
 }
 
+func TestModelEvaluationTool_deleteDataset_validation(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+
+	tests := []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "missing dataset_uuid", args: map[string]any{"confirm_deletion": true}},
+		{name: "empty dataset_uuid", args: map[string]any{"dataset_uuid": "", "confirm_deletion": true}},
+		{name: "missing confirm_deletion", args: map[string]any{"dataset_uuid": "test-uuid"}},
+		{name: "false confirm_deletion", args: map[string]any{"dataset_uuid": "test-uuid", "confirm_deletion": false}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: tc.args}}
+			resp, err := tool.deleteDataset(context.Background(), req)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.True(t, resp.IsError)
+		})
+	}
+}
+
 func TestModelEvaluationTool_deleteRun_clientError(t *testing.T) {
 	tool := setupModelEvalToolWithFailingClient()
 	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
@@ -388,6 +413,16 @@ func TestModelEvaluationTool_deletePreset_clientError(t *testing.T) {
 		"confirm_deletion": true,
 	}}}
 	_, err := tool.deletePreset(context.Background(), req)
+	require.Error(t, err)
+}
+
+func TestModelEvaluationTool_deleteDataset_clientError(t *testing.T) {
+	tool := setupModelEvalToolWithFailingClient()
+	req := mcp.CallToolRequest{Params: mcp.CallToolParams{Arguments: map[string]any{
+		"dataset_uuid":     "test-uuid",
+		"confirm_deletion": true,
+	}}}
+	_, err := tool.deleteDataset(context.Background(), req)
 	require.Error(t, err)
 }
 

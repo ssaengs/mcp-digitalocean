@@ -1,4 +1,4 @@
-package common
+package droplet
 
 import "github.com/mark3labs/mcp-go/mcp"
 
@@ -38,21 +38,21 @@ func WithHints(h hints) mcp.ToolOption { return h.apply }
 var (
 	// HintsRead — read-only list/get/inspect tools. Idempotent because
 	// observing state again returns the same data.
-	HintsRead = hints{readOnly: true, idempotent: true, openWorld: true}
+	HintsRead = hints{readOnly: true, idempotent: true, openWorld: false}
 
 	// HintsAction — non-destructive mutation that does not converge on a
 	// target state; each call kicks off a fresh action (reboot, snapshot,
 	// password reset, droplet create).
-	HintsAction = hints{openWorld: true}
+	HintsAction = hints{openWorld: false}
 
 	// HintsToggle — mutation that converges on a target state. Repeated
 	// calls have no additional effect (power-on twice = still on; rename
 	// to the same name = no-op).
-	HintsToggle = hints{idempotent: true, openWorld: true}
+	HintsToggle = hints{idempotent: true, openWorld: false}
 
 	// HintsDelete — destructive AND idempotent (see package note above).
-	HintsDelete = hints{destructive: true, idempotent: true, openWorld: true}
+	HintsDelete = hints{destructive: true, idempotent: true, openWorld: false}
 
 	// HintsReplace — destructive AND non-idempotent (see package note above).
-	HintsReplace = hints{destructive: true, openWorld: true}
+	HintsReplace = hints{destructive: true, openWorld: false}
 )
