@@ -26,7 +26,7 @@ import (
 
 const (
 	mcpName                 = "mcp-digitalocean"
-	mcpVersion              = "1.0.64"
+	mcpVersion              = "1.0.65"
 	wsLoggingContextTimeout = 15 * time.Second
 	// mcpEndpointPath is the path the streamable HTTP server serves the MCP
 	// protocol on. It matches mcp-go's default so existing clients are unaffected.

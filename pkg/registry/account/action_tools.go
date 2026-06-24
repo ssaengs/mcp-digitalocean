@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"mcp-digitalocean/pkg/registry/common"
+
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"mcp-digitalocean/pkg/registry/common"
 )
 
 const (
@@ -90,7 +91,7 @@ func (a *ActionTools) Tools() []server.ServerTool {
 		{
 			Handler: a.listActions,
 			Tool: mcp.NewTool("action-list",
-				common.WithHints(common.HintsAction),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("List actions with pagination"),
 				mcp.WithNumber("Page", mcp.DefaultNumber(defaultActionsPage), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(defaultActionsPageSize), mcp.Description("Items per page")),
