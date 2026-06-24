@@ -8,6 +8,7 @@ import (
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"mcp-digitalocean/pkg/registry/common"
 )
 
 // ImageActionsTool provides tool-based handlers for DigitalOcean image actions.
@@ -115,7 +116,7 @@ func (ia *ImageActionsTool) Tools() []server.ServerTool {
 			Handler: ia.transferImage,
 			Tool: mcp.NewTool(
 				"image-action-transfer",
-				withHints(hintsToggle),
+				common.WithHints(common.HintsToggle),
 				mcp.WithDescription("Transfer an image to another region."),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the image to transfer")),
 				mcp.WithString("Region", mcp.Required(), mcp.Description("Region slug to transfer to (e.g., nyc3)")),
@@ -125,7 +126,7 @@ func (ia *ImageActionsTool) Tools() []server.ServerTool {
 			Handler: ia.convertImageToSnapshot,
 			Tool: mcp.NewTool(
 				"image-action-convert",
-				withHints(hintsToggle),
+				common.WithHints(common.HintsToggle),
 				mcp.WithDescription("Convert an image (backup) to a snapshot."),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the image to convert")),
 			),
@@ -134,7 +135,7 @@ func (ia *ImageActionsTool) Tools() []server.ServerTool {
 			Handler: ia.getImageAction,
 			Tool: mcp.NewTool(
 				"image-action-get",
-				withHints(hintsRead),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("Retrieve the status of an image action."),
 				mcp.WithNumber("ImageID", mcp.Required(), mcp.Description("ID of the image")),
 				mcp.WithNumber("ActionID", mcp.Required(), mcp.Description("ID of the action")),

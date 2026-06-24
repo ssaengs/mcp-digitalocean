@@ -8,6 +8,7 @@ import (
 	"github.com/digitalocean/godo"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"mcp-digitalocean/pkg/registry/common"
 )
 
 // DropletTool provides droplet management tools
@@ -329,7 +330,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.createDroplet,
 			Tool: mcp.NewTool("droplet-create",
-				withHints(hintsAction),
+				common.WithHints(common.HintsAction),
 				mcp.WithDescription("Create a new droplet. Supports standard distribution images via ImageID and 1-click marketplace app images via ImageSlug. Exactly one of ImageID or ImageSlug must be provided."),
 				mcp.WithString("Name", mcp.Required(), mcp.Description("Name of the droplet")),
 				mcp.WithString("Size", mcp.Required(), mcp.Description("Slug of the droplet size (e.g., s-1vcpu-1gb)")),
@@ -345,7 +346,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.deleteDroplet,
 			Tool: mcp.NewTool("droplet-delete",
-				withHints(hintsDelete),
+				common.WithHints(common.HintsDelete),
 				mcp.WithDescription("Delete a droplet"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the droplet to delete")),
 			),
@@ -353,7 +354,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.enablePrivateNetworking,
 			Tool: mcp.NewTool("droplet-enable-private-net",
-				withHints(hintsToggle),
+				common.WithHints(common.HintsToggle),
 				mcp.WithDescription("Enable private networking on a droplet"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the droplet")),
 			),
@@ -361,7 +362,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.getDropletKernels,
 			Tool: mcp.NewTool("droplet-kernels",
-				withHints(hintsRead),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("Get available kernels for a droplet"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("ID of the droplet")),
 			),
@@ -369,7 +370,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.getDropletByID,
 			Tool: mcp.NewTool("droplet-get",
-				withHints(hintsRead),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("Get a droplet by its ID"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Droplet ID")),
 			),
@@ -377,7 +378,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.getDropletBackupPolicy,
 			Tool: mcp.NewTool("droplet-backup-policy",
-				withHints(hintsRead),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("Get a droplet's backup policy"),
 				mcp.WithNumber("ID", mcp.Required(), mcp.Description("Droplet ID")),
 			),
@@ -385,7 +386,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.getDropletActionByID,
 			Tool: mcp.NewTool("droplet-action",
-				withHints(hintsRead),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("Get a droplet action by droplet ID and action ID"),
 				mcp.WithNumber("DropletID", mcp.Required(), mcp.Description("Droplet ID")),
 				mcp.WithNumber("ActionID", mcp.Required(), mcp.Description("Action ID")),
@@ -394,7 +395,7 @@ func (d *DropletTool) Tools() []server.ServerTool {
 		{
 			Handler: d.getDroplets,
 			Tool: mcp.NewTool("droplet-list",
-				withHints(hintsRead),
+				common.WithHints(common.HintsRead),
 				mcp.WithDescription("List all droplets for the user. Supports pagination."),
 				mcp.WithNumber("Page", mcp.DefaultNumber(1), mcp.Description("Page number")),
 				mcp.WithNumber("PerPage", mcp.DefaultNumber(50), mcp.Description("Items per page")),
